@@ -1,4 +1,4 @@
-// Галерея рисунков для отзыва на компьютере: рябина и яблоня, все голуби, перья, плащ на всех стадиях.
+// Галерея рисунков для отзыва на компьютере: ива, рябина и яблоня, все голуби, перья, плащ на всех стадиях.
 // Только для разработки: npm run dev → http://localhost:5173/gallery.html. В приложение не входит.
 
 import { render } from 'preact';
@@ -12,6 +12,7 @@ import { FeatherArt, MessageScrollArt, PIGEON_PALETTE, PigeonArt, SIZE_SCALE } f
 import { GoodArt } from '../ui/shop-art';
 import { PlantArt } from '../ui/valley/plant-art';
 import { SectionIconsSection } from './gallery-sections';
+import { WillowSection } from './gallery-willow';
 
 /** Яблоня до правки — с плоским овалом посередине кроны, для сравнения (размер «средний»). */
 function OldApple() {
@@ -226,6 +227,8 @@ function Gallery() {
         <code>src/ui/cloak-art.tsx</code>{' '}
         видны здесь сразу, без перезагрузки.
       </p>
+
+      <WillowSection />
 
       <SectionIconsSection />
 
