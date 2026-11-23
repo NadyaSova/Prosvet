@@ -14,10 +14,17 @@
 //
 // Почему не --dump-dom: он снимает страницу сразу после загрузки и не ждёт асинхронного открытия IndexedDB.
 
+//
+// Браузер закрывается командой Browser.close, а потом — на всякий случай — закрываются все процессы
+// с этим профилем в командной строке. Закрыть по номеру процесса нельзя: запущенный msedge.exe сразу
+// передаёт работу другому процессу и выходит. Раньше из-за этого браузеры оставались жить (сотни
+// процессов, гигабайты памяти), держали профили, и каждый запуск ждал минуты, пока их удастся удалить.
+// Порт отладки выбирает сам браузер (--remote-debugging-port=0), поэтому запуски не мешают друг другу.
+
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 const [browserPath, url, waitMs = '4000', reloads = '0', action] = process.argv.slice(2);
 if (!browserPath || !url) {
@@ -25,30 +32,54 @@ if (!browserPath || !url) {
   process.exit(1);
 }
 
-const port = 9333;
-// Убрать профили, оставшиеся от прошлых запусков, если те оборвались до удаления.
-for (const name of readdirSync(tmpdir())) {
-  // Без повторов: если файлы всё ещё заняты, повторы только тратят время (раньше — минуты на каждый запуск).
-  if (name.startsWith('prosvet-cdp-')) removeProfile(join(tmpdir(), name), 0);
+// Остатки прошлых запусков старше 10 минут: закрыть их браузеры и удалить профили.
+// Свежие не трогаем — ими может пользоваться запуск, который идёт параллельно.
+const stale = readdirSync(tmpdir())
+  .filter((name) => name.startsWith('prosvet-cdp-'))
+  .map((name) => join(tmpdir(), name))
+  .filter((dir) => {
+    try {
+      return Date.now() - statSync(dir).mtimeMs > 10 * 60 * 1000;
+    } catch {
+      return false;
+    }
+  });
+if (stale.length) {
+  killBrowsers(stale);
+  for (const dir of stale) removeProfile(dir);
 }
+
 const profile = mkdtempSync(join(tmpdir(), 'prosvet-cdp-'));
-const browser = spawn(
-  browserPath,
-  ['--headless=new', '--disable-gpu', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'],
-  { stdio: 'ignore' },
-);
+spawn(browserPath, ['--headless=new', '--disable-gpu', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], {
+  stdio: 'ignore',
+});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let browserWs;
 
 try {
-  let target;
-  for (let i = 0; i < 40 && !target; i++) {
+  // Порт браузер пишет в файл DevToolsActivePort своего профиля: первая строка — порт, вторая — путь.
+  let port;
+  for (let i = 0; i < 40 && !port; i++) {
     await sleep(250);
+    try {
+      const [p, path] = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n');
+      if (Number(p) > 0 && path) {
+        port = Number(p);
+        browserWs = `ws://127.0.0.1:${port}${path.trim()}`;
+      }
+    } catch {
+      // браузер ещё запускается
+    }
+  }
+  let target;
+  for (let i = 0; port && i < 40 && !target; i++) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
       target = list.find((t) => t.type === 'page');
     } catch {
-      // браузер ещё запускается
+      // страница ещё не готова
     }
+    if (!target) await sleep(250);
   }
   if (!target) throw new Error('Браузер не запустился');
 
@@ -110,19 +141,35 @@ try {
   ws.close();
 } finally {
   // Профиль браузера весит десятки мегабайт — удалить его, когда браузер закроется и отпустит файлы.
-  // browser.kill() закрывает только главный процесс, а дочерние процессы Edge оставались жить, держали
-  // файлы профиля и копились (сотни процессов). Поэтому на Windows закрываем всё дерево процессов.
-  const exited = new Promise((r) => browser.once('exit', r));
-  killTree(browser);
-  await Promise.race([exited, sleep(5000)]);
+  await closeBrowser();
+  killBrowsers([profile]);
   removeProfile(profile);
 }
 
-function killTree(child) {
-  if (process.platform === 'win32' && child.pid) {
-    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+/** Закрыть браузер его же командой и дождаться, пока он оборвёт связь (не дольше 3 секунд). */
+async function closeBrowser() {
+  if (!browserWs) return;
+  try {
+    const ws = new WebSocket(browserWs);
+    await Promise.race([new Promise((r) => ws.addEventListener('open', r)), sleep(2000)]);
+    const closed = new Promise((r) => ws.addEventListener('close', r));
+    ws.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
+    await Promise.race([closed, sleep(3000)]);
+    await sleep(300);
+  } catch {
+    // браузер уже закрыт — дальше его процессы добьёт killBrowsers
+  }
+}
+
+/** Закрыть все процессы браузера, у которых в командной строке один из этих профилей. */
+function killBrowsers(dirs) {
+  const names = dirs.map((d) => basename(d));
+  if (process.platform === 'win32') {
+    const match = names.map((n) => `$_.CommandLine -like '*${n}*'`).join(' -or ');
+    const ps = `Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" | Where-Object { ${match} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+    spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { stdio: 'ignore' });
   } else {
-    child.kill();
+    for (const n of names) spawnSync('pkill', ['-f', n], { stdio: 'ignore' });
   }
 }
 
