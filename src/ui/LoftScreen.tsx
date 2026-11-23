@@ -1,6 +1,6 @@
 // Голубятня: плащ из перьев, жёрдочка с пятью голубями, голуби в пути и вернувшиеся. SPEC.md §9.4.
 
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { BALANCE } from '../config/balance';
 import { canLateInvite, cloakView, daysInFlight, feathersOf } from '../logic/pigeons';
 import type { LoftState, Pigeon } from '../model/types';
@@ -34,6 +34,7 @@ export function LoftScreen({ pigeons, loft, now, onSend, onAnswer, onLateInvite 
   const [picked, setPicked] = useState<number | null>(null);
   const [company, setCompany] = useState('');
   const [answering, setAnswering] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const feathers = feathersOf(pigeons);
   const cloak = cloakView(feathers.length);
@@ -42,9 +43,17 @@ export function LoftScreen({ pigeons, loft, now, onSend, onAnswer, onLateInvite 
     .filter((p) => p.status === 'returned')
     .sort((a, b) => (b.returnedAt ?? 0) - (a.returnedAt ?? 0));
 
+  // Курсор в поле — каждый раз, когда выбран голубь. Атрибут autofocus браузер выполняет только раз за страницу.
+  useEffect(() => {
+    if (picked !== null) inputRef.current?.focus();
+  }, [picked]);
+
   function send(e: Event) {
     e.preventDefault();
     if (picked === null || !company.trim()) return;
+    // Сначала отпустить поле: клавиатура Android дописывает слово и закрывается. Если убрать поле с экрана,
+    // пока в нём курсор и незаконченное слово, клавиатура может перестать вводить текст в следующее поле.
+    inputRef.current?.blur();
     onSend(picked, company.trim());
     setPicked(null);
     setCompany('');
@@ -96,9 +105,9 @@ export function LoftScreen({ pigeons, loft, now, onSend, onAnswer, onLateInvite 
                 type="text"
                 class="input"
                 placeholder="Название компании"
+                ref={inputRef}
                 value={company}
                 onInput={(e) => setCompany(e.currentTarget.value)}
-                autoFocus
               />
             </label>
             <div class="task__actions">
