@@ -1,14 +1,115 @@
-// Галерея рисунков для отзыва на компьютере: все голуби, перья, плащ на всех стадиях.
+// Галерея рисунков для отзыва на компьютере: рябина и яблоня, все голуби, перья, плащ на всех стадиях.
 // Только для разработки: npm run dev → http://localhost:5173/gallery.html. В приложение не входит.
 
 import { render } from 'preact';
 import '../styles.css';
 import type { Feather } from '../logic/pigeons';
-import { PIGEON_COLORS, PIGEON_POSES, PIGEON_SIZES, type PigeonColor, type PigeonLook } from '../model/types';
+import { GOODS, type Good } from '../logic/shop';
+import { PIGEON_COLORS, PIGEON_POSES, PIGEON_SIZES, type PlantSize, type PigeonColor, type PigeonLook } from '../model/types';
 import { CloakArt } from '../ui/cloak-art';
 import { PIGEON_COLOR_NAMES, PIGEON_SIZE_NAMES } from '../ui/labels';
 import { FeatherArt, MessageScrollArt, PIGEON_PALETTE, PigeonArt, SIZE_SCALE } from '../ui/pigeon-art';
+import { GoodArt } from '../ui/shop-art';
+import { PlantArt } from '../ui/valley/plant-art';
 import { SectionIconsSection } from './gallery-sections';
+
+/** Яблоня до правки — с плоским овалом посередине кроны, для сравнения (размер «средний»). */
+function OldApple() {
+  const h = 29 * 0.85;
+  const colors = ['#5f9450', '#4f8344', '#6ea25b'];
+  const w = h * 0.11;
+  const rx = h * 0.44;
+  const cy = -h * 0.62;
+  const fruit = h * 0.05;
+  const apples = [
+    [-0.55, 0.35],
+    [-0.2, 0.55],
+    [0.25, 0.45],
+    [0.6, 0.2],
+    [0.05, -0.15],
+    [-0.4, -0.3],
+  ];
+  return (
+    <svg class="good__art" viewBox="-15 -28 30 31" aria-hidden="true">
+      <path
+        d={`M0 0 Q${-w * 0.6} ${-h * 0.2} ${w * 0.2} ${-h * 0.42} M${w * 0.1} ${-h * 0.32} L${h * 0.16} ${-h * 0.5} M${-w * 0.1} ${-h * 0.3} L${-h * 0.15} ${-h * 0.48}`}
+        stroke="#6b4a35"
+        stroke-width={w}
+        stroke-linecap="round"
+        fill="none"
+      />
+      <circle cx={-rx * 0.45} cy={cy - h * 0.14} r={h * 0.2} fill={colors[1]} />
+      <circle cx={rx * 0.4} cy={cy - h * 0.16} r={h * 0.19} fill={colors[2]} />
+      <ellipse cx={0} cy={cy} rx={rx} ry={h * 0.24} fill={colors[0]} />
+      {apples.map(([ax, ay], i) => {
+        const x = ax! * rx * 0.85;
+        const y = cy + ay! * h * 0.24;
+        return (
+          <g key={i}>
+            <circle cx={x} cy={y} r={fruit} fill={i === 3 ? '#e9a23b' : '#d8403a'} />
+            <circle cx={x - fruit * 0.35} cy={y - fruit * 0.35} r={fruit * 0.3} fill="#ffffff" opacity="0.55" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+const goodOf = (id: string): Good => GOODS.find((g) => g.id === id)!;
+const TREE_SIZES: { size: PlantSize; name: string }[] = [
+  { size: 'small', name: 'маленькая' },
+  { size: 'medium', name: 'средняя' },
+  { size: 'large', name: 'большая' },
+];
+
+/** Дерево на кусочке травы, как в долине. */
+function TreeTile({ kind, size, seed }: { kind: 'apple' | 'rowan'; size: PlantSize; seed: number }) {
+  return (
+    <svg class="gallery__tree" viewBox="-26 -48 52 52" aria-hidden="true">
+      <rect x="-26" y="-48" width="52" height="48" fill="var(--color-sky)" />
+      <rect x="-26" y="0" width="52" height="4" fill="var(--color-hill-mid)" />
+      <PlantArt kind={kind} size={size} seed={seed} />
+    </svg>
+  );
+}
+
+function TreesSection() {
+  return (
+    <section class="card">
+      <h2>Рябина и яблоня</h2>
+      <h3 class="gallery__row-title">В лавке</h3>
+      <div class="gallery__shop">
+        <figure>
+          <OldApple />
+          <figcaption class="muted small">яблоня: было</figcaption>
+        </figure>
+        <figure>
+          <GoodArt good={goodOf('apple')} />
+          <figcaption class="muted small">яблоня: стало</figcaption>
+        </figure>
+        <figure>
+          <GoodArt good={goodOf('rowan')} />
+          <figcaption class="muted small">рябина</figcaption>
+        </figure>
+      </div>
+      {(['apple', 'rowan'] as const).map((kind) => (
+        <div key={kind}>
+          <h3 class="gallery__row-title">{kind === 'apple' ? 'Яблоня' : 'Рябина'}: три размера, по три дерева (у каждого свой сид)</h3>
+          <div class="gallery__grid">
+            {TREE_SIZES.map(({ size, name }) =>
+              [11, 47, 2026].map((seed) => (
+                <figure key={`${size}-${seed}`}>
+                  <TreeTile kind={kind} size={size} seed={seed} />
+                  <figcaption class="muted small">{name}</figcaption>
+                </figure>
+              )),
+            )}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 const POSE_NAMES: Record<PigeonLook['pose'], string> = {
   sit: 'сидит',
@@ -121,7 +222,8 @@ function Gallery() {
     <main class="gallery">
       <h1>Галерея рисунков</h1>
       <p class="muted">
-        Страница только для разработки. Правки рисунков в <code>src/ui/pigeon-art.tsx</code> и <code>src/ui/cloak-art.tsx</code>{' '}
+        Страница только для разработки. Правки рисунков в <code>src/ui/valley/plant-art.tsx</code>, <code>src/ui/pigeon-art.tsx</code> и{' '}
+        <code>src/ui/cloak-art.tsx</code>{' '}
         видны здесь сразу, без перезагрузки.
       </p>
 
@@ -157,6 +259,8 @@ function Gallery() {
           <MessageScrollArt />
         </div>
       </section>
+
+      <TreesSection />
 
       <section class="card">
         <h2>Голуби: было и стало</h2>
@@ -245,6 +349,9 @@ style.textContent = `
   .gallery__perch--frame .perch__pigeon--picked { background: rgba(246, 193, 119, 0.35); box-shadow: inset 0 0 0 2px var(--color-sun); border-radius: 14px; }
   .gallery__perch--frame .perch__pigeon--picked::before { display: none; }
   .gallery__scroll { width: 200px; }
+  .gallery__shop { display: flex; flex-wrap: wrap; gap: 24px; }
+  .gallery__shop .good__art { width: 120px; height: 120px; margin: 0 auto 4px; }
+  .gallery__tree { border-radius: 10px; }
 `;
 document.head.append(style);
 
