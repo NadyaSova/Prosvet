@@ -10,6 +10,7 @@ import { dateText, plural } from './format';
 import { goodLabel } from './labels';
 import { go, replaceRoute } from './router';
 import { GoodArt } from './shop-art';
+import { ask } from './confirm';
 
 interface Props {
   tab: 'gold' | 'stars';
@@ -66,14 +67,14 @@ export function ShopScreen({ tab, player, valley, shop, onBuyGood, onBuyPrize }:
   const [bought, setBought] = useState<Good | null>(null);
   const history = couponHistory(shop.coupons);
 
-  function buy(good: Good) {
+  async function buy(good: Good) {
     const name = goodLabel(good).name;
-    if (!confirm(`Купить «${name}» за ${good.price} золота?`)) return;
+    if (!(await ask(`Купить «${name}» за ${good.price} золота?`, { ok: 'Купить', cancel: 'Не сейчас' }))) return;
     if (onBuyGood(good)) setBought(good);
   }
 
-  function buyPrize(id: string, title: string, price: number) {
-    if (confirm(`Купить «${title}» за ${starsText(price)}?`)) onBuyPrize(id);
+  async function buyPrize(id: string, title: string, price: number) {
+    if (await ask(`Купить «${title}» за ${starsText(price)}?`, { ok: 'Купить', cancel: 'Не сейчас' })) onBuyPrize(id);
   }
 
   return (

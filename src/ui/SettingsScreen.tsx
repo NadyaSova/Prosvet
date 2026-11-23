@@ -8,6 +8,7 @@ import { BackBar } from './common';
 import { DataSection } from './DataSection';
 import { minutesText } from './format';
 import { BRANCH_NAMES } from './labels';
+import { ask } from './confirm';
 
 interface Props {
   db: ProsvetDb;
@@ -54,8 +55,8 @@ export function SettingsScreen(p: Props) {
                     <button
                       type="button"
                       class="link-button"
-                      onClick={() => {
-                        if (confirm(`Удалить задание «${t.title}»?`)) p.onDeleteCustom(t.id);
+                      onClick={async () => {
+                        if (await ask(`Удалить задание «${t.title}»?`, { ok: 'Удалить', cancel: 'Оставить', danger: true })) p.onDeleteCustom(t.id);
                       }}
                     >
                       Удалить

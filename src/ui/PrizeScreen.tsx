@@ -6,6 +6,7 @@ import { BALANCE } from '../config/balance';
 import { cleanPrizeInput, type PrizeInput } from '../logic/shop';
 import type { Prize } from '../model/types';
 import { BackBar } from './common';
+import { ask } from './confirm';
 import { plural } from './format';
 
 /** Значки на выбор. Необязательны. */
@@ -34,12 +35,12 @@ export function PrizeScreen({ mode, prize, stars, onSave, onDelete }: Props) {
   const own = mode === 'own';
   const short = own ? price - stars : 0;
 
-  function submit(e: Event) {
+  async function submit(e: Event) {
     e.preventDefault();
     if (!input || short > 0) return;
     // Сначала отпустить поле: клавиатура Android дописывает слово и закрывается до смены экрана.
     titleRef.current?.blur();
-    if (own && !confirm(`Купить «${input.title}» за ${input.price} ★?`)) return;
+    if (own && !(await ask(`Купить «${input.title}» за ${input.price} ★?`, { ok: 'Купить', cancel: 'Не сейчас' }))) return;
     onSave(input);
   }
 
@@ -107,7 +108,9 @@ export function PrizeScreen({ mode, prize, stars, onSave, onDelete }: Props) {
           <button
             type="button"
             class="link-button entry-delete"
-            onClick={() => confirm('Удалить приз? Купленные купоны останутся.') && onDelete()}
+            onClick={async () => {
+              if (await ask('Удалить приз? Купленные купоны останутся.', { ok: 'Удалить', cancel: 'Оставить', danger: true })) onDelete();
+            }}
           >
             Удалить приз
           </button>

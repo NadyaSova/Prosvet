@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { ENTRY_PARTS, MAX_SKILL_LENGTH, PART_LABELS, missingParts, normalizeSkills, parseSkillInput, type EntryFields, type EntryPart } from '../logic/journal';
 import type { Achievement } from '../model/types';
 import { BackBar } from './common';
+import { ask } from './confirm';
 import { dateText } from './format';
 
 interface Props {
@@ -200,8 +201,8 @@ export function JournalEntryScreen({ entry, knownSkills, rewardWaiting, onSave, 
           <button
             type="button"
             class="link-button entry-delete"
-            onClick={() => {
-              if (confirm('Удалить запись? Вернуть её будет нельзя.')) onDelete();
+            onClick={async () => {
+              if (await ask('Удалить запись? Вернуть её будет нельзя.', { ok: 'Удалить', cancel: 'Оставить', danger: true })) onDelete();
             }}
           >
             Удалить запись

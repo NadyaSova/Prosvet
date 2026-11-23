@@ -62,6 +62,7 @@ import { SettingsScreen } from './ui/SettingsScreen';
 import { ShopScreen } from './ui/ShopScreen';
 import { TimerScreen } from './ui/TimerScreen';
 import { ValleyScreen } from './ui/ValleyScreen';
+import { ask } from './ui/confirm';
 
 type LoadState =
   | { kind: 'loading' }
@@ -277,23 +278,38 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     }
   }
 
-  function finishEarly() {
+  async function finishEarly() {
     const t = gameRef.current.timer;
     if (!t) return;
     const settled = settleTimer(t, Date.now());
     if (!settled) {
-      if (confirm('Прошло меньше минуты — засчитывать пока нечего. Отменить задание?')) commit(cancelTask(gameRef.current));
+      const yes = await ask('Прошло меньше минуты — засчитывать пока нечего. Отменить задание?', {
+        ok: 'Отменить',
+        cancel: 'Продолжить',
+      });
+      if (yes && gameRef.current.timer) commit(cancelTask(gameRef.current));
       return;
     }
-    if (!settled.full && !confirm(`Закончить сейчас? Засчитается ${minutesText(settled.minutes)}, без карты добычи.`)) return;
+    if (!settled.full) {
+      const yes = await ask(`Закончить сейчас? Засчитается ${minutesText(settled.minutes)}, без карты добычи.`, {
+        ok: 'Закончить',
+        cancel: 'Продолжить',
+      });
+      // Пока окно было открыто, таймер мог дойти до конца сам.
+      if (!yes || !gameRef.current.timer) return;
+    }
     const r = finishTimedTask(gameRef.current, templatesRef.current, Date.now(), Math.random);
     if (!r) return;
     commit(r.state);
     showReward(r.done);
   }
 
-  function cancel() {
-    if (confirm('Отменить задание? Награды не будет, но и ничего не потеряешь.')) commit(cancelTask(gameRef.current));
+  async function cancel() {
+    const yes = await ask('Отменить задание? Награды не будет, но и ничего не потеряешь.', {
+      ok: 'Отменить',
+      cancel: 'Продолжить',
+    });
+    if (yes && gameRef.current.timer) commit(cancelTask(gameRef.current));
   }
 
   // Летопись

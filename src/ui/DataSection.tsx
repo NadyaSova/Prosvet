@@ -14,6 +14,7 @@ import { downloadText, type Persistence } from '../storage/browser';
 import type { Settings } from '../model/types';
 import type { ProsvetDb } from '../storage/db';
 import { loadAppData, type AppData } from '../storage/repo';
+import { ask } from './confirm';
 
 interface Props {
   db: ProsvetDb;
@@ -46,7 +47,7 @@ export function DataSection({ db, settings, persistence, onChange }: Props) {
     try {
       const snapshot = parseSnapshot(await file.text());
       const when = snapshot.exportedAt ? dateFormat.format(new Date(snapshot.exportedAt)) : 'неизвестной даты';
-      if (!confirm(`Заменить все данные копией от ${when}? Текущие данные пропадут.`)) return;
+      if (!(await ask(`Заменить все данные копией от ${when}? Текущие данные пропадут.`, { ok: 'Заменить', cancel: 'Отмена', danger: true }))) return;
       await importSnapshot(db, snapshot);
       onChange(await loadAppData(db, Date.now()));
       setMessage({ text: 'Данные восстановлены.' });

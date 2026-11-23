@@ -1879,3 +1879,60 @@ textarea:focus {
   text-align: center;
   pointer-events: none;
 }
+
+/* Окно подтверждения (src/ui/confirm.tsx) вместо confirm() браузера */
+
+.confirm {
+  width: min(360px, calc(100% - 32px));
+  max-width: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-card-strong);
+  color: var(--color-text);
+  box-shadow: 0 12px 40px rgba(63, 58, 52, 0.28);
+}
+
+.confirm::backdrop {
+  background: rgba(63, 58, 52, 0.45);
+}
+
+.confirm[open] {
+  animation: confirm-in 0.16s ease-out;
+}
+
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.confirm__box {
+  padding: 22px 20px 18px;
+}
+
+.confirm__text {
+  margin: 0 0 20px;
+  font-size: 17px;
+}
+
+.confirm__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm__actions .button {
+  flex: 1;
+  padding-inline: 12px;
+}
+
+.button--danger {
+  background: var(--color-error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm[open] {
+    animation: none;
+  }
+}

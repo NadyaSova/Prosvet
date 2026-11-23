@@ -9,6 +9,7 @@ import { BackBar } from './common';
 import { dateText, daysText, feathersText, plural } from './format';
 import { PIGEON_COLOR_NAMES, PIGEON_SIZE_NAMES } from './labels';
 import { FeatherArt, MessageScrollArt, PigeonArt } from './pigeon-art';
+import { ask } from './confirm';
 
 interface Props {
   pigeons: readonly Pigeon[];
@@ -59,8 +60,8 @@ export function LoftScreen({ pigeons, loft, now, onSend, onAnswer, onLateInvite 
     setCompany('');
   }
 
-  function lateInvite(p: Pigeon) {
-    if (confirm(`«${p.company}» всё-таки позвали дальше? Голубь принесёт ещё и золотое перо.`)) onLateInvite(p.id);
+  async function lateInvite(p: Pigeon) {
+    if (await ask(`«${p.company}» всё-таки позвали дальше? Голубь принесёт ещё и золотое перо.`, { ok: 'Да, позвали', cancel: 'Нет' })) onLateInvite(p.id);
   }
 
   return (
