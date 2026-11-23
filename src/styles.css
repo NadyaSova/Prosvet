@@ -313,6 +313,78 @@ h2 {
   margin: 0 6px;
 }
 
+.valley-card__frame {
+  position: relative;
+}
+
+/* Кнопка «Открыть долину крупно» в углу панорамы. */
+.valley-card__expand {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 250, 242, 0.85);
+}
+
+.valley-card__expand svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Долина крупно: во весь экран, листается во все стороны. */
+.valley-screen {
+  max-width: none;
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.valley-screen .backbar {
+  width: 100%;
+  max-width: 448px;
+  margin: 0 auto;
+}
+
+.valley-screen__note {
+  width: 100%;
+  max-width: 448px;
+  margin: -6px auto 0;
+}
+
+.valley-big {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: auto;
+  border-radius: var(--radius);
+  background: var(--color-sky);
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
+
+.valley-big::-webkit-scrollbar {
+  display: none;
+}
+
+/* Когда картина меньше окна — по горизонтали посередине, по вертикали внизу (сверху то же небо). */
+.valley-big .valley__scene {
+  flex: none;
+  margin: auto auto 0;
+}
+
+.backbar__end {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* Хмарь отходит медленно. */
 .valley__mist {
   transition: transform 3.2s ease-in-out;

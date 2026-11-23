@@ -6,7 +6,8 @@ import { minutesText } from './format';
 import { BRANCH_NAMES } from './labels';
 import { goHome } from './router';
 
-export function BackBar({ title }: { title: string }) {
+/** Шапка экрана: «Назад», заголовок и, если есть, кнопки справа. */
+export function BackBar({ title, children }: { title: string; children?: ComponentChildren }) {
   return (
     <header class="backbar">
       <button type="button" class="icon-button" aria-label="Назад" onClick={goHome}>
@@ -15,6 +16,7 @@ export function BackBar({ title }: { title: string }) {
         </svg>
       </button>
       <h1>{title}</h1>
+      {children && <div class="backbar__end">{children}</div>}
     </header>
   );
 }

@@ -94,7 +94,19 @@ export function MainScreen({
       </header>
 
       <section class="valley-card">
-        <ValleyView valley={game.valley} fire={streak.fire} feathers={feathers} cloakStage={cloakStage} fresh={fresh} />
+        <div class="valley-card__frame">
+          <ValleyView valley={game.valley} fire={streak.fire} feathers={feathers} cloakStage={cloakStage} fresh={fresh} />
+          <button
+            type="button"
+            class="icon-button valley-card__expand"
+            aria-label="Открыть долину крупно"
+            onClick={() => go('valley')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />
+            </svg>
+          </button>
+        </div>
         {plantable && (
           <div class="valley-card__plant">
             <span class="small">

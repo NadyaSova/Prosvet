@@ -25,7 +25,9 @@ import {
 import { allSkills, createEntry, updateEntry, type EntryFields } from './logic/journal';
 import { pickPhrase } from './logic/phrases';
 import { cloakView, dueQuestion, feathersOf, markAsked } from './logic/pigeons';
+import { viewStreak } from './logic/streak';
 import { mergeTemplates } from './logic/tasks';
+import { dayOf } from './logic/time';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
 import type { Achievement, Branch, LoftState, Pigeon, Settings, TaskTemplate } from './model/types';
 import { requestPersistence, type Persistence } from './storage/browser';
@@ -54,6 +56,7 @@ import { RewardScreen, type ShownReward } from './ui/RewardScreen';
 import { go, goHome, journalRoute, useRoute } from './ui/router';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { TimerScreen } from './ui/TimerScreen';
+import { ValleyScreen } from './ui/ValleyScreen';
 
 type LoadState =
   | { kind: 'loading' }
@@ -412,7 +415,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
 
   const flying = pigeons.filter((p) => p.status === 'flying');
   const feathersList = useMemo(() => feathersOf(pigeons), [pigeons]);
-  const onMain = !reward && !feather && !game.timer && !journal && !['loft', 'settings', 'custom'].includes(route);
+  const onMain = !reward && !feather && !game.timer && !journal && !['loft', 'settings', 'custom', 'valley'].includes(route);
 
   // Анимация роста показывается один раз: через несколько секунд на главном экране растение считается обычным.
   useEffect(() => {
@@ -461,6 +464,15 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         onSend={launch}
         onAnswer={answer}
         onLateInvite={lateInvite}
+      />
+    );
+  } else if (route === 'valley') {
+    screen = (
+      <ValleyScreen
+        valley={game.valley}
+        fire={viewStreak(game.player.streak, dayOf(now)).fire}
+        feathers={feathersList}
+        cloakStage={cloakView(feathersList.length).stage}
       />
     );
   } else if (route === 'settings') {

@@ -1,4 +1,4 @@
-// Долина — панорама на 2,5 экрана, листается вбок. Рисует только то, что дала модель (sceneOf):
+// Долина — панорама на 2,5 экрана, листается вбок. Крупно, с увеличением — ValleyScreen. Рисует только то, что дала модель (sceneOf):
 // рельеф и места — из logic/valley-district.ts, растения и редкости — из состояния долины.
 // Графику можно заменить (например, спрайтами), не трогая игровую логику. SPEC.md §12.3.
 
@@ -80,7 +80,7 @@ const STATIC_LAYERS = {
   river: riverPath(),
 };
 
-interface Props {
+export interface SceneProps {
   valley: ValleyState;
   fire: FireLevel;
   feathers: readonly Feather[];
@@ -89,9 +89,47 @@ interface Props {
   fresh: string | null;
 }
 
-export function ValleyView({ valley, fire, feathers, cloakStage, fresh }: Props) {
-  const scene = useMemo(() => sceneOf(valley), [valley]);
+/** Высота кадра в единицах мира (верх неба обрезан). */
+export const SCENE_HEIGHT = H - VIEW_TOP;
+
+/** Где по горизонтали открыть панораму: только что выросшее, иначе последнее растение, иначе лагерь. */
+export function focusX(valley: ValleyState, fresh: string | null): number {
+  const scene = sceneOf(valley);
+  const freshPlant = fresh ? scene.plants.find((p) => p.id === fresh) : undefined;
+  const freshDecor = fresh ? scene.decor.find((d) => d.id === fresh) : undefined;
+  const latest = latestPlant(valley);
+  return freshPlant?.x ?? freshDecor?.x ?? (latest ? SLOTS[latest.slot]!.x : 0);
+}
+
+/** Панорама в карточке главного экрана: видно VIEW_WIDTH единиц, остальное листается вбок. */
+export function ValleyView(props: SceneProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Панорама открывается там, где выросло последнее.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const k = el.clientWidth / VIEW_WIDTH;
+    el.scrollLeft = Math.max(0, focusX(props.valley, props.fresh) * k - el.clientWidth / 2);
+  }, [props.fresh]);
+
+  return (
+    <div class="valley" ref={scrollRef}>
+      <ValleyScene {...props} />
+    </div>
+  );
+}
+
+/** Сама картина долины. Размер задаёт обёртка (style или CSS класса valley__scene). */
+export function ValleyScene({
+  valley,
+  fire,
+  feathers,
+  cloakStage,
+  fresh,
+  style,
+}: SceneProps & { style?: Record<string, string> }) {
+  const scene = useMemo(() => sceneOf(valley), [valley]);
 
   // Хмарь отходит медленно: сначала там, где была до нового растения, потом на новом месте.
   const before = useMemo(
@@ -105,18 +143,6 @@ export function ValleyView({ valley, fire, feathers, cloakStage, fresh }: Props)
     return () => clearTimeout(id);
   }, [mistX, scene.mistX]);
 
-  // Панорама открывается там, где выросло последнее.
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const freshPlant = fresh ? scene.plants.find((p) => p.id === fresh) : undefined;
-    const freshDecor = fresh ? scene.decor.find((d) => d.id === fresh) : undefined;
-    const latest = latestPlant(valley);
-    const x = freshPlant?.x ?? freshDecor?.x ?? (latest ? SLOTS[latest.slot]!.x : 0);
-    const k = el.clientWidth / VIEW_WIDTH;
-    el.scrollLeft = Math.max(0, x * k - el.clientWidth / 2);
-  }, [fresh]);
-
   const n = scene.plants.length;
   const plants = `${n} ${plural(n, ['растение', 'растения', 'растений'])}`;
   const label = scene.open
@@ -124,84 +150,88 @@ export function ValleyView({ valley, fire, feathers, cloakStage, fresh }: Props)
     : `Долина: ${plants} из ${CAPACITY}, остальное пока в хмари`;
 
   return (
-    <div class="valley" ref={scrollRef}>
-      <svg class="valley__scene" viewBox={`0 ${VIEW_TOP} ${W} ${H - VIEW_TOP}`} role="img" aria-label={label}>
-        <defs>
-          <linearGradient id="mist-edge" gradientUnits="userSpaceOnUse" x1="-60" y1="0" x2="12" y2="0">
-            <stop offset="0" stop-color="#cfcfd3" stop-opacity="0" />
-            <stop offset="1" stop-color="#cfcfd3" stop-opacity="0.9" />
-          </linearGradient>
-        </defs>
-        <rect x="0" y="0" width={W} height={H} fill="var(--color-sky)" />
-        <circle cx="292" cy="50" r="22" fill="var(--color-sun)" />
-        <g fill="#fffaf2" opacity="0.7" aria-hidden="true">
-          <ellipse cx="470" cy="58" rx="26" ry="7" />
-          <ellipse cx="488" cy="53" rx="14" ry="7" />
-          <ellipse cx="690" cy="72" rx="30" ry="8" />
-          <ellipse cx="708" cy="66" rx="16" ry="8" />
-          <ellipse cx="880" cy="50" rx="22" ry="6" />
+    <svg
+      class="valley__scene"
+      viewBox={`0 ${VIEW_TOP} ${W} ${H - VIEW_TOP}`}
+      role="img"
+      aria-label={label}
+      style={style}
+    >
+      <defs>
+        <linearGradient id="mist-edge" gradientUnits="userSpaceOnUse" x1="-60" y1="0" x2="12" y2="0">
+          <stop offset="0" stop-color="#cfcfd3" stop-opacity="0" />
+          <stop offset="1" stop-color="#cfcfd3" stop-opacity="0.9" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width={W} height={H} fill="var(--color-sky)" />
+      <circle cx="292" cy="50" r="22" fill="var(--color-sun)" />
+      <g fill="#fffaf2" opacity="0.7" aria-hidden="true">
+        <ellipse cx="470" cy="58" rx="26" ry="7" />
+        <ellipse cx="488" cy="53" rx="14" ry="7" />
+        <ellipse cx="690" cy="72" rx="30" ry="8" />
+        <ellipse cx="708" cy="66" rx="16" ry="8" />
+        <ellipse cx="880" cy="50" rx="22" ry="6" />
+      </g>
+      <g fill="none" stroke="#7a6e62" stroke-width="1.2">
+        <path d="M250 36 q5 -5 10 0 q5 -5 10 0" />
+        <path d="M60 46 q4 -4 8 0 q4 -4 8 0" />
+        <path d="M540 40 q4 -4 8 0 q4 -4 8 0" />
+        <path d="M780 30 q5 -5 10 0 q5 -5 10 0" />
+      </g>
+      {scene.decor.filter((d) => d.kind === 'rainbow').map((d) => (
+        <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
+          <DecorArt d={d} />
         </g>
-        <g fill="none" stroke="#7a6e62" stroke-width="1.2">
-          <path d="M250 36 q5 -5 10 0 q5 -5 10 0" />
-          <path d="M60 46 q4 -4 8 0 q4 -4 8 0" />
-          <path d="M540 40 q4 -4 8 0 q4 -4 8 0" />
-          <path d="M780 30 q5 -5 10 0 q5 -5 10 0" />
-        </g>
-        {scene.decor.filter((d) => d.kind === 'rainbow').map((d) => (
-          <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
-            <DecorArt d={d} />
-          </g>
-        ))}
-        {STATIC_LAYERS.hills.map((h) => (
-          <path key={h.band} d={h.d} fill={HILL_COLORS[h.band]} />
-        ))}
-        <path d={STATIC_LAYERS.river} fill="var(--color-river)" />
+      ))}
+      {STATIC_LAYERS.hills.map((h) => (
+        <path key={h.band} d={h.d} fill={HILL_COLORS[h.band]} />
+      ))}
+      <path d={STATIC_LAYERS.river} fill="var(--color-river)" />
 
-        {scene.plants.map((p) => (
-          <g key={p.id} transform={`translate(${p.x} ${p.y}) scale(${p.scale.toFixed(3)})`}>
-            <g class={p.id === fresh ? 'plant plant--new' : 'plant'}>
-              <g
-                class={sways(p.kind, p.size) ? 'plant__sway' : undefined}
-                style={{ animationDelay: `${-((p.seed % 6000) / 1000).toFixed(2)}s` }}
-              >
-                <PlantArt kind={p.kind} size={p.size} seed={p.seed} />
-              </g>
+      {scene.plants.map((p) => (
+        <g key={p.id} transform={`translate(${p.x} ${p.y}) scale(${p.scale.toFixed(3)})`}>
+          <g class={p.id === fresh ? 'plant plant--new' : 'plant'}>
+            <g
+              class={sways(p.kind, p.size) ? 'plant__sway' : undefined}
+              style={{ animationDelay: `${-((p.seed % 6000) / 1000).toFixed(2)}s` }}
+            >
+              <PlantArt kind={p.kind} size={p.size} seed={p.seed} />
             </g>
           </g>
-        ))}
-        {scene.decor.filter((d) => d.kind === 'deer').map((d) => (
-          <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
-            <DecorArt d={d} />
-          </g>
-        ))}
-
-        <WandererArt feathers={feathers} stage={cloakStage} x={CAMP.wandererX} y={CAMP.y} />
-        <CampfireArt level={fire} x={CAMP.fireX} y={CAMP.y} />
-
-        {scene.decor.filter((d) => d.kind === 'fireflies').map((d) => (
-          <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
-            <DecorArt d={d} />
-          </g>
-        ))}
-
-        <g class="valley__mist" style={{ transform: `translateX(${mistX}px)` }} aria-hidden="true">
-          <rect x="-60" y="112" width={W + 400} height={H - 112} fill="url(#mist-edge)" />
-          {MIST_PUFFS.map((m, i) => (
-            <ellipse key={i} cx={m.cx} cy={m.cy} rx={m.rx} ry={m.ry} fill="#d3d3d6" opacity="0.9" />
-          ))}
-          <ellipse cx="-4" cy="150" rx="30" ry="26" fill="#d0d0d3" opacity="0.75" />
-          <ellipse cx="-8" cy="196" rx="34" ry="28" fill="#cbcbcf" opacity="0.75" />
-          <ellipse cx="-2" cy="232" rx="30" ry="18" fill="#d0d0d3" opacity="0.75" />
         </g>
-        <g stroke="#a3a3a8" stroke-width="2" stroke-linecap="round" fill="none" aria-hidden="true">
-          {DEAD_TREES.filter((t) => t.x > mistX + 14).map((t) => (
-            <path
-              key={t.x}
-              d={`M${t.x} ${t.y} l0 ${-t.h} M${t.x} ${t.y - t.h * 0.55} l-7 -7 M${t.x} ${t.y - t.h * 0.75} l7 -8`}
-            />
-          ))}
+      ))}
+      {scene.decor.filter((d) => d.kind === 'deer').map((d) => (
+        <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
+          <DecorArt d={d} />
         </g>
-      </svg>
-    </div>
+      ))}
+
+      <WandererArt feathers={feathers} stage={cloakStage} x={CAMP.wandererX} y={CAMP.y} />
+      <CampfireArt level={fire} x={CAMP.fireX} y={CAMP.y} />
+
+      {scene.decor.filter((d) => d.kind === 'fireflies').map((d) => (
+        <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
+          <DecorArt d={d} />
+        </g>
+      ))}
+
+      <g class="valley__mist" style={{ transform: `translateX(${mistX}px)` }} aria-hidden="true">
+        <rect x="-60" y="112" width={W + 400} height={H - 112} fill="url(#mist-edge)" />
+        {MIST_PUFFS.map((m, i) => (
+          <ellipse key={i} cx={m.cx} cy={m.cy} rx={m.rx} ry={m.ry} fill="#d3d3d6" opacity="0.9" />
+        ))}
+        <ellipse cx="-4" cy="150" rx="30" ry="26" fill="#d0d0d3" opacity="0.75" />
+        <ellipse cx="-8" cy="196" rx="34" ry="28" fill="#cbcbcf" opacity="0.75" />
+        <ellipse cx="-2" cy="232" rx="30" ry="18" fill="#d0d0d3" opacity="0.75" />
+      </g>
+      <g stroke="#a3a3a8" stroke-width="2" stroke-linecap="round" fill="none" aria-hidden="true">
+        {DEAD_TREES.filter((t) => t.x > mistX + 14).map((t) => (
+          <path
+            key={t.x}
+            d={`M${t.x} ${t.y} l0 ${-t.h} M${t.x} ${t.y - t.h * 0.55} l-7 -7 M${t.x} ${t.y - t.h * 0.75} l7 -8`}
+          />
+        ))}
+      </g>
+    </svg>
   );
 }
