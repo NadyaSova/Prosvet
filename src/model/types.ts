@@ -12,7 +12,7 @@ export type TaskMinutes = (typeof TASK_MINUTES)[number];
 
 /**
  * Виды мгновенных заданий — у каждого своя награда.
- * application — голубь улетел с откликом; пока не используется, понадобится в голубятне (шаг 5).
+ * application — голубь улетел с откликом (голубятня).
  */
 export type InstantKind = 'application' | 'journal';
 
@@ -73,6 +73,44 @@ export interface Achievement {
   result?: string;
   skills?: string[];
   status: 'draft' | 'complete';
+}
+
+/** Вид голубя. SPEC.md §9.4: несколько поз, размеров и 4 цвета. Перо — того же цвета и размера. */
+export const PIGEON_POSES = ['sit', 'preen', 'look'] as const;
+export const PIGEON_SIZES = ['small', 'medium', 'large'] as const;
+export const PIGEON_COLORS = ['slate', 'white', 'rose', 'lilac'] as const;
+export type PigeonPose = (typeof PIGEON_POSES)[number];
+export type PigeonSize = (typeof PIGEON_SIZES)[number];
+export type PigeonColor = (typeof PIGEON_COLORS)[number];
+
+export interface PigeonLook {
+  pose: PigeonPose;
+  size: PigeonSize;
+  color: PigeonColor;
+}
+
+/** silence — 15 дней без ответа; rejected — «Отказали»; invited — «Позвали дальше». */
+export type PigeonOutcome = 'silence' | 'rejected' | 'invited';
+
+/** Голубь с откликом. SPEC.md §9.4. */
+export interface Pigeon {
+  id: string;
+  company: string;
+  look: PigeonLook;
+  /** Когда отправлен отклик. */
+  sentAt: number;
+  status: 'flying' | 'returned';
+  outcome?: PigeonOutcome;
+  returnedAt?: number;
+  /** Позвали дальше уже после того, как голубь вернулся с обычным пером. */
+  lateInvite?: boolean;
+  /** Когда последний раз спрашивали «ответили?». */
+  lastAskedAt?: number;
+}
+
+/** Голубятня: голуби, которые ждут на жёрдочке. */
+export interface LoftState {
+  perch: PigeonLook[];
 }
 
 /** Доска заданий. */

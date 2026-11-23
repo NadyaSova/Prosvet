@@ -4,6 +4,7 @@
 import { BALANCE } from '../config/balance';
 import type { Branch, Day, InstantKind, PlayerState } from '../model/types';
 import { drawLoot, type LootCard } from './loot';
+import { thresholdsCrossed } from './pigeons';
 import { levelInfo, totalXp } from './progression';
 import type { Rng } from './rng';
 import { addLog, recordActivity, resolveStreak } from './streak';
@@ -124,6 +125,57 @@ export function applyCompletion(
       streakMilestones: activity.milestones,
       logsBurned: activity.logsBurned,
       comeback: activity.comeback,
+    },
+  };
+}
+
+export interface FeatherReport {
+  golden: boolean;
+  xp: number;
+  gold: number;
+  /** Все звёзды: золотое перо, новый общий уровень, пороги плаща. */
+  stars: number;
+  newLevel: number | null;
+  newBranchLevel: number | null;
+  /** Пройденные пороги плаща (число перьев). */
+  thresholds: number[];
+}
+
+/**
+ * Голубь принёс перо. [РЕШЕНО] Это не задание: серия, карта добычи и веса доски не меняются.
+ * Опыт идёт в Охоту. feathersBefore — сколько перьев было в плаще до этого.
+ */
+export function applyFeather(
+  state: PlayerState,
+  golden: boolean,
+  feathersBefore: number,
+): { state: PlayerState; report: FeatherReport } {
+  const branch: Branch = 'hunt';
+  const xp = golden ? BALANCE.xp.goldenFeather : BALANCE.xp.feather;
+  const gold = golden ? BALANCE.gold.goldenFeather : BALANCE.gold.feather;
+
+  const oldLevel = levelInfo(totalXp(state.xp)).level;
+  const oldBranchLevel = levelInfo(state.xp[branch]).level;
+  const newXp = { ...state.xp, [branch]: state.xp[branch] + xp };
+  const newLevel = levelInfo(totalXp(newXp)).level;
+  const newBranchLevel = levelInfo(newXp[branch]).level;
+
+  const thresholds = thresholdsCrossed(feathersBefore, feathersBefore + 1);
+  const stars =
+    (golden ? BALANCE.pigeons.goldenFeatherStars : 0) +
+    (newLevel - oldLevel) * BALANCE.level.starsPerOverallLevel +
+    thresholds.length * BALANCE.cloak.starsPerThreshold;
+
+  return {
+    state: { ...state, xp: newXp, gold: state.gold + gold, stars: state.stars + stars },
+    report: {
+      golden,
+      xp,
+      gold,
+      stars,
+      newLevel: newLevel > oldLevel ? newLevel : null,
+      newBranchLevel: newBranchLevel > oldBranchLevel ? newBranchLevel : null,
+      thresholds,
     },
   };
 }

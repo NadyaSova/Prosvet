@@ -2,9 +2,10 @@
 // Чистые функции: время и генератор случайных чисел — в параметрах. Интерфейс только вызывает их и сохраняет итог.
 
 import { BALANCE } from '../config/balance';
-import type { BoardState, Branch, PlayerState, TaskTemplate } from '../model/types';
+import type { BoardState, Branch, LoftState, Pigeon, PlayerState, TaskTemplate } from '../model/types';
 import { buildBoard, canReroll, pickTinyTask, refillSlot, repairBoard, type BoardContext } from './board';
-import { applyCompletion, refreshStreak, type RewardReport } from './rewards';
+import { answerPigeon, feathersOf, isOverdue, lateInvite, launchPigeon, returnSilent } from './pigeons';
+import { applyCompletion, applyFeather, refreshStreak, type FeatherReport, type RewardReport } from './rewards';
 import type { Rng } from './rng';
 import { dayOf } from './time';
 import { endsAt, isFinished, pauseTimer, resumeTimer, settleTimer, startTimer, type TimerState } from './timer';
@@ -191,6 +192,107 @@ export function onOpen(
   if (streak.state !== next.player) next = { ...next, player: streak.state };
   next = ensureBoard(next, templates, now, rng);
   return { state: next, done, news: { logsBurned: streak.logsBurned, broken: streak.broken } };
+}
+
+// Голубятня. SPEC.md §9.4. Голуби хранятся отдельно от GameState: функции возвращают изменённых голубей,
+// интерфейс сохраняет их вместе с игроком одной транзакцией.
+
+/** Голубь вернулся — что показать на экране пера. */
+export interface ReturnedFeather {
+  pigeon: Pigeon;
+  report: FeatherReport;
+  /** Голубь вернулся сам после 15 дней без ответа. */
+  silent: boolean;
+}
+
+/** Отклик: голубь улетает, это мгновенное задание Охоты (опыт, золото, карта добычи, серия). */
+export function sendPigeon(
+  state: GameState,
+  loft: LoftState,
+  perchIndex: number,
+  company: string,
+  now: number,
+  rng: Rng,
+  id: string,
+): { state: GameState; loft: LoftState; pigeon: Pigeon; done: CompletedTask } {
+  const launched = launchPigeon(loft, perchIndex, company, now, rng, id);
+  const { state: player, report } = applyCompletion(
+    state.player,
+    { kind: 'instant', branch: 'hunt', instant: 'application' },
+    now,
+    rng,
+  );
+  return {
+    state: { ...state, player },
+    loft: launched.loft,
+    pigeon: launched.pigeon,
+    done: { title: `Голубь улетел: «${launched.pigeon.company}»`, branch: 'hunt', report, full: true, whileAway: false },
+  };
+}
+
+function withFeather(
+  state: GameState,
+  pigeons: readonly Pigeon[],
+  updated: Pigeon,
+  golden: boolean,
+  silent: boolean,
+): { state: GameState; pigeon: Pigeon; feather: ReturnedFeather } {
+  const before = feathersOf(pigeons).length;
+  const { state: player, report } = applyFeather(state.player, golden, before);
+  return { state: { ...state, player }, pigeon: updated, feather: { pigeon: updated, report, silent } };
+}
+
+function findPigeon(pigeons: readonly Pigeon[], id: string): Pigeon {
+  const p = pigeons.find((x) => x.id === id);
+  if (!p) throw new Error('Голубь не найден');
+  return p;
+}
+
+/** «Отказали» или «Позвали дальше»: голубь возвращается с пером или золотым пером. */
+export function answerPigeonAction(
+  state: GameState,
+  pigeons: readonly Pigeon[],
+  id: string,
+  outcome: 'rejected' | 'invited',
+  now: number,
+): { state: GameState; pigeon: Pigeon; feather: ReturnedFeather } {
+  const updated = answerPigeon(findPigeon(pigeons, id), outcome, now);
+  return withFeather(state, pigeons, updated, outcome === 'invited', false);
+}
+
+/** Позвали уже после возвращения с обычным пером: ещё и золотое перо. */
+export function lateInviteAction(
+  state: GameState,
+  pigeons: readonly Pigeon[],
+  id: string,
+): { state: GameState; pigeon: Pigeon; feather: ReturnedFeather } {
+  const updated = lateInvite(findPigeon(pigeons, id));
+  return withFeather(state, pigeons, updated, true, false);
+}
+
+/**
+ * При открытии приложения и при возвращении в него: голуби, которые в пути 15 дней и больше,
+ * возвращаются сами с обычным пером. По порядку отправки — так пороги плаща считаются правильно.
+ */
+export function returnOverduePigeons(
+  state: GameState,
+  pigeons: readonly Pigeon[],
+  now: number,
+): { state: GameState; changed: Pigeon[]; feathers: ReturnedFeather[] } {
+  const overdue = pigeons.filter((p) => isOverdue(p, now)).sort((a, b) => a.sentAt - b.sentAt);
+  if (overdue.length === 0) return { state, changed: [], feathers: [] };
+  let next = state;
+  let all = [...pigeons];
+  const changed: Pigeon[] = [];
+  const feathers: ReturnedFeather[] = [];
+  for (const p of overdue) {
+    const r = withFeather(next, all, returnSilent(p), false, true);
+    next = r.state;
+    all = all.map((x) => (x.id === p.id ? r.pigeon : x));
+    changed.push(r.pigeon);
+    feathers.push(r.feather);
+  }
+  return { state: next, changed, feathers };
 }
 
 /** Можно ли сегодня перетянуть доску (для кнопки). */

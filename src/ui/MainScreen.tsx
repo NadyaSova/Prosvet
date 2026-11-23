@@ -1,4 +1,5 @@
-// Главный экран: героиня, костёр (серия), доска заданий, «Не хочу ничего», своё задание, ветки.
+// Главный экран: героиня, костёр (серия), вопрос голубя, доска заданий, «Не хочу ничего», своё задание,
+// вход в голубятню, ветки.
 // Долина появится на шаге 6.
 
 import { useState } from 'preact/hooks';
@@ -7,10 +8,11 @@ import { rerollAvailable } from '../logic/game';
 import { levelInfo, titleFor, totalXp } from '../logic/progression';
 import { viewStreak } from '../logic/streak';
 import { dayOf } from '../logic/time';
-import { BRANCHES, type TaskTemplate } from '../model/types';
+import { BRANCHES, type Pigeon, type TaskTemplate } from '../model/types';
 import { BranchChip, Progress, TaskCard } from './common';
 import { Flame } from './Flame';
 import { daysText, fireText, plural } from './format';
+import { PigeonArt } from './pigeon-art';
 import { go } from './router';
 
 interface Props {
@@ -23,6 +25,11 @@ interface Props {
   onStart: (t: TaskTemplate) => void;
   onReroll: () => void;
   pickTiny: (skip?: string) => TaskTemplate | undefined;
+  pigeonsInFlight: number;
+  /** Голубь, который сегодня спрашивает «Компания ответила?». */
+  question: { pigeon: Pigeon; day: number } | null;
+  onNotYet: (id: string) => void;
+  onAnswer: (id: string, outcome: 'rejected' | 'invited') => void;
 }
 
 function newsText(news: StreakNews): string {
@@ -31,7 +38,21 @@ function newsText(news: StreakNews): string {
   return `Пока тебя не было, ${plural(n, ['сгорело', 'сгорели', 'сгорели'])} ${n} ${plural(n, ['полено', 'полена', 'поленьев'])}. Серия сохранена.`;
 }
 
-export function MainScreen({ game, templates, now, idlePhrase, news, onDismissNews, onStart, onReroll, pickTiny }: Props) {
+export function MainScreen({
+  game,
+  templates,
+  now,
+  idlePhrase,
+  news,
+  onDismissNews,
+  onStart,
+  onReroll,
+  pickTiny,
+  pigeonsInFlight,
+  question,
+  onNotYet,
+  onAnswer,
+}: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
   const { player } = game;
   const today = dayOf(now);
@@ -93,6 +114,28 @@ export function MainScreen({ game, templates, now, idlePhrase, news, onDismissNe
         </div>
       )}
 
+      {question && (
+        <section class="notice question" role="status">
+          <PigeonArt class="question__art" look={question.pigeon.look} />
+          <div class="question__body">
+            <p>
+              Голубь в пути {daysText(question.day)}. Компания «{question.pigeon.company}» ответила?
+            </p>
+            <div class="choices">
+              <button type="button" class="choice" onClick={() => onNotYet(question.pigeon.id)}>
+                Ещё нет
+              </button>
+              <button type="button" class="choice" onClick={() => onAnswer(question.pigeon.id, 'invited')}>
+                Позвали дальше
+              </button>
+              <button type="button" class="choice" onClick={() => onAnswer(question.pigeon.id, 'rejected')}>
+                Отказали
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       <p class="phrase">{idlePhrase}</p>
 
       <section class="board">
@@ -127,6 +170,13 @@ export function MainScreen({ game, templates, now, idlePhrase, news, onDismissNe
           Своё задание
         </button>
       </section>
+
+      <button type="button" class="card loft-entry" onClick={() => go('loft')}>
+        <span class="loft-entry__title">Голубятня</span>
+        <span class="muted small">
+          {pigeonsInFlight > 0 ? `В пути: ${pigeonsInFlight}` : 'Отправила отклик? Здесь ждут голуби'}
+        </span>
+      </button>
 
       <section class="card branches">
         <h2>Ветки</h2>

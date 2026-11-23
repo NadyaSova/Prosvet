@@ -52,5 +52,5 @@ export const DEFAULT_TASKS: TaskTemplate[] = [
     title: 'Просмотреть свежие вакансии в одном источнике' },
   { id: 'hunt-apply-session', branch: 'hunt', kind: 'timed', minutes: 30, onBoard: true,
     title: 'Подготовить и отправить один отклик' },
-  // Отметка отправленного отклика и ответов на него — в голубятне (шаг 5), не здесь.
+  // Отметка отправленного отклика и ответов на него — в голубятне (ui/LoftScreen.tsx), не здесь.
 ];

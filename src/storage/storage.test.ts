@@ -1,7 +1,9 @@
 import 'fake-indexeddb/auto';
+import { openDB } from 'idb';
 import { describe, expect, it } from 'vitest';
+import { createRng } from '../logic/rng';
 import { createPlayer } from '../model/player';
-import type { Achievement, TaskTemplate } from '../model/types';
+import type { Achievement, Pigeon, TaskTemplate } from '../model/types';
 import {
   BackupError,
   backupFileName,
@@ -12,8 +14,18 @@ import {
   serializeSnapshot,
 } from './backup';
 import { openProsvetDb, SCHEMA_VERSION } from './db';
-import { normalizePlayer, normalizeTimer } from './normalize';
-import { getKv, listAchievements, listCustomTasks, loadAppData, putAchievement, putCustomTask, saveGame, setKv } from './repo';
+import { normalizeLoft, normalizePigeon, normalizePlayer, normalizeTimer } from './normalize';
+import {
+  getKv,
+  listAchievements,
+  listCustomTasks,
+  listPigeons,
+  loadAppData,
+  putAchievement,
+  putCustomTask,
+  saveGame,
+  setKv,
+} from './repo';
 
 const NOW = new Date(2026, 10, 23, 12, 0).getTime();
 const DAY_MS = 86_400_000;
@@ -87,7 +99,7 @@ describe('сохранение игры', () => {
     const db = await freshDb();
     await loadAppData(db, NOW);
     const timer = { templateId: 'x', title: 'Задание', branch: 'hunt' as const, startedAt: NOW, durationMs: 60_000, pausedAt: null, pausedMs: 0, pausesUsed: 0 };
-    await saveGame(db, { player: { ...createPlayer(), gold: 5 }, board: { taskIds: ['a'], rerolls: null }, timer }, achievement('j', NOW));
+    await saveGame(db, { player: { ...createPlayer(), gold: 5 }, board: { taskIds: ['a'], rerolls: null }, timer }, { achievement: achievement('j', NOW) });
     const data = await loadAppData(db, NOW);
     expect(data.player.gold).toBe(5);
     expect(data.board.taskIds).toEqual(['a']);
@@ -175,6 +187,99 @@ describe('резервная копия', () => {
 
   it('имя файла — по местной дате', () => {
     expect(backupFileName(NOW)).toBe('prosvet-2026-11-23.json');
+  });
+});
+
+describe('голубятня', () => {
+  const pigeon: Pigeon = {
+    id: 'p1', company: 'Ромашка', look: { pose: 'preen', size: 'large', color: 'lilac' }, sentAt: NOW, status: 'flying',
+  };
+
+  it('при первом запуске создаётся жёрдочка из 5 разных голубей и сохраняется', async () => {
+    const db = await freshDb();
+    const data = await loadAppData(db, NOW, createRng(1));
+    expect(data.loft.perch).toHaveLength(5);
+    expect(data.pigeons).toEqual([]);
+    expect(await getKv(db, 'loft')).toEqual(data.loft);
+    expect((await loadAppData(db, NOW, createRng(2))).loft).toEqual(data.loft);
+  });
+
+  it('испорченная жёрдочка не загружается', () => {
+    expect(normalizeLoft({ perch: [] })).toBeNull();
+    const same = { pose: 'sit', size: 'small', color: 'white' };
+    expect(normalizeLoft({ perch: [same, same, same, same, same] })).toBeNull();
+  });
+
+  it('голубь и награда за него пишутся вместе', async () => {
+    const db = await freshDb();
+    const data = await loadAppData(db, NOW);
+    const loft = { perch: [...data.loft.perch].reverse() };
+    await saveGame(db, { ...data, player: { ...data.player, gold: 5 } }, { pigeons: [pigeon], loft });
+    const again = await loadAppData(db, NOW);
+    expect(again.player.gold).toBe(5);
+    expect(again.pigeons).toEqual([pigeon]);
+    expect(again.loft).toEqual(loft);
+    expect(await listPigeons(db)).toEqual([pigeon]);
+  });
+
+  it('голубь без компании отбрасывается, без вида — получает вид по умолчанию', () => {
+    expect(normalizePigeon({ id: 'x', sentAt: NOW })).toBeNull();
+    expect(normalizePigeon({ id: 'x', company: 'К', sentAt: NOW })).toMatchObject({ status: 'flying', look: { pose: 'sit' } });
+    expect(normalizePigeon({ id: 'x', company: 'К', sentAt: NOW, status: 'returned' })).toMatchObject({ status: 'flying' });
+  });
+
+  it('база версии 1 обновляется до версии 2 без потери данных', async () => {
+    const name = `test-upgrade-${dbCounter++}`;
+    const v1 = await openDB(name, 1, {
+      upgrade(db) {
+        db.createObjectStore('kv');
+        db.createObjectStore('tasks', { keyPath: 'id' });
+        db.createObjectStore('achievements', { keyPath: 'id' }).createIndex('byUpdatedAt', 'updatedAt');
+      },
+    });
+    await v1.put('kv', { ...createPlayer(), gold: 77 }, 'player');
+    await v1.put('achievements', achievement('a', NOW));
+    v1.close();
+
+    const db = await openProsvetDb(name);
+    expect(db.version).toBe(2);
+    const data = await loadAppData(db, NOW);
+    expect(data.player.gold).toBe(77);
+    expect(data.pigeons).toEqual([]);
+    expect((await listAchievements(db)).map((a) => a.id)).toEqual(['a']);
+  });
+
+  it('копия с голубями — туда и обратно', async () => {
+    const source = await freshDb();
+    await loadAppData(source, NOW);
+    await saveGame(source, { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null }, { pigeons: [pigeon] });
+    const text = serializeSnapshot(await exportSnapshot(source, NOW));
+
+    const target = await freshDb();
+    await saveGame(target, { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null }, {
+      pigeons: [{ ...pigeon, id: 'лишний' }],
+    });
+    await importSnapshot(target, parseSnapshot(text));
+    expect(await listPigeons(target)).toEqual([pigeon]);
+    expect((await loadAppData(target, NOW)).loft).toEqual((await loadAppData(source, NOW)).loft);
+  });
+
+  it('копия версии 1 (без голубей) загружается', async () => {
+    const text = JSON.stringify({
+      app: 'prosvet', schemaVersion: 1, exportedAt: '',
+      data: { kv: { player: { ...createPlayer(), gold: 12 } }, tasks: [], achievements: [] },
+    });
+    const snap = parseSnapshot(text);
+    expect(snap.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(snap.data.pigeons).toEqual([]);
+    const db = await freshDb();
+    await importSnapshot(db, snap);
+    expect((await loadAppData(db, NOW)).player.gold).toBe(12);
+  });
+
+  it('копия версии 2 без голубей не загружается', () => {
+    const text = JSON.stringify({ app: 'prosvet', schemaVersion: 2, data: { kv: {}, tasks: [], achievements: [] } });
+    expect(() => parseSnapshot(text)).toThrow(BackupError);
   });
 });
 

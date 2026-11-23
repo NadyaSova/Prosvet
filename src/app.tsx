@@ -2,24 +2,30 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { DEFAULT_TASKS } from './data/default-tasks';
 import { PHRASES, type PhraseContext } from './data/phrases';
 import {
+  answerPigeonAction,
   cancelTask,
   completeInstantTask,
   ensureBoard,
   finishTimedTask,
+  lateInviteAction,
   onOpen,
   pauseTask,
   rerollBoard,
   resumeTask,
+  returnOverduePigeons,
+  sendPigeon,
   startTimedTask,
   tinyTask,
   type CompletedTask,
   type GameState,
+  type ReturnedFeather,
   type StreakNews,
 } from './logic/game';
 import { pickPhrase } from './logic/phrases';
+import { dueQuestion, markAsked } from './logic/pigeons';
 import { mergeTemplates } from './logic/tasks';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
-import type { Achievement, Branch, Settings, TaskTemplate } from './model/types';
+import type { Achievement, Branch, LoftState, Pigeon, Settings, TaskTemplate } from './model/types';
 import { requestPersistence, type Persistence } from './storage/browser';
 import { openProsvetDb, type ProsvetDb } from './storage/db';
 import {
@@ -30,10 +36,13 @@ import {
   saveGame,
   setKv,
   type AppData,
+  type SaveExtras,
 } from './storage/repo';
 import { CustomTaskScreen, type CustomTaskInput } from './ui/CustomTaskScreen';
+import { FeatherScreen, type ShownFeather } from './ui/FeatherScreen';
 import { minutesText } from './ui/format';
 import { JournalEntryScreen } from './ui/JournalEntryScreen';
+import { LoftScreen } from './ui/LoftScreen';
 import { MainScreen } from './ui/MainScreen';
 import { askNotificationPermission, signalTimerEnd } from './ui/notify';
 import { RewardScreen, type ShownReward } from './ui/RewardScreen';
@@ -71,6 +80,13 @@ export function App() {
   return <Game db={state.db} initial={state.data} initialCustom={state.custom} persistence={persistence} />;
 }
 
+/** Новые и изменённые голуби поверх списка; свежие сверху. */
+function mergePigeons(list: readonly Pigeon[], changed: readonly Pigeon[]): Pigeon[] {
+  const byId = new Map(list.map((p) => [p.id, p]));
+  for (const p of changed) byId.set(p.id, p);
+  return [...byId.values()].sort((a, b) => b.sentAt - a.sentAt);
+}
+
 /** Обновляет экран раз в interval мс — для часов таймера и смены дня. */
 function useNow(interval: number): number {
   const [now, setNow] = useState(Date.now);
@@ -93,6 +109,10 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const [settings, setSettings] = useState<Settings>(initial.settings);
   const [custom, setCustom] = useState<TaskTemplate[]>(initialCustom);
   const [reward, setReward] = useState<ShownReward | null>(null);
+  const [pigeons, setPigeons] = useState<Pigeon[]>(initial.pigeons);
+  const [loft, setLoft] = useState<LoftState>(initial.loft);
+  /** Экраны вернувшихся перьев — по очереди. */
+  const [feathers, setFeathers] = useState<ShownFeather[]>([]);
   const [news, setNews] = useState<StreakNews | null>(null);
   const [idlePhrase, setIdlePhrase] = useState('');
   const [startPhrase, setStartPhrase] = useState('');
@@ -110,11 +130,26 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const templatesRef = useRef(templates);
   templatesRef.current = templates;
   const phrasesRef = useRef(initial.phrases.recent);
+  const pigeonsRef = useRef(initial.pigeons);
+  const loftRef = useRef(initial.loft);
 
-  function commit(next: GameState, achievement?: Achievement) {
+  function commit(next: GameState, extras: SaveExtras = {}) {
     gameRef.current = next;
     setGame(next);
-    saveGame(db, next, achievement).catch((e: unknown) => setSaveError(String(e)));
+    if (extras.pigeons?.length) {
+      pigeonsRef.current = mergePigeons(pigeonsRef.current, extras.pigeons);
+      setPigeons(pigeonsRef.current);
+    }
+    if (extras.loft) {
+      loftRef.current = extras.loft;
+      setLoft(extras.loft);
+    }
+    saveGame(db, next, extras).catch((e: unknown) => setSaveError(String(e)));
+  }
+
+  function showFeather(f: ReturnedFeather) {
+    const phrase = takePhrase(f.report.golden ? 'golden_feather' : 'pigeon_return');
+    setFeathers((q) => [...q, { ...f, phrase }]);
   }
 
   function takePhrase(context: PhraseContext): string {
@@ -135,11 +170,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     });
   }
 
-  /** Открытие приложения и возвращение в него: таймер, серия, доска. */
+  /** Открытие приложения и возвращение в него: таймер, серия, доска, голуби, которые вернулись сами. */
   function refresh() {
-    const r = onOpen(gameRef.current, templatesRef.current, Date.now(), Math.random);
-    if (r.state !== gameRef.current) commit(r.state);
+    const now = Date.now();
+    const r = onOpen(gameRef.current, templatesRef.current, now, Math.random);
+    const back = returnOverduePigeons(r.state, pigeonsRef.current, now);
+    if (back.state !== gameRef.current) commit(back.state, { pigeons: back.changed });
     if (r.done) showReward(r.done);
+    back.feathers.forEach(showFeather);
     if (r.news.logsBurned > 0 || r.news.broken) setNews(r.news);
   }
 
@@ -210,9 +248,34 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     const at = Date.now();
     const entry: Achievement = { id: crypto.randomUUID(), createdAt: at, updatedAt: at, title, status: 'draft' };
     const r = completeInstantTask(gameRef.current, task, templatesRef.current, at, Math.random);
-    commit(r.state, entry);
+    commit(r.state, { achievement: entry });
     showReward(r.done);
     goHome();
+  }
+
+  // Голубятня
+
+  function launch(perchIndex: number, company: string) {
+    const r = sendPigeon(gameRef.current, loftRef.current, perchIndex, company, Date.now(), Math.random, crypto.randomUUID());
+    commit(r.state, { pigeons: [r.pigeon], loft: r.loft });
+    showReward(r.done);
+  }
+
+  function answer(id: string, outcome: 'rejected' | 'invited') {
+    const r = answerPigeonAction(gameRef.current, pigeonsRef.current, id, outcome, Date.now());
+    commit(r.state, { pigeons: [r.pigeon] });
+    showFeather(r.feather);
+  }
+
+  function lateInvite(id: string) {
+    const r = lateInviteAction(gameRef.current, pigeonsRef.current, id);
+    commit(r.state, { pigeons: [r.pigeon] });
+    showFeather(r.feather);
+  }
+
+  function notYet(id: string) {
+    const p = pigeonsRef.current.find((x) => x.id === id);
+    if (p) commit(gameRef.current, { pigeons: [markAsked(p, Date.now())] });
   }
 
   async function startCustom(input: CustomTaskInput) {
@@ -265,7 +328,11 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     const loaded: GameState = { player: data.player, board: data.board, timer: data.timer };
     gameRef.current = loaded;
     phrasesRef.current = data.phrases.recent;
+    pigeonsRef.current = data.pigeons;
+    loftRef.current = data.loft;
     setGame(loaded);
+    setPigeons(data.pigeons);
+    setLoft(data.loft);
     setSettings(data.settings);
     setCustom(nextCustom);
     templatesRef.current = mergeTemplates(DEFAULT_TASKS, nextCustom, data.settings.hiddenTaskIds);
@@ -276,8 +343,33 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const journalId = route.startsWith('journal/') ? decodeURIComponent(route.slice('journal/'.length)) : null;
   const journalTask = journalId ? templates.find((t) => t.id === journalId && t.kind === 'instant') : undefined;
 
+  const flying = pigeons.filter((p) => p.status === 'flying');
+  // Спрашивает самый давний голубь, которому пора.
+  const asking = [...flying].reverse().find((p) => dueQuestion(p, now) !== null);
+  const question = asking ? { pigeon: asking, day: dueQuestion(asking, now)! } : null;
+
   if (reward) {
-    screen = <RewardScreen reward={reward} onClose={() => setReward(null)} />;
+    const huntTask = reward.branch === 'hunt' && reward.minutes !== undefined;
+    screen = (
+      <RewardScreen
+        reward={reward}
+        onClose={() => setReward(null)}
+        onLoft={huntTask ? () => { setReward(null); go('loft'); } : undefined}
+      />
+    );
+  } else if (feathers[0]) {
+    screen = <FeatherScreen feather={feathers[0]} onClose={() => setFeathers((q) => q.slice(1))} />;
+  } else if (route === 'loft') {
+    screen = (
+      <LoftScreen
+        pigeons={pigeons}
+        loft={loft}
+        now={now}
+        onSend={launch}
+        onAnswer={answer}
+        onLateInvite={lateInvite}
+      />
+    );
   } else if (route === 'settings') {
     screen = (
       <SettingsScreen
@@ -322,6 +414,10 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
           if (next) commit(next);
         }}
         pickTiny={(skip) => tinyTask(gameRef.current, templatesRef.current, Date.now(), Math.random, skip)}
+        pigeonsInFlight={flying.length}
+        question={question}
+        onNotYet={notYet}
+        onAnswer={answer}
       />
     );
   }

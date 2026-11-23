@@ -28,6 +28,11 @@ export function clockText(ms: number): string {
 const WEEKDAY_GENITIVE = ['воскресенья', 'понедельника', 'вторника', 'среды', 'четверга', 'пятницы', 'субботы'];
 const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
+/** «23 ноября». */
+export const dateText = (timestamp: number) => dayMonth.format(new Date(timestamp));
+
+export const feathersText = (n: number) => `${n} ${plural(n, ['перо', 'пера', 'перьев'])}`;
+
 /** Подпись под числом серии: до какого дня горит огонь. */
 export function fireText(view: StreakView, today: Day, everActive: boolean): string {
   if (view.deadlineDay === null) {

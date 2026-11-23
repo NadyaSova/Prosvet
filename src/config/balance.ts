@@ -15,6 +15,9 @@ export const BALANCE = {
   xp: {
     perTimedMinute: 1,
     instant: { application: 10, journal: 8 },
+    /** Перо и золотое перо — опыт идёт в Охоту. */
+    feather: 10,
+    goldenFeather: 30,
     /** Порог уровня n: levelStep × n опыта сверх предыдущего уровня. */
     levelStep: 50,
   },
@@ -23,6 +26,33 @@ export const BALANCE = {
     /** Полное таймерное задание: округление minutes × perTimedMinute. Досрочное — округление вниз. */
     perTimedMinute: 0.5,
     instant: { application: 5, journal: 4 },
+    /** [РЕШЕНО] Перья — статус, золота за них нет. */
+    feather: 0,
+    goldenFeather: 0,
+  },
+
+  pigeons: {
+    /** [РЕШЕНО] Голубей на жёрдочке всегда столько. */
+    perchSize: 5,
+    /** [РЕШЕНО] Нет ответа столько дней — голубь возвращается сам с пером. */
+    returnAfterDays: 15,
+    /** В какие дни пути голубь спрашивает «Компания ответила?». */
+    askOnDays: [5, 10],
+    /** Звёзды за золотое перо. */
+    goldenFeatherStars: 1,
+  },
+
+  cloak: {
+    /** Пороги плаща из перьев: сколько перьев и какой титул. [РЕШЕНО] звезда за порог; числа и титулы — предложение. */
+    thresholds: [
+      { feathers: 5, title: 'Голубятница' },
+      { feathers: 15, title: 'Вестница' },
+      { feathers: 30, title: 'Хранительница перьев' },
+      { feathers: 50, title: 'Ловчая ветра' },
+      { feathers: 75, title: 'Крылатая странница' },
+      { feathers: 100, title: 'Повелительница ветров' },
+    ],
+    starsPerThreshold: 1,
   },
 
   level: {

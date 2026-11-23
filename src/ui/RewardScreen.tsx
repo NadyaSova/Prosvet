@@ -71,7 +71,7 @@ function LootFace({ loot, converted, phrase }: { loot: Loot; converted: boolean;
   }
 }
 
-export function RewardScreen({ reward, onClose }: { reward: ShownReward; onClose: () => void }) {
+export function RewardScreen({ reward, onClose, onLoft }: { reward: ShownReward; onClose: () => void; onLoft?: () => void }) {
   const [flipped, setFlipped] = useState(false);
   const r = reward.report;
   const baseGold = r.gold - r.lootGold;
@@ -153,6 +153,11 @@ export function RewardScreen({ reward, onClose }: { reward: ShownReward; onClose
       <button type="button" class="button reward__next" onClick={onClose}>
         Дальше
       </button>
+      {onLoft && (
+        <button type="button" class="link-button" onClick={onLoft}>
+          Отправила отклик? В голубятню
+        </button>
+      )}
     </main>
   );
 }

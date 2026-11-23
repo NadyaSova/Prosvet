@@ -1,4 +1,4 @@
-// Экраны по адресу после #: #/settings, #/custom, #/journal/<id>. Главный экран — без #.
+// Экраны по адресу после #: #/settings, #/custom, #/journal/<id>, #/loft. Главный экран — без #.
 // Переход вперёд добавляет запись в историю, поэтому системная кнопка «Назад» на Android возвращает на главный.
 
 import { useEffect, useState } from 'preact/hooks';
