@@ -14,7 +14,7 @@
 //
 // Почему не --dump-dom: он снимает страницу сразу после загрузки и не ждёт асинхронного открытия IndexedDB.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -28,7 +28,8 @@ if (!browserPath || !url) {
 const port = 9333;
 // Убрать профили, оставшиеся от прошлых запусков, если те оборвались до удаления.
 for (const name of readdirSync(tmpdir())) {
-  if (name.startsWith('prosvet-cdp-')) removeProfile(join(tmpdir(), name));
+  // Без повторов: если файлы всё ещё заняты, повторы только тратят время (раньше — минуты на каждый запуск).
+  if (name.startsWith('prosvet-cdp-')) removeProfile(join(tmpdir(), name), 0);
 }
 const profile = mkdtempSync(join(tmpdir(), 'prosvet-cdp-'));
 const browser = spawn(
@@ -109,15 +110,25 @@ try {
   ws.close();
 } finally {
   // Профиль браузера весит десятки мегабайт — удалить его, когда браузер закроется и отпустит файлы.
+  // browser.kill() закрывает только главный процесс, а дочерние процессы Edge оставались жить, держали
+  // файлы профиля и копились (сотни процессов). Поэтому на Windows закрываем всё дерево процессов.
   const exited = new Promise((r) => browser.once('exit', r));
-  browser.kill();
+  killTree(browser);
   await Promise.race([exited, sleep(5000)]);
   removeProfile(profile);
 }
 
-function removeProfile(dir) {
+function killTree(child) {
+  if (process.platform === 'win32' && child.pid) {
+    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    child.kill();
+  }
+}
+
+function removeProfile(dir, maxRetries = 10) {
   try {
-    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+    rmSync(dir, { recursive: true, force: true, maxRetries, retryDelay: 300 });
   } catch (e) {
     console.warn(`Не удалось удалить профиль ${dir}: ${e.message}`);
   }
