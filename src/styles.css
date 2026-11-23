@@ -280,7 +280,7 @@ h2 {
 /* Выбранная кнопка выбора — ровная заливка цветом ветки или зелёным, без дерева: это фильтры и настройки,
    а не действие (решение пользователя, 24.11.2026). */
 .choice.choice--on {
-  background-color: var(--chip, var(--color-accent));
+  background-color: var(--branch-ink, var(--color-accent));
   box-shadow: none;
 }
 
@@ -366,18 +366,21 @@ h2 {
   display: inline-block;
   padding: 2px 10px;
   border-radius: var(--radius-pill);
-  background: var(--chip, var(--color-accent));
+  background: var(--branch-ink, var(--color-accent));
   color: #fff;
   font-size: var(--text-xs);
   font-weight: 550;
 }
 
 /* Чипы и кнопки выбора — тёмные цвета веток: на них белый текст. */
-.chip--chronicle { --chip: var(--branch-chronicle-ink); }
-.chip--image { --chip: var(--branch-image-ink); }
-.chip--speech { --chip: var(--branch-speech-ink); }
-.chip--scouting { --chip: var(--branch-scouting-ink); }
-.chip--hunt { --chip: var(--branch-hunt-ink); }
+/* Цвет ветки задаёт класс chip--* (чипы, кнопки выбора, заголовки групп) или task--* (записки):
+   --branch — яркий цвет (булавка, подкраска бумаги, рамка окошка), --branch-ink — тёмный
+   (текст и заливка под белым текстом). Компоненты читают только эти две переменные. */
+.chip--chronicle, .task--chronicle { --branch: var(--branch-chronicle); --branch-ink: var(--branch-chronicle-ink); }
+.chip--image, .task--image { --branch: var(--branch-image); --branch-ink: var(--branch-image-ink); }
+.chip--speech, .task--speech { --branch: var(--branch-speech); --branch-ink: var(--branch-speech-ink); }
+.chip--scouting, .task--scouting { --branch: var(--branch-scouting); --branch-ink: var(--branch-scouting-ink); }
+.chip--hunt, .task--hunt { --branch: var(--branch-hunt); --branch-ink: var(--branch-hunt-ink); }
 
 .progress {
   height: 8px;
@@ -403,7 +406,6 @@ h2 {
 
 .home__name {
   font-size: var(--title-2xl);
-  font-weight: 550;
 }
 
 .hero {
@@ -420,7 +422,6 @@ h2 {
 
 .hero__title {
   font-size: var(--title-lg);
-  font-weight: 550;
 }
 
 /* Карточка героини на главном — кнопка на экран героини. */
@@ -719,6 +720,7 @@ h2 {
 }
 
 .choose-bar__seeds .choice {
+  position: relative;
   min-height: 36px;
   padding: 4px 12px;
   font-size: var(--text-sm);
@@ -1019,7 +1021,7 @@ h2 {
   align-self: stretch;
   margin: -24px 10px 0;
   padding: 22px 0 4px;
-  background: color-mix(in srgb, var(--task-color) 10%, var(--color-paper));
+  background: color-mix(in srgb, var(--branch) 10%, var(--color-paper));
   font-style: normal;
   transform: rotate(-0.6deg);
   cursor: default;
@@ -1178,37 +1180,34 @@ h2 {
   position: relative;
   padding: 14px 14px 12px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--task-color, var(--color-accent)) 10%, var(--color-paper));
+  background: color-mix(in srgb, var(--branch, var(--color-accent)) 10%, var(--color-paper));
   box-shadow: var(--shadow-paper);
 }
 
 /* Кнопка-булавка вверху записки — матовая и чуть выпуклая: мягкий свет сверху слева, край темнее. */
-.task::before {
+.task::before,
+.note::before {
   content: '';
   position: absolute;
-  top: -5px;
   left: 50%;
-  width: 14px;
-  height: 14px;
-  margin-left: -7px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28) 0, rgba(255, 255, 255, 0) 55%),
     radial-gradient(circle at 40% 35%, transparent 0 50%, rgba(40, 20, 5, 0.25) 100%),
-    var(--task-color, var(--color-accent));
+    var(--branch, var(--color-accent));
   box-shadow: var(--shadow-pin);
+}
+
+.task::before {
+  top: -5px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
 }
 
 /* Записки на доске чуть наклонены, каждая по-своему. */
 .board__plank .task:nth-child(3n + 1) { transform: rotate(-0.8deg); }
 .board__plank .task:nth-child(3n + 2) { transform: rotate(0.6deg); }
 .board__plank .task:nth-child(3n + 3) { transform: rotate(-0.3deg); }
-
-/* --task-color — булавка и подкраска бумаги, --task-ink — название ветки текстом. */
-.task--chronicle { --task-color: var(--branch-chronicle); --task-ink: var(--branch-chronicle-ink); }
-.task--image { --task-color: var(--branch-image); --task-ink: var(--branch-image-ink); }
-.task--speech { --task-color: var(--branch-speech); --task-ink: var(--branch-speech-ink); }
-.task--scouting { --task-color: var(--branch-scouting); --task-ink: var(--branch-scouting-ink); }
-.task--hunt { --task-color: var(--branch-hunt); --task-ink: var(--branch-hunt-ink); }
 
 /* Кнопка — название; её область растянута на всю записку. */
 .task__open {
@@ -1244,7 +1243,7 @@ h2 {
 }
 
 .task__branch {
-  color: var(--task-ink, var(--color-accent));
+  color: var(--branch-ink, var(--color-accent));
   font-weight: 550;
 }
 
@@ -1279,7 +1278,7 @@ h2 {
   max-width: 380px;
   padding: 28px 22px 14px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--task-color) 10%, var(--color-paper));
+  background: color-mix(in srgb, var(--branch) 10%, var(--color-paper));
   box-shadow: var(--shadow-dialog);
   transform: rotate(-1deg);
   animation: note-lift 0.25s ease-out;
@@ -1287,18 +1286,10 @@ h2 {
 
 /* Та же кнопка, что держала записку на доске, — теперь просто вверху листка. */
 .note::before {
-  content: '';
-  position: absolute;
   top: 10px;
-  left: 50%;
   width: 16px;
   height: 16px;
   margin-left: -8px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28) 0, rgba(255, 255, 255, 0) 55%),
-    radial-gradient(circle at 40% 35%, transparent 0 50%, rgba(40, 20, 5, 0.25) 100%),
-    var(--task-color);
-  box-shadow: var(--shadow-pin);
 }
 
 .note__title {
@@ -1322,7 +1313,7 @@ h2 {
   border-radius: 50%;
   overflow: hidden;
   background: linear-gradient(180deg, var(--color-sky-deep) 0 80%, var(--color-hill-mid) 80%);
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--task-color) 35%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--branch) 35%, transparent);
 }
 
 .note__plant {
@@ -1540,7 +1531,6 @@ body.no-scroll {
 
 .loot__name {
   font-size: var(--title-lg);
-  font-weight: 550;
 }
 
 .loot__phrase {
@@ -1642,8 +1632,8 @@ textarea:focus {
   border: none;
   border-radius: var(--radius-pill);
   background-color: var(--color-card-strong);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--chip, var(--color-knob-ink)) 45%, transparent);
-  color: var(--chip, var(--color-knob-ink));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--branch-ink, var(--color-knob-ink)) 45%, transparent);
+  color: var(--branch-ink, var(--color-knob-ink));
   font: inherit;
   cursor: pointer;
   transition: background-color 0.12s, filter 0.12s, transform 0.08s;
@@ -1677,7 +1667,7 @@ textarea:focus {
 
 .task-group__title {
   margin-bottom: 4px;
-  color: var(--chip);
+  color: var(--branch-ink);
   font-size: var(--title-sm);
 }
 
@@ -1729,8 +1719,6 @@ textarea:focus {
   border-color: var(--color-accent);
 }
 
-
-
 .question {
   align-items: flex-start;
 }
@@ -1749,6 +1737,7 @@ textarea:focus {
 }
 
 .question__body .choice {
+  position: relative;
   min-height: 40px;
   padding: 6px 12px;
   font-size: var(--text-sm);
@@ -1901,6 +1890,7 @@ textarea:focus {
 }
 
 .pigeon-row__back {
+  position: relative;
   min-height: 40px;
   margin-top: 4px;
   padding: 4px 12px;
@@ -1976,10 +1966,6 @@ textarea:focus {
 }
 
 /* Летопись */
-
-
-
-
 
 .journal__hint {
   margin: 0;
@@ -2076,8 +2062,6 @@ textarea:focus {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-
-
 
 .tabs {
   display: flex;
@@ -2293,8 +2277,38 @@ textarea:focus {
 }
 
 .coupons__given summary {
+  position: relative;
   min-height: 36px;
   cursor: pointer;
+}
+
+/* Кнопки меньше 44 px: видимая часть прежняя, а нажимать можно и вокруг — до 44 px.
+   Кнопкам в ряду добавляем только сверху и снизу, чтобы области не наезжали на соседей. */
+.choose-bar__seeds .choice::before,
+.task__other::before,
+.coupons__given summary::before {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.question__body .choice::before,
+.pigeon-row__back::before {
+  content: '';
+  position: absolute;
+  inset: -2px 0;
+}
+
+.valley-card__expand::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+.ladybug::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
 }
 
 /* Форма приза */
@@ -2499,7 +2513,6 @@ textarea:focus {
 
 .section-tile__name {
   font-size: var(--title-sm);
-  font-weight: 550;
 }
 
 .section-tile__badge {
