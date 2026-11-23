@@ -352,6 +352,35 @@ h2 {
   margin: -6px auto 0;
 }
 
+/* Телефон держат вертикально — экран повёрнут на бок, верх у правого края телефона.
+   Условие — то же, что TURN_QUERY в ValleyScreen.tsx. Отступы: верх телефона теперь слева, низ — справа. */
+@media (orientation: portrait) and (pointer: coarse) {
+  .valley-screen--turn {
+    position: fixed;
+    top: 0;
+    left: 100vw;
+    width: 100dvh;
+    height: 100vw;
+    gap: 8px;
+    padding: 10px max(16px, env(safe-area-inset-bottom)) 12px max(16px, env(safe-area-inset-top));
+    transform-origin: top left;
+    transform: rotate(90deg);
+  }
+
+  .valley-screen--turn .backbar,
+  .valley-screen--turn .valley-screen__note {
+    max-width: none;
+  }
+
+  .valley-screen--turn .valley-screen__note {
+    margin-top: -4px;
+  }
+
+  .valley-screen--turn .valley-big {
+    touch-action: none;
+  }
+}
+
 .valley-big {
   flex: 1;
   min-height: 0;

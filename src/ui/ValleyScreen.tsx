@@ -1,6 +1,10 @@
 // Долина крупно (#/valley): во весь экран, листается во все стороны, увеличивается щипком двумя пальцами
-// или кнопками «+» и «−». Открывается вдвое крупнее карточки на главном экране, там, где выросло последнее.
-// Если картина ниже окна, она стоит внизу, а сверху — то же небо.
+// или кнопками «+» и «−». Открывается там, где выросло последнее. Если картина ниже окна, она стоит внизу,
+// а сверху — то же небо.
+//
+// На телефоне, который держат вертикально, экран повёрнут на бок: верх картины — у правого края телефона.
+// Телефон поворачивают против часовой стрелки, и долина во весь экран. Листание пальцем на повёрнутом экране
+// считается здесь же: браузер не обязан правильно листать повёрнутый блок.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Feather } from '../logic/pigeons';
@@ -22,21 +26,40 @@ interface Props {
 /** Шаг кнопок «+» и «−». */
 const STEP = 1.5;
 
-/** Масштабы (пикселей на единицу мира) для окна такого размера. */
+/** Когда поворачивать экран на бок. То же условие — у .valley-screen--turn в styles.css. */
+const TURN_QUERY = '(orientation: portrait) and (pointer: coarse)';
+
+/** Масштабы (пикселей на единицу мира). Размеры блока — без поворота. */
 function limits(el: HTMLElement) {
   const fit = el.clientHeight / SCENE_HEIGHT; // картина ровно по высоте окна
   const whole = el.clientWidth / WORLD.width; // видна вся панорама
-  const card = el.clientWidth / VIEW_WIDTH; // как в карточке на главном экране
+  const card = Math.min(innerWidth, innerHeight, 480) / VIEW_WIDTH; // примерно как в карточке на главном экране
   return { start: Math.min(card * 2, fit), min: Math.min(whole, fit), max: Math.max(fit, card * 4) };
 }
 
+function useTurned(): boolean {
+  const [turned, setTurned] = useState(() => matchMedia(TURN_QUERY).matches);
+  useEffect(() => {
+    const mq = matchMedia(TURN_QUERY);
+    const update = () => setTurned(mq.matches);
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return turned;
+}
+
 export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
+  const turned = useTurned();
+  const turnedRef = useRef(turned);
+  turnedRef.current = turned;
   const boxRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState<number | null>(null);
   // Точка окна, которая должна остаться на месте при смене масштаба (центр или середина между пальцами).
   const anchor = useRef<{ x: number; y: number; from: number } | null>(null);
   const scaleRef = useRef<number | null>(null);
   scaleRef.current = scale;
+  // Масштаб, при котором надо заново встать на последнее выросшее (первый показ, поворот).
+  const recenterAt = useRef<number | null>(null);
 
   function zoomTo(next: number, x?: number, y?: number) {
     const el = boxRef.current;
@@ -50,20 +73,34 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
     setScale(to);
   }
 
-  // Первый показ — на последнем выросшем.
+  function recenter(el: HTMLElement, s: number) {
+    el.scrollLeft = Math.max(0, focusX(valley, null) * s - el.clientWidth / 2);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // Первый показ и поворот: начальный масштаб, на последнем выросшем.
   useLayoutEffect(() => {
     const el = boxRef.current;
-    if (el) setScale(limits(el).start);
-  }, []);
+    if (!el) return;
+    const start = limits(el).start;
+    anchor.current = null;
+    if (start === scaleRef.current) {
+      recenter(el, start);
+      return;
+    }
+    recenterAt.current = start;
+    scaleRef.current = start;
+    setScale(start);
+  }, [turned]);
 
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!el || scale === null) return;
     const a = anchor.current;
     anchor.current = null;
-    if (!a) {
-      el.scrollLeft = Math.max(0, focusX(valley, null) * scale - el.clientWidth / 2);
-      el.scrollTop = el.scrollHeight;
+    if (recenterAt.current === scale || !a) {
+      recenterAt.current = null;
+      recenter(el, scale);
       return;
     }
     const k = scale / a.from;
@@ -71,33 +108,85 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
     el.scrollTop = (el.scrollTop + a.y) * k - a.y;
   }, [scale]);
 
-  // Щипок двумя пальцами. Слушатели — не пассивные: иначе браузер увеличит всю страницу.
+  // Щипок двумя пальцами, а на повёрнутом экране и листание — с разгоном после того, как палец отпустили.
+  // Слушатели — не пассивные: иначе браузер увеличит всю страницу.
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    let pinch: { dist: number; scale: number } | null = null;
+    /** Точка экрана в координатах блока без поворота. */
+    const local = (x: number, y: number) => {
+      const r = el.getBoundingClientRect();
+      // Повёрнут на 90° по часовой: левый верхний угол блока — в правом верхнем углу его места на экране.
+      return turnedRef.current ? { x: y - r.top, y: r.right - x } : { x: x - r.left, y: y - r.top };
+    };
+    const point = (t: TouchList) =>
+      t.length >= 2
+        ? local((t[0]!.clientX + t[1]!.clientX) / 2, (t[0]!.clientY + t[1]!.clientY) / 2)
+        : local(t[0]!.clientX, t[0]!.clientY);
     const dist = (t: TouchList) => Math.hypot(t[0]!.clientX - t[1]!.clientX, t[0]!.clientY - t[1]!.clientY);
+
+    let pinch: { dist: number; scale: number } | null = null;
+    let pan: { x: number; y: number; t: number; vx: number; vy: number } | null = null;
+    let glide = 0;
+    const startPan = (e: TouchEvent) => {
+      pan = turnedRef.current && e.touches.length > 0 ? { ...point(e.touches), t: e.timeStamp, vx: 0, vy: 0 } : null;
+    };
+
     const start = (e: TouchEvent) => {
-      if (e.touches.length !== 2 || scaleRef.current === null) return;
-      e.preventDefault();
-      pinch = { dist: dist(e.touches), scale: scaleRef.current };
+      cancelAnimationFrame(glide);
+      if (e.touches.length === 2 && scaleRef.current !== null) {
+        e.preventDefault();
+        pinch = { dist: dist(e.touches), scale: scaleRef.current };
+      }
+      startPan(e);
     };
     const move = (e: TouchEvent) => {
-      if (!pinch || e.touches.length !== 2) return;
-      e.preventDefault();
-      const r = el.getBoundingClientRect();
-      const mx = (e.touches[0]!.clientX + e.touches[1]!.clientX) / 2 - r.left;
-      const my = (e.touches[0]!.clientY + e.touches[1]!.clientY) / 2 - r.top;
-      zoomTo((pinch.scale * dist(e.touches)) / pinch.dist, mx, my);
+      if (pinch && e.touches.length === 2) {
+        e.preventDefault();
+        const m = point(e.touches);
+        zoomTo((pinch.scale * dist(e.touches)) / pinch.dist, m.x, m.y);
+      }
+      if (pan) {
+        e.preventDefault();
+        const p = point(e.touches);
+        const dx = p.x - pan.x;
+        const dy = p.y - pan.y;
+        el.scrollLeft -= dx;
+        el.scrollTop -= dy;
+        const dt = Math.max(1, e.timeStamp - pan.t);
+        pan = { ...p, t: e.timeStamp, vx: 0.8 * (dx / dt) + 0.2 * pan.vx, vy: 0.8 * (dy / dt) + 0.2 * pan.vy };
+      }
     };
     const end = (e: TouchEvent) => {
       if (e.touches.length < 2) pinch = null;
+      if (!pan) return;
+      if (e.touches.length > 0) {
+        // Один палец из двух отпустили — листаем оставшимся, без скачка.
+        startPan(e);
+        return;
+      }
+      let { vx, vy } = pan;
+      pan = null;
+      if (Math.hypot(vx, vy) < 0.1 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      let last = performance.now();
+      const step = (now: number) => {
+        const dt = now - last;
+        last = now;
+        el.scrollLeft -= vx * dt;
+        el.scrollTop -= vy * dt;
+        const k = Math.pow(0.995, dt);
+        vx *= k;
+        vy *= k;
+        if (Math.hypot(vx, vy) > 0.02) glide = requestAnimationFrame(step);
+      };
+      glide = requestAnimationFrame(step);
     };
     el.addEventListener('touchstart', start, { passive: false });
     el.addEventListener('touchmove', move, { passive: false });
     el.addEventListener('touchend', end);
     el.addEventListener('touchcancel', end);
     return () => {
+      cancelAnimationFrame(glide);
       el.removeEventListener('touchstart', start);
       el.removeEventListener('touchmove', move);
       el.removeEventListener('touchend', end);
@@ -139,7 +228,7 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
   const grown = `${n} ${plural(n, ['растение', 'растения', 'растений'])}`;
 
   return (
-    <main class="screen valley-screen">
+    <main class={turned ? 'screen valley-screen valley-screen--turn' : 'screen valley-screen'}>
       <BackBar title="Долина">{zoom}</BackBar>
       <p class="muted small valley-screen__note">
         {scene.open ? `Выросло ${grown}. Хмари больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
