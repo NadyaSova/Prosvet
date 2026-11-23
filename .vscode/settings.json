@@ -1,0 +1,54 @@
+{
+  "window.title": "Просвет — ${dirty}${activeEditorShort}${separator}${appName}",
+  "workbench.colorTheme": "Light Modern",
+  "workbench.colorCustomizations": {
+    "[Default Light Modern]": {
+      "editor.background": "#F3F6DF",
+      "editor.lineHighlightBackground": "#E7EECB",
+      "editor.lineHighlightBorder": "#00000000",
+      "editor.selectionBackground": "#D3E3A4",
+      "editor.inactiveSelectionBackground": "#DFE9BC",
+      "editorGutter.background": "#F3F6DF",
+      "editorLineNumber.foreground": "#9AA67A",
+      "editorLineNumber.activeForeground": "#4F5E26",
+      "editorWidget.background": "#ECF1D3",
+      "editorGroupHeader.tabsBackground": "#E6EDC8",
+
+      "tab.activeBackground": "#F3F6DF",
+      "tab.inactiveBackground": "#E6EDC8",
+      "tab.activeBorderTop": "#8FAE3E",
+      "tab.border": "#D8E2B5",
+
+      "sideBar.background": "#E9EFCF",
+      "sideBar.border": "#D8E2B5",
+      "sideBarSectionHeader.background": "#E1E9C0",
+      "list.activeSelectionBackground": "#D3E3A4",
+      "list.inactiveSelectionBackground": "#DCE7B6",
+      "list.hoverBackground": "#E1E9C2",
+
+      "activityBar.background": "#DCE6B8",
+      "activityBar.foreground": "#3F4D1C",
+      "activityBar.inactiveForeground": "#7F8C5A",
+      "activityBar.activeBorder": "#8FAE3E",
+      "activityBarBadge.background": "#8FAE3E",
+
+      "titleBar.activeBackground": "#D3DFA8",
+      "titleBar.inactiveBackground": "#DFE8BD",
+      "titleBar.activeForeground": "#2F3A14",
+
+      "statusBar.background": "#BCD087",
+      "statusBar.foreground": "#2F3A14",
+      "statusBar.noFolderBackground": "#BCD087",
+
+      "panel.background": "#EDF2D5",
+      "panel.border": "#D8E2B5",
+      "terminal.background": "#EDF2D5",
+
+      "input.background": "#F7F9EA",
+      "dropdown.background": "#F7F9EA",
+      "button.background": "#7E9C34",
+      "button.hoverBackground": "#6E8A2B",
+      "focusBorder": "#8FAE3E"
+    }
+  }
+}

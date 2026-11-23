@@ -34,6 +34,8 @@ export default defineConfig({
   ],
   test: {
     environment: 'node',
+    // Пользователь живёт в Израиле: тесты дней и серии идут в этом часовом поясе, с переводом часов.
+    env: { TZ: 'Asia/Jerusalem' },
     include: ['src/**/*.test.ts'],
     passWithNoTests: true,
   },
