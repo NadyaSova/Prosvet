@@ -10,11 +10,20 @@
   --color-river: #9cc9db;
   --color-mist: #b9b9be;
   --color-text: #3f3a34;
-  --color-text-muted: #7a6e62;
+  --color-text-muted: #70655a; /* на фоне и карточках контраст ≥ 4.5 */
   --color-card: rgba(255, 255, 255, 0.6);
   --color-card-strong: #fffaf2;
   --color-gold: #d9a441;
   --color-error: #b3402a;
+
+  /* Цвета интерфейса. Темнее цветов эскиза, чтобы текст читался: контраст ≥ 4.5 с белым и с фоном.
+     Цвета эскиза (холмы, огонь, золото) остаются для рисунков, заливок и значков. */
+  --color-accent: #4b7049; /* кнопки, ссылки, отметки; темнее --color-hill-near */
+  --color-accent-deep: #3a5838;
+  --color-focus: var(--color-accent); /* кольцо фокуса с клавиатуры */
+  --color-fire-ink: #995626; /* текст цвета огня: напоминания, черновики */
+  --color-gold-ink: #765822; /* текст цвета золота: цены, уровень, «Лавка» */
+  --color-field-border: #789a72; /* рамка поля ввода: контраст ≥ 3 */
 
   /* Ветки (SPEC.md §6): по цвету растения в долине. */
   --branch-chronicle: #8c6a3f;
@@ -22,6 +31,14 @@
   --branch-speech: #8c6fa8; /* лиловый: зелёный был слишком похож на Охоту */
   --branch-scouting: #b9707f;
   --branch-hunt: #3f6e55;
+
+  /* Те же ветки темнее — для текста и для фона под белым текстом (контраст ≥ 4.5).
+     Яркие цвета выше — для булавок, рамок и заливок. */
+  --branch-chronicle-ink: #765935;
+  --branch-image-ink: #436374;
+  --branch-speech-ink: #6c5581;
+  --branch-scouting-ink: #85515b;
+  --branch-hunt-ink: #3b664f;
 
   /* Шрифты — src/fonts.css. */
   --font-body: 'Ubuntu Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -79,6 +96,32 @@ h2 {
   color: var(--color-text-muted);
 }
 
+/* Фокус с клавиатуры — кольцо вокруг элемента. На касание браузер его не показывает. */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* На деревянной доске тёмное кольцо теряется — там оно светлое. */
+.board__plank :focus-visible,
+.board__knob:focus-visible {
+  outline-color: var(--color-card-strong);
+}
+
+/* Кнопка записки растянута на всю записку — кольцо рисуем вокруг записки, а не вокруг названия. */
+.task__open:focus-visible {
+  outline: none;
+}
+
+.task:has(.task__open:focus-visible) {
+  outline: 3px solid var(--color-card-strong);
+  outline-offset: 2px;
+}
+
+.board__tuck .task:has(.task__open:focus-visible) {
+  outline-color: var(--color-focus);
+}
+
 .small {
   font-size: 12px;
 }
@@ -128,7 +171,7 @@ h2 {
   padding: 12px 20px;
   border: none;
   border-radius: 14px;
-  background: var(--color-hill-near);
+  background: var(--color-accent);
   color: #fff;
   font: inherit;
   font-weight: 550;
@@ -137,8 +180,8 @@ h2 {
 
 .button--secondary {
   background: transparent;
-  color: var(--color-hill-near);
-  box-shadow: inset 0 0 0 2px var(--color-hill-near);
+  color: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
 }
 
 .button:disabled {
@@ -155,7 +198,7 @@ h2 {
   padding: 8px 4px;
   border: none;
   background: none;
-  color: var(--color-hill-near);
+  color: var(--color-accent);
   font: inherit;
   font-weight: 550;
   cursor: pointer;
@@ -192,17 +235,18 @@ h2 {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  background: var(--chip, var(--color-hill-near));
+  background: var(--chip, var(--color-accent));
   color: #fff;
   font-size: 12px;
   font-weight: 550;
 }
 
-.chip--chronicle { --chip: var(--branch-chronicle); }
-.chip--image { --chip: var(--branch-image); }
-.chip--speech { --chip: var(--branch-speech); }
-.chip--scouting { --chip: var(--branch-scouting); }
-.chip--hunt { --chip: var(--branch-hunt); }
+/* Чипы и кнопки выбора — тёмные цвета веток: на них белый текст. */
+.chip--chronicle { --chip: var(--branch-chronicle-ink); }
+.chip--image { --chip: var(--branch-image-ink); }
+.chip--speech { --chip: var(--branch-speech-ink); }
+.chip--scouting { --chip: var(--branch-scouting-ink); }
+.chip--hunt { --chip: var(--branch-hunt-ink); }
 
 .progress {
   height: 8px;
@@ -214,7 +258,7 @@ h2 {
 .progress__bar {
   height: 100%;
   border-radius: inherit;
-  background: var(--color-hill-near);
+  background: var(--color-accent);
   transition: width 0.6s ease;
 }
 
@@ -290,7 +334,7 @@ h2 {
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-gold) 22%, var(--color-sky));
   box-shadow: inset 0 0 0 1.5px var(--color-gold);
-  color: #8a6220;
+  color: var(--color-gold-ink);
   font-family: var(--font-head);
   font-size: 14px;
   font-weight: 700;
@@ -995,7 +1039,7 @@ h2 {
   position: relative;
   padding: 14px 14px 12px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--task-color, var(--color-hill-near)) 10%, #fbf3e2);
+  background: color-mix(in srgb, var(--task-color, var(--color-accent)) 10%, #fbf3e2);
   box-shadow: 0 2px 4px rgba(60, 35, 15, 0.3);
 }
 
@@ -1011,7 +1055,7 @@ h2 {
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28) 0, rgba(255, 255, 255, 0) 55%),
     radial-gradient(circle at 40% 35%, transparent 0 50%, rgba(40, 20, 5, 0.25) 100%),
-    var(--task-color, var(--color-hill-near));
+    var(--task-color, var(--color-accent));
   box-shadow: 0 1px 1.5px rgba(40, 20, 5, 0.35);
 }
 
@@ -1020,11 +1064,12 @@ h2 {
 .board__plank .task:nth-child(3n + 2) { transform: rotate(0.6deg); }
 .board__plank .task:nth-child(3n + 3) { transform: rotate(-0.3deg); }
 
-.task--chronicle { --task-color: var(--branch-chronicle); }
-.task--image { --task-color: var(--branch-image); }
-.task--speech { --task-color: var(--branch-speech); }
-.task--scouting { --task-color: var(--branch-scouting); }
-.task--hunt { --task-color: var(--branch-hunt); }
+/* --task-color — булавка и подкраска бумаги, --task-ink — название ветки текстом. */
+.task--chronicle { --task-color: var(--branch-chronicle); --task-ink: var(--branch-chronicle-ink); }
+.task--image { --task-color: var(--branch-image); --task-ink: var(--branch-image-ink); }
+.task--speech { --task-color: var(--branch-speech); --task-ink: var(--branch-speech-ink); }
+.task--scouting { --task-color: var(--branch-scouting); --task-ink: var(--branch-scouting-ink); }
+.task--hunt { --task-color: var(--branch-hunt); --task-ink: var(--branch-hunt-ink); }
 
 /* Кнопка — название; её область растянута на всю записку. */
 .task__open {
@@ -1060,7 +1105,7 @@ h2 {
 }
 
 .task__branch {
-  color: var(--task-color, var(--color-hill-near));
+  color: var(--task-ink, var(--color-accent));
   font-weight: 550;
 }
 
@@ -1214,7 +1259,7 @@ body.no-scroll {
 
 .timer__arc {
   fill: none;
-  stroke: var(--color-hill-near);
+  stroke: var(--color-accent);
   stroke-width: 10;
   stroke-linecap: round;
   transition: stroke-dashoffset 1s linear;
@@ -1260,7 +1305,7 @@ body.no-scroll {
 
 .reward__kicker {
   margin: 0;
-  color: var(--color-hill-near);
+  color: var(--color-accent);
   font-weight: 550;
 }
 
@@ -1319,13 +1364,13 @@ body.no-scroll {
 }
 
 .loot__back {
-  background: linear-gradient(160deg, var(--color-hill-mid), var(--color-hill-near));
+  background: linear-gradient(160deg, var(--color-accent), var(--color-accent-deep));
   color: #fff;
   font-weight: 550;
 }
 
 .loot__back .loot__sub {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.9);
   font-weight: 400;
 }
 
@@ -1431,7 +1476,7 @@ body.no-scroll {
 textarea {
   width: 100%;
   padding: 12px;
-  border: 2px solid var(--color-hill-far);
+  border: 2px solid var(--color-field-border);
   border-radius: 14px;
   background: var(--color-card-strong);
   color: inherit;
@@ -1441,7 +1486,7 @@ textarea {
 
 textarea:focus {
   outline: none;
-  border-color: var(--color-hill-near);
+  border-color: var(--color-accent);
 }
 
 .choices {
@@ -1457,14 +1502,14 @@ textarea:focus {
   border: none;
   border-radius: 999px;
   background: var(--color-card-strong);
-  box-shadow: inset 0 0 0 2px var(--chip, var(--color-hill-near));
+  box-shadow: inset 0 0 0 2px var(--chip, var(--color-accent));
   color: var(--color-text);
   font: inherit;
   cursor: pointer;
 }
 
 .choice--on {
-  background: var(--chip, var(--color-hill-near));
+  background: var(--chip, var(--color-accent));
   color: #fff;
   font-weight: 550;
 }
@@ -1481,7 +1526,7 @@ textarea:focus {
   width: 22px;
   height: 22px;
   margin: 1px 0 0;
-  accent-color: var(--color-hill-near);
+  accent-color: var(--color-accent);
 }
 
 /* Настройки */
@@ -1517,13 +1562,13 @@ textarea:focus {
 }
 
 .data__reminder {
-  color: var(--color-fire);
+  color: var(--color-fire-ink);
   font-weight: 550;
 }
 
 .data__ok {
   margin-top: 12px !important;
-  color: var(--color-hill-near);
+  color: var(--color-accent);
 }
 
 /* Голубятня */
@@ -1532,7 +1577,7 @@ textarea:focus {
   width: 100%;
   min-height: 48px;
   padding: 10px 12px;
-  border: 2px solid var(--color-hill-far);
+  border: 2px solid var(--color-field-border);
   border-radius: 14px;
   background: var(--color-card-strong);
   color: inherit;
@@ -1541,7 +1586,7 @@ textarea:focus {
 
 .input:focus {
   outline: none;
-  border-color: var(--color-hill-near);
+  border-color: var(--color-accent);
 }
 
 
@@ -1834,14 +1879,14 @@ textarea:focus {
 }
 
 .entry__draft {
-  color: var(--color-fire);
+  color: var(--color-fire-ink);
 }
 
 .entry-more summary {
   min-height: 44px;
   display: flex;
   align-items: center;
-  color: var(--branch-chronicle);
+  color: var(--branch-chronicle-ink);
   font-weight: 550;
   cursor: pointer;
 }
@@ -2040,7 +2085,7 @@ textarea:focus {
 
 .coupon-row__price {
   flex: none;
-  color: #a87a22;
+  color: var(--color-gold-ink);
   font-weight: 550;
 }
 
@@ -2093,7 +2138,7 @@ textarea:focus {
 }
 
 .icon-pick--on {
-  box-shadow: inset 0 0 0 3px var(--color-hill-near);
+  box-shadow: inset 0 0 0 3px var(--color-accent);
 }
 
 /* Купон во весь экран */
@@ -2135,7 +2180,7 @@ textarea:focus {
 }
 
 .coupon__kicker {
-  color: #a87a22;
+  color: var(--color-gold-ink);
   font-size: 12.5px;
   font-weight: 550;
   letter-spacing: 0.3em;
@@ -2154,7 +2199,7 @@ textarea:focus {
 }
 
 .coupon__price {
-  color: var(--color-gold);
+  color: var(--color-gold-ink);
   font-size: 20px;
   letter-spacing: 0.1em;
 }
@@ -2173,9 +2218,9 @@ textarea:focus {
 .coupon__stamp {
   margin-top: 4px;
   padding: 4px 10px;
-  border: 2px solid var(--color-hill-near);
+  border: 2px solid var(--color-accent);
   border-radius: 8px;
-  color: var(--color-hill-near);
+  color: var(--color-accent);
   font-weight: 700;
   transform: rotate(-8deg);
 }
@@ -2221,9 +2266,10 @@ textarea:focus {
   box-shadow: inset 0 0 0 2px var(--tile);
 }
 
-.section-tile--chronicle { --tile: var(--branch-chronicle); }
-.section-tile--loft { --tile: var(--branch-hunt); }
-.section-tile--shop { --tile: var(--color-gold); --tile-text: #a87a22; }
+/* --tile — рамка и подкраска, --tile-text — название и фон числа под белым текстом. */
+.section-tile--chronicle { --tile: var(--branch-chronicle); --tile-text: var(--branch-chronicle-ink); }
+.section-tile--loft { --tile: var(--branch-hunt); --tile-text: var(--branch-hunt-ink); }
+.section-tile--shop { --tile: var(--color-gold); --tile-text: var(--color-gold-ink); }
 
 .section-tile__open {
   flex: 1;
@@ -2259,7 +2305,7 @@ textarea:focus {
   height: 22px;
   padding: 0 6px;
   border-radius: 11px;
-  background: var(--tile);
+  background: var(--tile-text);
   color: #fff;
   font-size: 12px;
   font-weight: 550;
