@@ -58,7 +58,7 @@ function riverPath(): string {
   return `M${riverX(start).toFixed(1)} ${(start - 1).toFixed(1)} L${left.join(' L')} L${right.join(' L')} Z`;
 }
 
-/** Засохшие деревья в хмари — постоянные места по всей панораме. */
+/** Засохшие деревья в тумане — постоянные места по всей панораме. */
 const DEAD_TREES = (() => {
   const rng = createRng(31);
   const list: { x: number; y: number; h: number }[] = [];
@@ -69,7 +69,7 @@ const DEAD_TREES = (() => {
   return list;
 })();
 
-/** Облачка хмари вдоль её края и сверху. Координаты — от границы хмари. */
+/** Облачка тумана вдоль его края и сверху. Координаты — от границы тумана. */
 const MIST_PUFFS = Array.from({ length: 18 }, (_, i) => ({
   cx: i * 62 + (i % 3) * 9 + 20,
   cy: 104 + (i % 4) * 5,
@@ -142,7 +142,7 @@ export function ValleyScene({
 }) {
   const scene = useMemo(() => sceneOf(valley), [valley]);
 
-  // Хмарь отходит медленно: сначала там, где была до нового растения, потом на новом месте.
+  // Туман отходит медленно: сначала там, где был до нового растения, потом на новом месте.
   const before = useMemo(
     () => (fresh ? mistFrontier({ ...valley, plants: valley.plants.filter((p) => p.id !== fresh) }) : scene.mistX),
     [valley, fresh, scene.mistX],
@@ -157,8 +157,8 @@ export function ValleyScene({
   const n = scene.plants.length;
   const plants = `${n} ${plural(n, ['растение', 'растения', 'растений'])}`;
   const label = scene.open
-    ? `Долина открыта: ${plants}, хмари больше нет`
-    : `Долина: ${plants} из ${CAPACITY}, остальное пока в хмари`;
+    ? `Долина открыта: ${plants}, тумана больше нет`
+    : `Долина: ${plants} из ${CAPACITY}, остальное пока в тумане`;
 
   return (
     <svg

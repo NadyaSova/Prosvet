@@ -48,7 +48,7 @@ export interface CompletedTask {
   whileAway: boolean;
   /** Что выросло в долине. null — район уже полон. */
   planted: ValleyPlant | null;
-  /** Это растение заполнило район: хмари больше нет. */
+  /** Это растение заполнило район: тумана больше нет. */
   districtOpened: boolean;
 }
 

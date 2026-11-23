@@ -700,7 +700,7 @@ h2 {
   cursor: default;
 }
 
-/* Хмарь отходит медленно. */
+/* Туман отходит медленно. */
 .valley__mist {
   transition: transform 3.2s ease-in-out;
 }

@@ -134,7 +134,7 @@ export function MainScreen({
           onPlant={onPlant}
           onChoose={(item) => go(`valley/plant/${encodeURIComponent(item)}`)}
         />
-        {isDistrictOpen(game.valley) && <p class="muted small valley-card__open">Долина открыта: хмари больше нет.</p>}
+        {isDistrictOpen(game.valley) && <p class="muted small valley-card__open">Долина открыта: тумана больше нет.</p>}
       </section>
 
       <p class="phrase">{idlePhrase}</p>

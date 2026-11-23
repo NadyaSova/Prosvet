@@ -123,7 +123,7 @@ export function RewardScreen({ reward, onClose, onLoft }: { reward: ShownReward;
 
       <ul class="reward__news">
         {reward.planted && <li>Новое в долине: {plantName(reward.planted)}</li>}
-        {reward.districtOpened && <li>Хмарь ушла из долины целиком. Долина открыта.</li>}
+        {reward.districtOpened && <li>Туман ушёл из долины целиком. Долина открыта.</li>}
         {r.newLevel !== null && (
           <li>
             Новый уровень {r.newLevel} — {titleFor(r.newLevel)}

@@ -90,7 +90,7 @@ describe('что вырастает', () => {
   });
 
   it('ива ищет место у реки, сосна — на дальних холмах', () => {
-    // Хмарь отступила до реки: среди ближайших свободных мест есть и речные, и дальние.
+    // Туман отступил до реки: среди ближайших свободных мест есть и речные, и дальние.
     let v = emptyValley();
     for (let i = 0; i < 25; i++) v = plantForCompletion(v, timed(5, 'chronicle'), NOW + i, createRng(i))!.valley;
     const willow = SLOTS[chooseSlot(v, 'willow')!]!;
@@ -109,8 +109,8 @@ describe('что вырастает', () => {
   });
 });
 
-describe('хмарь', () => {
-  it('сначала открыт только лагерь, с каждым растением хмарь отступает, полный район — хмари нет', () => {
+describe('туман', () => {
+  it('сначала открыт только лагерь, с каждым растением туман отступает, полный район — тумана нет', () => {
     let v = emptyValley();
     expect(mistFrontier(v)).toBe(MIST_START_X);
     let last = mistFrontier(v);
@@ -155,8 +155,8 @@ describe('семена и редкости', () => {
     expect(sceneOf(v).decor.map((d) => d.layer)).toEqual([0, 1]);
   });
 
-  it('место для семени: свободные места в открытой части, у края хмари — не меньше нескольких', () => {
-    // Пустая долина: открыт только лагерь, свободные места — левее края хмари.
+  it('место для семени: свободные места в открытой части, у края тумана — не меньше нескольких', () => {
+    // Пустая долина: открыт только лагерь, свободные места — левее края тумана.
     const empty = plantChoices(emptyValley());
     expect(empty.length).toBeGreaterThanOrEqual(BALANCE.valley.minChoices);
     for (const i of empty) expect(SLOTS[i]!.x).toBeLessThan(MIST_START_X);

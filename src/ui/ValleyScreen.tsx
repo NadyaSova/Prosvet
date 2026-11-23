@@ -308,7 +308,7 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, invent
         ) : (
           <>
             <p class="muted small valley-screen__note">
-              {scene.open ? `Выросло ${grown}. Хмари больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
+              {scene.open ? `Выросло ${grown}. Тумана больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
               пальцами или кнопками.
             </p>
             <PlantRow valley={valley} inventory={inventory} onPlant={onPlant} onChoose={setItem} />

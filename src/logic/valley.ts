@@ -99,11 +99,11 @@ function newSeed(rng: Rng): number {
 
 /**
  * Куда можно посадить семя или саженец (номера мест): свободные места в открытой части долины,
- * а если их там мало — ещё ближайшие свободные у края хмари. Пусто — район полон.
+ * а если их там мало — ещё ближайшие свободные у края тумана. Пусто — район полон.
  */
 export function plantChoices(v: ValleyState): number[] {
   const taken = new Set(v.plants.map((p) => p.slot));
-  // Место у самого края хмари видно плохо — оставляем запас.
+  // Место у самого края тумана видно плохо — оставляем запас.
   const edge = mistFrontier(v) - 20;
   const open: number[] = [];
   const beyond: number[] = [];
@@ -212,7 +212,7 @@ export function valleyFromXp(xp: BranchXp, rng: Rng): ValleyState {
   return v;
 }
 
-/** Граница хмари (мировой x): всё левее открыто. Район полон — хмари нет. */
+/** Граница тумана (мировой x): всё левее открыто. Район полон — тумана нет. */
 export function mistFrontier(v: ValleyState): number {
   if (isDistrictOpen(v)) return WORLD.width + 200;
   let x = MIST_START_X;
@@ -247,7 +247,7 @@ export interface ValleyScene {
   open: boolean;
 }
 
-/** Всё, что нужно рисунку: объекты с мировыми координатами (дальние раньше ближних) и граница хмари. */
+/** Всё, что нужно рисунку: объекты с мировыми координатами (дальние раньше ближних) и граница тумана. */
 export function sceneOf(v: ValleyState): ValleyScene {
   const plants = v.plants
     .filter((p) => SLOTS[p.slot])
