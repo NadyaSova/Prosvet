@@ -92,13 +92,17 @@ export interface SceneProps {
 /** Высота кадра в единицах мира (верх неба обрезан). */
 export const SCENE_HEIGHT = H - VIEW_TOP;
 
-/** Где по горизонтали открыть панораму: только что выросшее, иначе последнее растение, иначе лагерь. */
-export function focusX(valley: ValleyState, fresh: string | null): number {
+/**
+ * Куда смотреть в панораме: на только что выросшее, иначе на последнее растение, иначе на лагерь.
+ * Координаты мира; y — от верха кадра (обрезанное небо уже вычтено), у растения — его основание.
+ */
+export function focusOf(valley: ValleyState, fresh: string | null): { x: number; y: number } {
   const scene = sceneOf(valley);
-  const freshPlant = fresh ? scene.plants.find((p) => p.id === fresh) : undefined;
-  const freshDecor = fresh ? scene.decor.find((d) => d.id === fresh) : undefined;
   const latest = latestPlant(valley);
-  return freshPlant?.x ?? freshDecor?.x ?? (latest ? SLOTS[latest.slot]!.x : 0);
+  const p =
+    (fresh ? (scene.plants.find((q) => q.id === fresh) ?? scene.decor.find((d) => d.id === fresh)) : undefined) ??
+    (latest ? SLOTS[latest.slot]! : { x: 0, y: CAMP.y });
+  return { x: p.x, y: p.y - VIEW_TOP };
 }
 
 /** Панорама в карточке главного экрана: видно VIEW_WIDTH единиц, остальное листается вбок. */
@@ -110,7 +114,7 @@ export function ValleyView(props: SceneProps) {
     const el = scrollRef.current;
     if (!el) return;
     const k = el.clientWidth / VIEW_WIDTH;
-    el.scrollLeft = Math.max(0, focusX(props.valley, props.fresh) * k - el.clientWidth / 2);
+    el.scrollLeft = Math.max(0, focusOf(props.valley, props.fresh).x * k - el.clientWidth / 2);
   }, [props.fresh]);
 
   return (

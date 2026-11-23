@@ -417,12 +417,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const feathersList = useMemo(() => feathersOf(pigeons), [pigeons]);
   const onMain = !reward && !feather && !game.timer && !journal && !['loft', 'settings', 'custom', 'valley'].includes(route);
 
-  // Анимация роста показывается один раз: через несколько секунд на главном экране растение считается обычным.
+  // Анимация роста показывается один раз: через несколько секунд на главном экране или на экране «Долина»
+  // растение считается обычным.
+  const onValley = route === 'valley' && !reward && !feather && !journal;
   useEffect(() => {
-    if (!fresh || !onMain) return;
+    if (!fresh || !(onMain || onValley)) return;
     const id = setTimeout(() => setFresh(null), 6000);
     return () => clearTimeout(id);
-  }, [fresh, onMain]);
+  }, [fresh, onMain, onValley]);
   // Спрашивает самый давний голубь, которому пора.
   const asking = [...flying].reverse().find((p) => dueQuestion(p, now) !== null);
   const question = asking ? { pigeon: asking, day: dueQuestion(asking, now)! } : null;
@@ -473,6 +475,9 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         fire={viewStreak(game.player.streak, dayOf(now)).fire}
         feathers={feathersList}
         cloakStage={cloakView(feathersList.length).stage}
+        fresh={fresh}
+        inventory={game.player.inventory}
+        onPlant={plant}
       />
     );
   } else if (route === 'settings') {

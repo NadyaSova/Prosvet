@@ -2,20 +2,19 @@
 // доска заданий, «Не хочу ничего», своё задание, Летопись с быстрой записью, вход в голубятню, ветки.
 
 import { useState } from 'preact/hooks';
-import { BALANCE } from '../config/balance';
 import type { GameState, StreakNews } from '../logic/game';
 import type { Feather } from '../logic/pigeons';
 import { rerollAvailable } from '../logic/game';
 import { levelInfo, titleFor, totalXp } from '../logic/progression';
 import { viewStreak } from '../logic/streak';
 import { dayOf } from '../logic/time';
-import { canPlantItem, isDistrictOpen } from '../logic/valley';
+import { isDistrictOpen } from '../logic/valley';
 import { BRANCHES, type Pigeon, type TaskTemplate } from '../model/types';
 import { BranchChip, Progress, TaskCard } from './common';
 import { daysText, fireText, plural } from './format';
-import { itemName } from './labels';
 import { PigeonArt } from './pigeon-art';
 import { go } from './router';
+import { PlantRow } from './valley/PlantRow';
 import { ValleyView } from './valley/ValleyView';
 
 interface Props {
@@ -77,8 +76,6 @@ export function MainScreen({
   const byId = new Map(templates.map((t) => [t.id, t]));
   const board = game.board.taskIds.map((id) => byId.get(id)).filter((t) => t !== undefined);
   const canReroll = rerollAvailable(game.board, now);
-  const plantable = player.inventory.find((item) => canPlantItem(game.valley, item));
-  const waiting = player.inventory.length - 1;
 
   return (
     <main class="screen home">
@@ -107,17 +104,7 @@ export function MainScreen({
             </svg>
           </button>
         </div>
-        {plantable && (
-          <div class="valley-card__plant">
-            <span class="small">
-              {itemName(plantable)}
-              {waiting > 0 && <span class="muted"> и ещё {waiting}</span>}
-            </span>
-            <button type="button" class="link-button" onClick={() => onPlant(plantable)}>
-              {(BALANCE.loot.seeds as readonly string[]).includes(plantable) ? 'Посадить' : 'Добавить в долину'}
-            </button>
-          </div>
-        )}
+        <PlantRow valley={game.valley} inventory={player.inventory} onPlant={onPlant} />
         {isDistrictOpen(game.valley) && <p class="muted small valley-card__open">Долина открыта: хмари больше нет.</p>}
       </section>
 

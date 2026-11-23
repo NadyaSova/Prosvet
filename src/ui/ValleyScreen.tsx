@@ -1,5 +1,6 @@
 // Долина крупно (#/valley): во весь экран, листается во все стороны, увеличивается щипком двумя пальцами
-// или кнопками «+» и «−». Открывается там, где выросло последнее. Если картина ниже окна, она стоит внизу,
+// или кнопками «+» и «−». Открывается там, где выросло последнее. Здесь же можно посадить семена из запаса:
+// экран сам подъезжает к новому растению, и оно растёт крупно. Если картина ниже окна, она стоит внизу,
 // а сверху — то же небо.
 //
 // На телефоне, который держат вертикально, экран повёрнут на бок: верх картины — у правого края телефона.
@@ -14,13 +15,19 @@ import { VIEW_WIDTH, WORLD } from '../logic/valley-district';
 import type { ValleyState } from '../model/types';
 import { BackBar } from './common';
 import { plural } from './format';
-import { focusX, SCENE_HEIGHT, ValleyScene } from './valley/ValleyView';
+import { PlantRow } from './valley/PlantRow';
+import { focusOf, SCENE_HEIGHT, ValleyScene } from './valley/ValleyView';
 
 interface Props {
   valley: ValleyState;
   fire: FireLevel;
   feathers: readonly Feather[];
   cloakStage: number;
+  /** Только что выросшее — для анимации роста. */
+  fresh: string | null;
+  /** Запас семян и редкостей из карт добычи. */
+  inventory: readonly string[];
+  onPlant: (item: string) => void;
 }
 
 /** Шаг кнопок «+» и «−». */
@@ -48,7 +55,7 @@ function useTurned(): boolean {
   return turned;
 }
 
-export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
+export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, inventory, onPlant }: Props) {
   const turned = useTurned();
   const turnedRef = useRef(turned);
   turnedRef.current = turned;
@@ -74,9 +81,26 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
   }
 
   function recenter(el: HTMLElement, s: number) {
-    el.scrollLeft = Math.max(0, focusX(valley, null) * s - el.clientWidth / 2);
+    el.scrollLeft = Math.max(0, focusOf(valley, fresh).x * s - el.clientWidth / 2);
     el.scrollTop = el.scrollHeight;
   }
+
+  // Посадили здесь же — плавно подъехать к новому, чтобы рост был на виду.
+  const shownFresh = useRef(fresh);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || !fresh || fresh === shownFresh.current || scaleRef.current === null) return;
+    shownFresh.current = fresh;
+    const s = scaleRef.current;
+    const p = focusOf(valley, fresh);
+    const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollTo({
+      left: p.x * s - el.clientWidth / 2,
+      // Чуть выше основания — чтобы было видно всё растение.
+      top: (p.y - 16) * s - el.clientHeight / 2,
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+  }, [fresh]);
 
   // Первый показ и поворот: начальный масштаб, на последнем выросшем.
   useLayoutEffect(() => {
@@ -230,10 +254,13 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
   return (
     <main class={turned ? 'screen valley-screen valley-screen--turn' : 'screen valley-screen'}>
       <BackBar title="Долина">{zoom}</BackBar>
-      <p class="muted small valley-screen__note">
-        {scene.open ? `Выросло ${grown}. Хмари больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
-        пальцами или кнопками.
-      </p>
+      <div class="valley-screen__bar">
+        <p class="muted small valley-screen__note">
+          {scene.open ? `Выросло ${grown}. Хмари больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
+          пальцами или кнопками.
+        </p>
+        <PlantRow valley={valley} inventory={inventory} onPlant={onPlant} />
+      </div>
       <div class="valley-big" ref={boxRef}>
         {scale !== null && (
           <ValleyScene
@@ -241,7 +268,7 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage }: Props) {
             fire={fire}
             feathers={feathers}
             cloakStage={cloakStage}
-            fresh={null}
+            fresh={fresh}
             style={{ width: `${WORLD.width * scale}px`, height: `${SCENE_HEIGHT * scale}px` }}
           />
         )}

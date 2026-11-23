@@ -299,7 +299,7 @@ h2 {
   height: 100%;
 }
 
-.valley-card__plant {
+.plant-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -346,10 +346,24 @@ h2 {
   margin: 0 auto;
 }
 
-.valley-screen__note {
+/* Подпись и строка «Посадить» — рядом, если хватает ширины, иначе одна под другой. */
+.valley-screen__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
   width: 100%;
   max-width: 448px;
   margin: -6px auto 0;
+}
+
+.valley-screen__note {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
+.valley-screen__bar .plant-row {
+  flex: 1 1 auto;
 }
 
 /* Телефон держат вертикально — экран повёрнут на бок, верх у правого края телефона.
@@ -368,12 +382,16 @@ h2 {
   }
 
   .valley-screen--turn .backbar,
-  .valley-screen--turn .valley-screen__note {
+  .valley-screen--turn .valley-screen__bar {
     max-width: none;
   }
 
-  .valley-screen--turn .valley-screen__note {
+  .valley-screen--turn .valley-screen__bar {
     margin-top: -4px;
+  }
+
+  .valley-screen--turn .valley-screen__bar .plant-row {
+    flex: none;
   }
 
   .valley-screen--turn .valley-big {
