@@ -710,19 +710,148 @@ h2 {
   gap: 10px;
 }
 
-.board__head {
+/* Смена заданий — круглая кнопка внизу доски, справа под записками. Доска из-за неё чуть длиннее. */
+.board__reroll {
+  position: relative;
+  align-self: flex-end;
+  margin: -4px 2px 0 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #f3e6cf;
+  color: #7a4f2c;
+  box-shadow:
+    inset 0 -2px 0 rgba(90, 55, 25, 0.18),
+    0 2px 5px rgba(60, 35, 15, 0.35);
+  cursor: pointer;
+}
+
+/* Нажимать можно и чуть вокруг: видно 38 точек, область нажатия — 46. */
+.board__reroll::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+.board__reroll svg {
+  width: 20px;
+  height: 20px;
+}
+
+.board__reroll:active {
+  transform: scale(0.94);
+}
+
+/* Сегодня уже меняла — кнопка бледнее, нажатие показывает подсказку. */
+.board__reroll--spent {
+  color: rgba(122, 79, 44, 0.45);
+}
+
+.board__hint {
+  margin: 0 4px;
+  text-align: right;
+}
+
+/* Божья коровка на доске. Кнопка 40×40 (область нажатия), рисунок внутри — 22 точки.
+   Лежит выше записок, поэтому нажатие достаётся ей, а не записке. */
+.ladybug {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.9s cubic-bezier(0.45, 0, 0.25, 1);
+}
+
+.ladybug__body {
+  width: 22px;
+  height: 24px;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgba(40, 20, 5, 0.4));
+  transition: transform 0.3s ease-out;
+}
+
+/* В полёте: чуть крупнее посередине пути (взлетела выше), надкрылья раскрыты, видны прозрачные крылья. */
+.ladybug--flying .ladybug__body {
+  animation: ladybug-hop 0.9s ease-in-out;
+  filter: drop-shadow(0 6px 4px rgba(40, 20, 5, 0.25));
+}
+
+.ladybug__wings,
+.ladybug__seam {
+  transition: opacity 0.15s;
+}
+
+.ladybug__wings {
+  opacity: 0;
+}
+
+.ladybug--flying .ladybug__wings {
+  opacity: 1;
+  animation: ladybug-flap 0.12s linear infinite alternate;
+}
+
+.ladybug--flying .ladybug__seam {
+  opacity: 0;
+}
+
+.ladybug__shell {
+  transform-box: view-box;
+  transform-origin: 0 -5px;
+  transition: transform 0.2s ease-out;
+}
+
+.ladybug--flying .ladybug__shell--left {
+  transform: rotate(28deg);
+}
+
+.ladybug--flying .ladybug__shell--right {
+  transform: rotate(-28deg);
+}
+
+@keyframes ladybug-hop {
+  50% { scale: 1.35; }
+}
+
+@keyframes ladybug-flap {
+  from { opacity: 0.45; }
+  to { opacity: 0.95; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ladybug,
+  .ladybug__body,
+  .ladybug__shell {
+    transition: none;
+  }
+
+  .ladybug--flying .ladybug__body,
+  .ladybug--flying .ladybug__wings {
+    animation: none;
+  }
 }
 
 /* Деревянная доска, на ней задания-записки. */
 .board__plank {
   --wood: #a87a52;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px 12px 16px;
+  padding: 18px 12px 10px;
   border-radius: 14px;
   /* Сверху вниз: стыки досок, частые тонкие волокна, широкие полосы, цвет дерева. */
   background:

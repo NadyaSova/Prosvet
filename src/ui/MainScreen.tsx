@@ -4,7 +4,7 @@
 // Нажатие на записку снимает её с доски (#/note/<id>, TaskNote): там «Начать».
 // Нажатие на огонёк показывает подробности серии, на карточку героини — экран героини с ветками.
 
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { GameState, StreakNews } from '../logic/game';
 import type { Feather } from '../logic/pigeons';
 import { rerollAvailable } from '../logic/game';
@@ -17,6 +17,7 @@ import { Progress, TaskCard } from './common';
 import { daysText, fireText, plural } from './format';
 import { PigeonArt } from './pigeon-art';
 import { go, noteRoute, useRoute } from './router';
+import { Ladybug } from './Ladybug';
 import { TaskNote } from './TaskNote';
 import { SectionTiles } from './SectionTiles';
 import { StreakBadge, StreakDetails } from './StreakBadge';
@@ -76,6 +77,14 @@ export function MainScreen({
 }: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
   const [streakOpen, setStreakOpen] = useState(false);
+  const [rerollHint, setRerollHint] = useState(false);
+  const plankRef = useRef<HTMLDivElement>(null);
+  // Подсказка «можно завтра» гаснет сама через несколько секунд.
+  useEffect(() => {
+    if (!rerollHint) return;
+    const id = setTimeout(() => setRerollHint(false), 3500);
+    return () => clearTimeout(id);
+  }, [rerollHint]);
   const { player } = game;
   const today = dayOf(now);
   const level = levelInfo(totalXp(player.xp));
@@ -187,21 +196,29 @@ export function MainScreen({
 
       <SectionTiles pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
 
-      <section class="board">
-        <div class="board__head">
-          <h2>Доска заданий</h2>
-          <button type="button" class="link-button" disabled={!canReroll || board.length === 0} onClick={onReroll}>
-            {canReroll ? 'Сменить задания' : 'Сменить можно завтра'}
-          </button>
-        </div>
+      <section class="board" aria-label="Доска заданий">
         {board.length === 0 && <p class="muted">Все задания скрыты. Включи хотя бы несколько в настройках.</p>}
         {board.length > 0 && (
-          <div class="board__plank">
+          <div class="board__plank" ref={plankRef}>
             {board.map((t) => (
               <TaskCard key={t.id} task={t} onOpen={() => openNote(t)} />
             ))}
+            <Ladybug plankRef={plankRef} notes={board.map((t) => t.id).join(' ')} />
+            {/* Смена заданий — круглая кнопка внизу доски. Если сегодня уже меняла, нажатие объясняет, почему нельзя. */}
+            <button
+              type="button"
+              class={`board__reroll${canReroll ? '' : ' board__reroll--spent'}`}
+              aria-label={canReroll ? 'Сменить задания' : 'Сменить задания можно завтра'}
+              onClick={() => (canReroll ? onReroll() : setRerollHint(true))}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19.5 12a7.5 7.5 0 0 1-13 5.1M4.5 12a7.5 7.5 0 0 1 13-5.1" />
+                <path d="M17.8 3.6v3.6h-3.6M6.2 20.4v-3.6h3.6" />
+              </svg>
+            </button>
           </div>
         )}
+        {rerollHint && !canReroll && <p class="muted small board__hint">Сменить задания можно завтра.</p>}
       </section>
 
       <section class="home__more">
