@@ -268,24 +268,134 @@ h2 {
   font-weight: 600;
 }
 
-.flame {
-  flex: none;
-  width: 56px;
-  height: 56px;
+/* Долина */
+
+.valley-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.flame__fire {
-  transform-origin: 24px 39px;
-  animation: flicker 2.4s ease-in-out infinite;
+/* Панорама: видно 380 единиц мира, остальное листается вбок. */
+.valley {
+  width: 100%;
+  aspect-ratio: 380 / 216;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: var(--radius);
+  background: var(--color-sky);
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.valley::-webkit-scrollbar {
+  display: none;
+}
+
+.valley__scene {
+  display: block;
+  width: calc(100% * 960 / 380);
+  height: 100%;
+}
+
+.valley-card__plant {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 6px 0 12px;
+  border-radius: 14px;
+  background: var(--color-card);
+}
+
+.valley-card__open {
+  margin: 0 6px;
+}
+
+/* Хмарь отходит медленно. */
+.valley__mist {
+  transition: transform 3.2s ease-in-out;
+}
+
+.plant,
+.plant__sway,
+.campfire__flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.plant__sway {
+  animation: sway 6s ease-in-out infinite;
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50% { transform: rotate(1.2deg); }
+}
+
+/* Рост по шагам: росток → молодое → взрослое. */
+.plant--new {
+  animation: grow 2.6s ease-out 0.3s both;
+}
+
+@keyframes grow {
+  0% { transform: scale(0.08); opacity: 0; }
+  12% { transform: scale(0.15); opacity: 1; }
+  35% { transform: scale(0.15); }
+  55% { transform: scale(0.55); }
+  70% { transform: scale(0.55); }
+  100% { transform: scale(1); }
+}
+
+.decor--new {
+  animation: appear 2s ease-out 0.3s both;
+}
+
+@keyframes appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.campfire__flame {
+  animation: flicker 1.8s ease-in-out infinite;
 }
 
 @keyframes flicker {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
+  0%, 100% { transform: scale(1, 1); opacity: 1; }
+  35% { transform: scale(0.94, 1.06); opacity: 0.92; }
+  70% { transform: scale(1.04, 0.95); opacity: 1; }
+}
+
+.campfire__smoke {
+  animation: smoke 4s ease-in-out infinite;
+}
+
+@keyframes smoke {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+
+.firefly {
+  animation: twinkle 3.6s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .flame__fire {
+  .valley__mist {
+    transition: none;
+  }
+
+  .plant__sway,
+  .plant--new,
+  .decor--new,
+  .campfire__flame,
+  .campfire__smoke,
+  .firefly {
     animation: none;
   }
 }

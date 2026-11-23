@@ -10,6 +10,7 @@ import {
   lateInviteAction,
   onOpen,
   pauseTask,
+  plantFromInventory,
   rerollBoard,
   resumeTask,
   returnOverduePigeons,
@@ -22,7 +23,7 @@ import {
   type StreakNews,
 } from './logic/game';
 import { pickPhrase } from './logic/phrases';
-import { dueQuestion, markAsked } from './logic/pigeons';
+import { cloakView, dueQuestion, feathersOf, markAsked } from './logic/pigeons';
 import { mergeTemplates } from './logic/tasks';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
 import type { Achievement, Branch, LoftState, Pigeon, Settings, TaskTemplate } from './model/types';
@@ -105,7 +106,12 @@ interface GameProps {
 }
 
 function Game({ db, initial, initialCustom, persistence }: GameProps) {
-  const [game, setGame] = useState<GameState>({ player: initial.player, board: initial.board, timer: initial.timer });
+  const [game, setGame] = useState<GameState>({
+    player: initial.player,
+    board: initial.board,
+    timer: initial.timer,
+    valley: initial.valley,
+  });
   const [settings, setSettings] = useState<Settings>(initial.settings);
   const [custom, setCustom] = useState<TaskTemplate[]>(initialCustom);
   const [reward, setReward] = useState<ShownReward | null>(null);
@@ -117,6 +123,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const [idlePhrase, setIdlePhrase] = useState('');
   const [startPhrase, setStartPhrase] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** Только что выросшее в долине: главный экран покажет, как оно растёт. */
+  const [fresh, setFresh] = useState<string | null>(null);
   const route = useRoute();
   const now = useNow(game.timer ? 1000 : 30_000);
 
@@ -160,6 +168,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   }
 
   function showReward(done: CompletedTask) {
+    if (done.planted) setFresh(done.planted.id);
     const r = done.report;
     const phrase = takePhrase(r.comeback ? 'comeback' : 'finish');
     setReward({
@@ -273,6 +282,13 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     showFeather(r.feather);
   }
 
+  function plant(item: string) {
+    const r = plantFromInventory(gameRef.current, item, Date.now(), Math.random);
+    if (!r) return;
+    commit(r.state);
+    setFresh(r.object.id);
+  }
+
   function notYet(id: string) {
     const p = pigeonsRef.current.find((x) => x.id === id);
     if (p) commit(gameRef.current, { pigeons: [markAsked(p, Date.now())] });
@@ -325,7 +341,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   /** После резервной копии (новая дата копии) или восстановления из неё (новые данные целиком). */
   async function dataChanged(data: AppData) {
     const nextCustom = await listCustomTasks(db);
-    const loaded: GameState = { player: data.player, board: data.board, timer: data.timer };
+    const loaded: GameState = { player: data.player, board: data.board, timer: data.timer, valley: data.valley };
     gameRef.current = loaded;
     phrasesRef.current = data.phrases.recent;
     pigeonsRef.current = data.pigeons;
@@ -344,6 +360,15 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const journalTask = journalId ? templates.find((t) => t.id === journalId && t.kind === 'instant') : undefined;
 
   const flying = pigeons.filter((p) => p.status === 'flying');
+  const feathersList = useMemo(() => feathersOf(pigeons), [pigeons]);
+  const onMain = !reward && !feathers[0] && !game.timer && !['loft', 'settings', 'custom'].includes(route) && !journalTask;
+
+  // Анимация роста показывается один раз: через несколько секунд на главном экране растение считается обычным.
+  useEffect(() => {
+    if (!fresh || !onMain) return;
+    const id = setTimeout(() => setFresh(null), 6000);
+    return () => clearTimeout(id);
+  }, [fresh, onMain]);
   // Спрашивает самый давний голубь, которому пора.
   const asking = [...flying].reverse().find((p) => dueQuestion(p, now) !== null);
   const question = asking ? { pigeon: asking, day: dueQuestion(asking, now)! } : null;
@@ -418,6 +443,10 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         question={question}
         onNotYet={notYet}
         onAnswer={answer}
+        feathers={feathersList}
+        cloakStage={cloakView(feathersList.length).stage}
+        fresh={fresh}
+        onPlant={plant}
       />
     );
   }

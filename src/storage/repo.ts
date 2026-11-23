@@ -2,8 +2,9 @@
 
 import type { GameState, RunningTask } from '../logic/game';
 import { createLoft } from '../logic/pigeons';
+import { valleyFromXp } from '../logic/valley';
 import type { Rng } from '../logic/rng';
-import type { Achievement, BoardState, LoftState, Pigeon, PlayerState, Settings, TaskTemplate } from '../model/types';
+import type { Achievement, BoardState, LoftState, Pigeon, PlayerState, Settings, TaskTemplate, ValleyState } from '../model/types';
 import type { KvKey, KvMap, PhraseHistory, ProsvetDb } from './db';
 import {
   createSettings,
@@ -14,6 +15,7 @@ import {
   normalizePlayer,
   normalizeSettings,
   normalizeTimer,
+  normalizeValley,
 } from './normalize';
 
 export async function getKv<K extends KvKey>(db: ProsvetDb, key: K): Promise<unknown> {
@@ -33,11 +35,15 @@ export interface AppData {
   phrases: PhraseHistory;
   loft: LoftState;
   pigeons: Pigeon[];
+  valley: ValleyState;
 }
 
-/** Загружает данные; при первом запуске создаёт игрока, настройки и жёрдочку с голубями. */
+/**
+ * Загружает данные; при первом запуске создаёт игрока, настройки и жёрдочку с голубями.
+ * Долины нет (база или копия старше шага 6) — она вырастает по уже накопленному опыту веток.
+ */
 export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.random): Promise<AppData> {
-  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons] = await Promise.all([
+  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley] = await Promise.all([
     getKv(db, 'player'),
     getKv(db, 'settings'),
     getKv(db, 'board'),
@@ -45,20 +51,27 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
     getKv(db, 'phrases'),
     getKv(db, 'loft'),
     db.getAll('pigeons'),
+    getKv(db, 'valley'),
   ]);
-  const loft = normalizeLoft(rawLoft);
+  const player = normalizePlayer(rawPlayer);
+  const storedLoft = normalizeLoft(rawLoft);
+  const loft = storedLoft ?? createLoft(rng);
+  const storedValley = normalizeValley(rawValley);
+  const valley = storedValley ?? valleyFromXp(player.xp, rng);
   const data: AppData = {
-    player: normalizePlayer(rawPlayer),
+    player,
     settings: rawSettings === undefined ? createSettings(now) : normalizeSettings(rawSettings, now),
     board: normalizeBoard(rawBoard),
     timer: normalizeTimer(rawTimer),
     phrases: normalizePhrases(rawPhrases),
-    loft: loft ?? createLoft(rng),
+    loft,
     pigeons: sortPigeons(normalizePigeons(rawPigeons)),
+    valley,
   };
   if (rawPlayer === undefined) await setKv(db, 'player', data.player);
   if (rawSettings === undefined) await setKv(db, 'settings', data.settings);
-  if (!loft) await setKv(db, 'loft', data.loft);
+  if (!storedLoft) await setKv(db, 'loft', data.loft);
+  if (!storedValley) await setKv(db, 'valley', data.valley);
   return data;
 }
 
@@ -71,7 +84,7 @@ export interface SaveExtras {
 }
 
 /**
- * Сохраняет игру одной транзакцией: игрока, доску и таймер, а если переданы — запись журнала, голубей и жёрдочку.
+ * Сохраняет игру одной транзакцией: игрока, доску, таймер и долину, а если переданы — запись журнала, голубей и жёрдочку.
  * Так награда и то, за что она дана, не могут разойтись: либо записалось всё, либо ничего.
  */
 export async function saveGame(db: ProsvetDb, game: GameState, extras: SaveExtras = {}): Promise<void> {
@@ -81,6 +94,7 @@ export async function saveGame(db: ProsvetDb, game: GameState, extras: SaveExtra
     kv.put(game.player, 'player'),
     kv.put(game.board, 'board'),
     kv.put(game.timer, 'timer'),
+    kv.put(game.valley, 'valley'),
   ];
   if (extras.achievement) writes.push(tx.objectStore('achievements').put(extras.achievement));
   if (extras.loft) writes.push(kv.put(extras.loft, 'loft'));

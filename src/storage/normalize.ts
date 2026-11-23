@@ -5,12 +5,16 @@
 import { BALANCE } from '../config/balance';
 import type { RunningTask } from '../logic/game';
 import { lookKey } from '../logic/pigeons';
+import { CAPACITY } from '../logic/valley';
 import { createPlayer } from '../model/player';
 import {
   BRANCHES,
+  DECOR_KINDS,
   PIGEON_COLORS,
   PIGEON_POSES,
   PIGEON_SIZES,
+  PLANT_KINDS,
+  PLANT_SIZES,
   type BoardState,
   type LoftState,
   type Pigeon,
@@ -18,6 +22,9 @@ import {
   type PigeonOutcome,
   type PlayerState,
   type Settings,
+  type ValleyDecor,
+  type ValleyPlant,
+  type ValleyState,
 } from '../model/types';
 import type { PhraseHistory } from './db';
 
@@ -122,4 +129,56 @@ export function normalizePigeons(raw: readonly unknown[]): Pigeon[] {
 export function normalizePhrases(raw: unknown): PhraseHistory {
   if (!isObject(raw) || !Array.isArray(raw.recent)) return { recent: [] };
   return { recent: raw.recent.filter((p) => typeof p === 'string') };
+}
+
+function normalizePlant(raw: unknown): ValleyPlant | null {
+  if (
+    !isObject(raw) ||
+    typeof raw.id !== 'string' ||
+    !PLANT_KINDS.includes(raw.kind as never) ||
+    !PLANT_SIZES.includes(raw.size as never) ||
+    !Number.isInteger(raw.slot) ||
+    (raw.slot as number) < 0 ||
+    (raw.slot as number) >= CAPACITY
+  ) {
+    return null;
+  }
+  const p: ValleyPlant = {
+    id: raw.id,
+    kind: raw.kind as ValleyPlant['kind'],
+    size: raw.size as ValleyPlant['size'],
+    slot: raw.slot as number,
+    seed: typeof raw.seed === 'number' ? raw.seed >>> 0 : 0,
+    plantedAt: typeof raw.plantedAt === 'number' ? raw.plantedAt : 0,
+  };
+  if (BRANCHES.includes(raw.branch as never)) p.branch = raw.branch as ValleyPlant['branch'];
+  return p;
+}
+
+function normalizeDecor(raw: unknown): ValleyDecor | null {
+  if (!isObject(raw) || typeof raw.id !== 'string' || !DECOR_KINDS.includes(raw.kind as never)) return null;
+  return {
+    id: raw.id,
+    kind: raw.kind as ValleyDecor['kind'],
+    anchor: Number.isInteger(raw.anchor) && (raw.anchor as number) >= 0 ? (raw.anchor as number) : 0,
+    seed: typeof raw.seed === 'number' ? raw.seed >>> 0 : 0,
+    plantedAt: typeof raw.plantedAt === 'number' ? raw.plantedAt : 0,
+  };
+}
+
+/** Долина. null — записи нет (база или копия старше шага 6): тогда приложение выращивает её по опыту. */
+export function normalizeValley(raw: unknown): ValleyState | null {
+  if (!isObject(raw)) return null;
+  const taken = new Set<number>();
+  const plants: ValleyPlant[] = [];
+  for (const item of Array.isArray(raw.plants) ? raw.plants : []) {
+    const p = normalizePlant(item);
+    // Два растения на одном месте быть не может — второе отбрасываем.
+    if (p && !taken.has(p.slot)) {
+      taken.add(p.slot);
+      plants.push(p);
+    }
+  }
+  const decor = (Array.isArray(raw.decor) ? raw.decor : []).map(normalizeDecor).filter((d) => d !== null);
+  return { plants, decor };
 }

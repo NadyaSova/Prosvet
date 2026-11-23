@@ -16,6 +16,7 @@ import {
   type GameState,
 } from './game';
 import { createRng, type Rng } from './rng';
+import { emptyValley } from './valley';
 import { dayOf } from './time';
 
 const NOW = new Date(2026, 10, 23, 12, 0).getTime();
@@ -27,7 +28,7 @@ const byId = new Map(DEFAULT_TASKS.map((t) => [t.id, t]));
 const get = (id: string) => byId.get(id)!;
 
 function newGame(seed = 1): GameState {
-  const empty: GameState = { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null };
+  const empty: GameState = { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null, valley: emptyValley() };
   return ensureBoard(empty, DEFAULT_TASKS, NOW, createRng(seed));
 }
 

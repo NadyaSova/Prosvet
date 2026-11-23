@@ -24,11 +24,22 @@ const STAGES: CloakShape[] = [
   { w: 60, hem: 214 },
 ];
 
+/** Цвета героини — общие для плаща в голубятне и странницы у костра в долине. */
+export const HEROINE = {
+  hair: '#e3c48a',
+  hairLine: '#bf9a5a',
+  bun: '#cfa968',
+  ribbon: '#4e7a57',
+  cloak: '#cdbfa8',
+  cloakLine: '#a8977c',
+  collar: '#e2b04a',
+} as const;
+
 const CX = 100;
 const TOP = 64;
 const SHOULDER = 21;
 
-function hashSeed(s: string): number {
+export function hashSeed(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return h >>> 0;
@@ -105,28 +116,28 @@ export function CloakArt({ feathers, stage, class: className }: { feathers: read
       <ellipse cx={CX + 10} cy="223" rx="7" ry="4" fill="#6b4a36" />
 
       {/* плащ */}
-      <path d={path} fill="#cdbfa8" />
+      <path d={path} fill={HEROINE.cloak} />
       <g clip-path="url(#cloak-clip)">
         {drawOrder.map(({ f, x, y, rotate }, i) => (
           <FeatherShape key={`${f.pigeonId}-${i}`} color={f.color} size={f.size} x={x} y={y} rotate={rotate} scale={0.95} />
         ))}
         {shimmer && <rect class="cloak__shimmer" x="0" y="0" width="200" height="236" fill="url(#cloak-shimmer)" />}
       </g>
-      <path d={path} fill="none" stroke="#a8977c" stroke-width="1.5" />
+      <path d={path} fill="none" stroke={HEROINE.cloakLine} stroke-width="1.5" />
 
       {/* воротник из перьев на поздних стадиях */}
       {collar && (
         <path
           d={`M${CX - 24} ${TOP + 4} Q${CX} ${TOP - 12} ${CX + 24} ${TOP + 4} Q${CX} ${TOP + 12} ${CX - 24} ${TOP + 4} Z`}
-          fill="#e2b04a"
+          fill={HEROINE.collar}
           opacity="0.85"
         />
       )}
 
       {/* голова: волосы с пучком */}
-      <circle cx={CX} cy="44" r="17" fill="#6b4a36" />
-      <circle cx={CX} cy="25" r="8" fill="#5c3f2e" />
-      <path d={`M${CX - 8} 30 Q${CX} 34 ${CX + 8} 30`} stroke="#e8833a" stroke-width="2.5" fill="none" stroke-linecap="round" />
+      <circle cx={CX} cy="44" r="17" fill={HEROINE.hair} stroke={HEROINE.hairLine} stroke-width="1" />
+      <circle cx={CX} cy="25" r="8" fill={HEROINE.bun} stroke={HEROINE.hairLine} stroke-width="1" />
+      <path d={`M${CX - 8} 30 Q${CX} 34 ${CX + 8} 30`} stroke={HEROINE.ribbon} stroke-width="2.5" fill="none" stroke-linecap="round" />
     </svg>
   );
 }

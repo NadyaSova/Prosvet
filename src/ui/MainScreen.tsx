@@ -1,19 +1,22 @@
-// Главный экран: героиня, костёр (серия), вопрос голубя, доска заданий, «Не хочу ничего», своё задание,
-// вход в голубятню, ветки.
-// Долина появится на шаге 6.
+// Главный экран: долина с костром и странницей, семена для посадки, героиня, серия, вопрос голубя,
+// доска заданий, «Не хочу ничего», своё задание, вход в голубятню, ветки.
 
 import { useState } from 'preact/hooks';
+import { BALANCE } from '../config/balance';
 import type { GameState, StreakNews } from '../logic/game';
+import type { Feather } from '../logic/pigeons';
 import { rerollAvailable } from '../logic/game';
 import { levelInfo, titleFor, totalXp } from '../logic/progression';
 import { viewStreak } from '../logic/streak';
 import { dayOf } from '../logic/time';
+import { canPlantItem, isDistrictOpen } from '../logic/valley';
 import { BRANCHES, type Pigeon, type TaskTemplate } from '../model/types';
 import { BranchChip, Progress, TaskCard } from './common';
-import { Flame } from './Flame';
 import { daysText, fireText, plural } from './format';
+import { itemName } from './labels';
 import { PigeonArt } from './pigeon-art';
 import { go } from './router';
+import { ValleyView } from './valley/ValleyView';
 
 interface Props {
   game: GameState;
@@ -30,6 +33,12 @@ interface Props {
   question: { pigeon: Pigeon; day: number } | null;
   onNotYet: (id: string) => void;
   onAnswer: (id: string, outcome: 'rejected' | 'invited') => void;
+  /** Перья плаща — для странницы у костра. */
+  feathers: readonly Feather[];
+  cloakStage: number;
+  /** Только что выросшее в долине — для анимации. */
+  fresh: string | null;
+  onPlant: (item: string) => void;
 }
 
 function newsText(news: StreakNews): string {
@@ -52,6 +61,10 @@ export function MainScreen({
   question,
   onNotYet,
   onAnswer,
+  feathers,
+  cloakStage,
+  fresh,
+  onPlant,
 }: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
   const { player } = game;
@@ -61,6 +74,8 @@ export function MainScreen({
   const byId = new Map(templates.map((t) => [t.id, t]));
   const board = game.board.taskIds.map((id) => byId.get(id)).filter((t) => t !== undefined);
   const canReroll = rerollAvailable(game.board, now);
+  const plantable = player.inventory.find((item) => canPlantItem(game.valley, item));
+  const waiting = player.inventory.length - 1;
 
   return (
     <main class="screen home">
@@ -74,6 +89,22 @@ export function MainScreen({
           </svg>
         </button>
       </header>
+
+      <section class="valley-card">
+        <ValleyView valley={game.valley} fire={streak.fire} feathers={feathers} cloakStage={cloakStage} fresh={fresh} />
+        {plantable && (
+          <div class="valley-card__plant">
+            <span class="small">
+              {itemName(plantable)}
+              {waiting > 0 && <span class="muted"> и ещё {waiting}</span>}
+            </span>
+            <button type="button" class="link-button" onClick={() => onPlant(plantable)}>
+              {(BALANCE.loot.seeds as readonly string[]).includes(plantable) ? 'Посадить' : 'Добавить в долину'}
+            </button>
+          </div>
+        )}
+        {isDistrictOpen(game.valley) && <p class="muted small valley-card__open">Долина открыта: хмари больше нет.</p>}
+      </section>
 
       <section class="card hero">
         <div class="hero__row">
@@ -97,7 +128,6 @@ export function MainScreen({
       </section>
 
       <section class="card streak">
-        <Flame level={streak.fire} />
         <div>
           <div class="streak__value">{streak.value > 0 ? `Серия: ${daysText(streak.value)}` : 'Серии пока нет'}</div>
           <div class="small">{fireText(streak, today, player.streak.lastActiveDay !== null)}</div>

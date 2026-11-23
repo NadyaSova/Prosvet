@@ -113,6 +113,50 @@ export interface LoftState {
   perch: PigeonLook[];
 }
 
+/**
+ * Растения долины. SPEC.md §6, §12.2. Первые шесть растут за задания по веткам,
+ * остальные — из семян, выпавших в карте добычи (BALANCE.loot.seeds).
+ */
+export const PLANT_KINDS = ['oak', 'birch', 'willow', 'pine', 'flowers', 'bush', 'rowan', 'apple', 'lilac', 'sunflower'] as const;
+export type PlantKind = (typeof PLANT_KINDS)[number];
+
+/** Редкий декор из карты добычи (BALANCE.loot.rareDecor). */
+export const DECOR_KINDS = ['fireflies', 'rainbow', 'deer'] as const;
+export type DecorKind = (typeof DECOR_KINDS)[number];
+
+export const PLANT_SIZES = ['small', 'medium', 'large'] as const;
+export type PlantSize = (typeof PLANT_SIZES)[number];
+
+/** Растение в долине. Где оно — номер места в районе; как выглядит — вид, размер и сид. */
+export interface ValleyPlant {
+  id: string;
+  kind: PlantKind;
+  size: PlantSize;
+  /** Номер места в районе (model/valley-district.ts). */
+  slot: number;
+  /** Сид разброса: высота, оттенок, форма кроны. Стабилен между запусками. */
+  seed: number;
+  /** Когда посажено. 0 — посажено при создании долины по уже накопленному опыту. */
+  plantedAt: number;
+  /** Ветка задания, за которое выросло; у растений из семян нет. */
+  branch?: Branch;
+}
+
+/** Редкость в долине: светлячки, радуга, олень. Мест растений не занимает. */
+export interface ValleyDecor {
+  id: string;
+  kind: DecorKind;
+  /** Номер места редкости этого вида. */
+  anchor: number;
+  seed: number;
+  plantedAt: number;
+}
+
+export interface ValleyState {
+  plants: ValleyPlant[];
+  decor: ValleyDecor[];
+}
+
 /** Доска заданий. */
 export interface BoardState {
   /** Шаблоны заданий на доске. */

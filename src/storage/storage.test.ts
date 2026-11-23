@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { openDB } from 'idb';
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../logic/rng';
+import { emptyValley, plantForCompletion } from '../logic/valley';
 import { createPlayer } from '../model/player';
 import type { Achievement, Pigeon, TaskTemplate } from '../model/types';
 import {
@@ -14,7 +15,7 @@ import {
   serializeSnapshot,
 } from './backup';
 import { openProsvetDb, SCHEMA_VERSION } from './db';
-import { normalizeLoft, normalizePigeon, normalizePlayer, normalizeTimer } from './normalize';
+import { normalizeLoft, normalizePigeon, normalizePlayer, normalizeTimer, normalizeValley } from './normalize';
 import {
   getKv,
   listAchievements,
@@ -99,7 +100,7 @@ describe('сохранение игры', () => {
     const db = await freshDb();
     await loadAppData(db, NOW);
     const timer = { templateId: 'x', title: 'Задание', branch: 'hunt' as const, startedAt: NOW, durationMs: 60_000, pausedAt: null, pausedMs: 0, pausesUsed: 0 };
-    await saveGame(db, { player: { ...createPlayer(), gold: 5 }, board: { taskIds: ['a'], rerolls: null }, timer }, { achievement: achievement('j', NOW) });
+    await saveGame(db, { player: { ...createPlayer(), gold: 5 }, board: { taskIds: ['a'], rerolls: null }, timer, valley: emptyValley() }, { achievement: achievement('j', NOW) });
     const data = await loadAppData(db, NOW);
     expect(data.player.gold).toBe(5);
     expect(data.board.taskIds).toEqual(['a']);
@@ -252,11 +253,11 @@ describe('голубятня', () => {
   it('копия с голубями — туда и обратно', async () => {
     const source = await freshDb();
     await loadAppData(source, NOW);
-    await saveGame(source, { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null }, { pigeons: [pigeon] });
+    await saveGame(source, { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null, valley: emptyValley() }, { pigeons: [pigeon] });
     const text = serializeSnapshot(await exportSnapshot(source, NOW));
 
     const target = await freshDb();
-    await saveGame(target, { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null }, {
+    await saveGame(target, { player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null, valley: emptyValley() }, {
       pigeons: [{ ...pigeon, id: 'лишний' }],
     });
     await importSnapshot(target, parseSnapshot(text));
@@ -280,6 +281,60 @@ describe('голубятня', () => {
   it('копия версии 2 без голубей не загружается', () => {
     const text = JSON.stringify({ app: 'prosvet', schemaVersion: 2, data: { kv: {}, tasks: [], achievements: [] } });
     expect(() => parseSnapshot(text)).toThrow(BackupError);
+  });
+});
+
+describe('долина', () => {
+  const grown = () =>
+    plantForCompletion(emptyValley(), { kind: 'timed', branch: 'speech', minutes: 30, full: true }, NOW, createRng(1))!.valley;
+
+  it('новый игрок — пустая долина, она сохраняется', async () => {
+    const db = await freshDb();
+    const data = await loadAppData(db, NOW);
+    expect(data.valley).toEqual(emptyValley());
+    expect(await getKv(db, 'valley')).toEqual(emptyValley());
+  });
+
+  it('база старше долины: долина вырастает по опыту и больше не пересоздаётся', async () => {
+    const db = await freshDb();
+    await setKv(db, 'player', { ...createPlayer(), xp: { ...createPlayer().xp, hunt: 31, image: 15 } });
+    const data = await loadAppData(db, NOW, createRng(1));
+    expect(data.valley.plants.map((p) => p.kind).sort()).toEqual(['birch', 'pine', 'pine']);
+    expect((await loadAppData(db, NOW, createRng(2))).valley).toEqual(data.valley);
+  });
+
+  it('долина пишется вместе с игрой и попадает в копию', async () => {
+    const source = await freshDb();
+    const data = await loadAppData(source, NOW);
+    await saveGame(source, { ...data, valley: grown() });
+    expect((await loadAppData(source, NOW)).valley).toEqual(grown());
+
+    const target = await freshDb();
+    await importSnapshot(target, parseSnapshot(serializeSnapshot(await exportSnapshot(source, NOW))));
+    expect((await loadAppData(target, NOW)).valley).toEqual(grown());
+  });
+
+  it('копия без долины загружается', async () => {
+    const text = JSON.stringify({
+      app: 'prosvet', schemaVersion: 2, exportedAt: '',
+      data: { kv: { player: { ...createPlayer(), gold: 3 } }, tasks: [], achievements: [], pigeons: [] },
+    });
+    const db = await freshDb();
+    await importSnapshot(db, parseSnapshot(text));
+    const data = await loadAppData(db, NOW);
+    expect(data.player.gold).toBe(3);
+    expect(data.valley).toEqual(emptyValley());
+  });
+
+  it('испорченные растения отбрасываются, два на одном месте не бывает', () => {
+    expect(normalizeValley('мусор')).toBeNull();
+    const ok = { id: 'a', kind: 'oak', size: 'large', slot: 3, seed: 7, plantedAt: NOW };
+    const v = normalizeValley({
+      plants: [ok, { ...ok, id: 'b' }, { ...ok, id: 'c', kind: 'кактус', slot: 4 }, { ...ok, id: 'd', slot: 9999 }],
+      decor: [{ id: 'x', kind: 'deer', anchor: 1 }, { id: 'y', kind: 'дракон' }],
+    });
+    expect(v?.plants.map((p) => p.id)).toEqual(['a']);
+    expect(v?.decor).toEqual([{ id: 'x', kind: 'deer', anchor: 1, seed: 0, plantedAt: 0 }]);
   });
 });
 

@@ -2,13 +2,24 @@
 // Чистые функции: время и генератор случайных чисел — в параметрах. Интерфейс только вызывает их и сохраняет итог.
 
 import { BALANCE } from '../config/balance';
-import type { BoardState, Branch, LoftState, Pigeon, PlayerState, TaskTemplate } from '../model/types';
+import type {
+  BoardState,
+  Branch,
+  LoftState,
+  Pigeon,
+  PlayerState,
+  TaskTemplate,
+  ValleyDecor,
+  ValleyPlant,
+  ValleyState,
+} from '../model/types';
 import { buildBoard, canReroll, pickTinyTask, refillSlot, repairBoard, type BoardContext } from './board';
 import { answerPigeon, feathersOf, isOverdue, lateInvite, launchPigeon, returnSilent } from './pigeons';
-import { applyCompletion, applyFeather, refreshStreak, type FeatherReport, type RewardReport } from './rewards';
+import { applyCompletion, applyFeather, refreshStreak, type Completion, type FeatherReport, type RewardReport } from './rewards';
 import type { Rng } from './rng';
 import { dayOf } from './time';
 import { endsAt, isFinished, pauseTimer, resumeTimer, settleTimer, startTimer, type TimerState } from './timer';
+import { isDistrictOpen, plantForCompletion, plantItem } from './valley';
 
 /** Идущее таймерное задание. Название и ветка хранятся в нём, чтобы разовые задания не нужно было сохранять. */
 export interface RunningTask extends TimerState {
@@ -20,6 +31,7 @@ export interface GameState {
   player: PlayerState;
   board: BoardState;
   timer: RunningTask | null;
+  valley: ValleyState;
 }
 
 /** Что показать на экране награды. */
@@ -34,6 +46,10 @@ export interface CompletedTask {
   full: boolean;
   /** Время вышло, пока приложение было закрыто. */
   whileAway: boolean;
+  /** Что выросло в долине. null — район уже полон. */
+  planted: ValleyPlant | null;
+  /** Это растение заполнило район: хмари больше нет. */
+  districtOpened: boolean;
 }
 
 export interface StreakNews {
@@ -110,7 +126,19 @@ function afterCompletion(
   const ctx = boardContext(player, now);
   const index = state.board.taskIds.indexOf(templateId);
   const taskIds = index >= 0 ? refillSlot(state.board.taskIds, index, templates, ctx, rng) : state.board.taskIds;
-  return ensureBoard({ player, board: { ...state.board, taskIds }, timer: null }, templates, now, rng);
+  return ensureBoard({ ...state, player, board: { ...state.board, taskIds }, timer: null }, templates, now, rng);
+}
+
+/** Засчитанное задание выращивает растение в долине. */
+function withPlant(
+  state: GameState,
+  c: Completion,
+  now: number,
+  rng: Rng,
+): { state: GameState; planted: ValleyPlant | null; districtOpened: boolean } {
+  const r = plantForCompletion(state.valley, c, now, rng);
+  if (!r) return { state, planted: null, districtOpened: false };
+  return { state: { ...state, valley: r.valley }, planted: r.plant, districtOpened: isDistrictOpen(r.valley) };
 }
 
 /**
@@ -130,14 +158,11 @@ export function finishTimedTask(
   const settled = settleTimer(t, now);
   if (!settled) return null;
   const at = settled.full ? Math.min(now, endsAt(t) ?? now) : now;
-  const { state: player, report } = applyCompletion(
-    state.player,
-    { kind: 'timed', branch: t.branch, minutes: settled.minutes, full: settled.full },
-    at,
-    rng,
-  );
+  const completion: Completion = { kind: 'timed', branch: t.branch, minutes: settled.minutes, full: settled.full };
+  const { state: player, report } = applyCompletion(state.player, completion, at, rng);
+  const grown = withPlant(afterCompletion(state, player, t.templateId, templates, now, rng), completion, at, rng);
   return {
-    state: afterCompletion(state, player, t.templateId, templates, now, rng),
+    state: grown.state,
     done: {
       title: t.title,
       branch: t.branch,
@@ -146,6 +171,8 @@ export function finishTimedTask(
       plannedMinutes: Math.round(t.durationMs / 60_000),
       full: settled.full,
       whileAway: false,
+      planted: grown.planted,
+      districtOpened: grown.districtOpened,
     },
   };
 }
@@ -159,15 +186,21 @@ export function completeInstantTask(
   rng: Rng,
 ): { state: GameState; done: CompletedTask } {
   if (template.kind !== 'instant') throw new Error('Задание не мгновенное');
-  const { state: player, report } = applyCompletion(
-    state.player,
-    { kind: 'instant', branch: template.branch, instant: template.instant },
-    now,
-    rng,
-  );
+  const completion: Completion = { kind: 'instant', branch: template.branch, instant: template.instant };
+  const { state: player, report } = applyCompletion(state.player, completion, now, rng);
+  const after = { ...afterCompletion(state, player, template.id, templates, now, rng), timer: state.timer };
+  const grown = withPlant(after, completion, now, rng);
   return {
-    state: { ...afterCompletion(state, player, template.id, templates, now, rng), timer: state.timer },
-    done: { title: template.title, branch: template.branch, report, full: true, whileAway: false },
+    state: grown.state,
+    done: {
+      title: template.title,
+      branch: template.branch,
+      report,
+      full: true,
+      whileAway: false,
+      planted: grown.planted,
+      districtOpened: grown.districtOpened,
+    },
   };
 }
 
@@ -216,17 +249,22 @@ export function sendPigeon(
   id: string,
 ): { state: GameState; loft: LoftState; pigeon: Pigeon; done: CompletedTask } {
   const launched = launchPigeon(loft, perchIndex, company, now, rng, id);
-  const { state: player, report } = applyCompletion(
-    state.player,
-    { kind: 'instant', branch: 'hunt', instant: 'application' },
-    now,
-    rng,
-  );
+  const completion: Completion = { kind: 'instant', branch: 'hunt', instant: 'application' };
+  const { state: player, report } = applyCompletion(state.player, completion, now, rng);
+  const grown = withPlant({ ...state, player }, completion, now, rng);
   return {
-    state: { ...state, player },
+    state: grown.state,
     loft: launched.loft,
     pigeon: launched.pigeon,
-    done: { title: `Голубь улетел: «${launched.pigeon.company}»`, branch: 'hunt', report, full: true, whileAway: false },
+    done: {
+      title: `Голубь улетел: «${launched.pigeon.company}»`,
+      branch: 'hunt',
+      report,
+      full: true,
+      whileAway: false,
+      planted: grown.planted,
+      districtOpened: grown.districtOpened,
+    },
   };
 }
 
@@ -293,6 +331,24 @@ export function returnOverduePigeons(
     feathers.push(r.feather);
   }
   return { state: next, changed, feathers };
+}
+
+/**
+ * Посадить семя или поставить редкость из добычи (кнопка «Посадить»). Предмет уходит из запаса.
+ * null — такого предмета в запасе нет или семени негде расти.
+ */
+export function plantFromInventory(
+  state: GameState,
+  item: string,
+  now: number,
+  rng: Rng,
+): { state: GameState; object: ValleyPlant | ValleyDecor } | null {
+  const index = state.player.inventory.indexOf(item);
+  if (index < 0) return null;
+  const r = plantItem(state.valley, item, now, rng);
+  if (!r) return null;
+  const inventory = state.player.inventory.filter((_, i) => i !== index);
+  return { state: { ...state, player: { ...state.player, inventory }, valley: r.valley }, object: r.object };
 }
 
 /** Можно ли сегодня перетянуть доску (для кнопки). */

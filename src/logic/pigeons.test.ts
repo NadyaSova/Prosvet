@@ -22,6 +22,7 @@ import {
 } from './pigeons';
 import { applyFeather } from './rewards';
 import { createRng, type Rng } from './rng';
+import { emptyValley } from './valley';
 import { dayOf, dayStart } from './time';
 
 const NOW = new Date(2026, 10, 23, 12, 0).getTime();
@@ -34,7 +35,7 @@ const pigeon = (over: Partial<Pigeon> = {}): Pigeon => ({
 /** Полдень через days календарных дней после NOW. */
 const after = (days: number) => dayStart(dayOf(NOW) + days) + 12 * 3_600_000;
 
-const newGame = (): GameState => ({ player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null });
+const newGame = (): GameState => ({ player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null, valley: emptyValley() });
 
 describe('вид голубей', () => {
   it('на жёрдочке 5 разных голубей, видны все 4 цвета', () => {

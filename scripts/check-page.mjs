@@ -8,10 +8,14 @@
 // Пример (сначала запустить `npm run build` и `npx vite preview --port 4174`):
 //   node scripts/check-page.mjs "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" http://localhost:4174/ 3000 1 "document.querySelector('button').click()"
 //
+// Снимок экрана: переменная окружения SCREENSHOT=<путь к .png>. Тогда окно — как у телефона (412×915),
+// снимок делается в конце, после действия и перезагрузок. SHOT_ACTION=<JS> — выполнить перед самым снимком
+// (например, прокрутить панораму).
+//
 // Почему не --dump-dom: он снимает страницу сразу после загрузки и не ждёт асинхронного открытия IndexedDB.
 
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -71,6 +75,10 @@ try {
 
   await send('Runtime.enable');
   await send('Page.enable');
+  const screenshot = process.env.SCREENSHOT;
+  if (screenshot) {
+    await send('Emulation.setDeviceMetricsOverride', { width: 412, height: 915, deviceScaleFactor: 2, mobile: true });
+  }
   await send('Page.navigate', { url });
   await sleep(Number(waitMs));
   console.log('--- страница ---\n' + (await text()));
@@ -84,6 +92,15 @@ try {
     await send('Page.reload');
     await sleep(Number(waitMs));
     console.log(`--- после перезагрузки ${i + 1} ---\n` + (await text()));
+  }
+  if (screenshot) {
+    if (process.env.SHOT_ACTION) {
+      await send('Runtime.evaluate', { expression: process.env.SHOT_ACTION });
+      await sleep(800);
+    }
+    const shot = await send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(screenshot, Buffer.from(shot.data, 'base64'));
+    console.log(`--- снимок: ${screenshot} ---`);
   }
   ws.close();
 } finally {

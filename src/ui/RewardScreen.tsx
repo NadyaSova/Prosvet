@@ -1,4 +1,4 @@
-// Экран награды: опыт, золото, карта добычи (переворачивается нажатием), уровни, вехи серии, фраза.
+// Экран награды: опыт, золото, карта добычи (переворачивается нажатием), что выросло в долине, уровни, вехи серии, фраза.
 
 import { useState } from 'preact/hooks';
 import { BALANCE } from '../config/balance';
@@ -6,7 +6,7 @@ import type { CompletedTask } from '../logic/game';
 import type { LootCard as Loot } from '../logic/loot';
 import { titleFor } from '../logic/progression';
 import { daysText, minutesText, plural } from './format';
-import { BRANCH_NAMES, itemName } from './labels';
+import { BRANCH_NAMES, itemName, plantName } from './labels';
 
 export interface ShownReward extends CompletedTask {
   /** Главная фраза экрана (finish или comeback). */
@@ -122,6 +122,8 @@ export function RewardScreen({ reward, onClose, onLoft }: { reward: ShownReward;
       )}
 
       <ul class="reward__news">
+        {reward.planted && <li>Новое в долине: {plantName(reward.planted)}</li>}
+        {reward.districtOpened && <li>Хмарь ушла из долины целиком. Долина открыта.</li>}
         {r.newLevel !== null && (
           <li>
             Новый уровень {r.newLevel} — {titleFor(r.newLevel)}
