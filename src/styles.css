@@ -366,6 +366,33 @@ h2 {
   flex: 1 1 auto;
 }
 
+/* Выбор места: что посадить, подсказка, «Отмена». */
+.choose-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+}
+
+.choose-bar__seeds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.choose-bar__seeds .choice {
+  min-height: 36px;
+  padding: 4px 12px;
+  font-size: 15px;
+}
+
+.choice--on .muted {
+  color: inherit;
+  opacity: 0.8;
+}
+
 /* Телефон держат вертикально — экран повёрнут на бок, верх у правого края телефона.
    Условие — то же, что TURN_QUERY в ValleyScreen.tsx. Отступы: верх телефона теперь слева, низ — справа. */
 @media (orientation: portrait) and (pointer: coarse) {
@@ -504,6 +531,27 @@ h2 {
   50% { opacity: 1; }
 }
 
+.kettle__steam,
+.lantern__glow {
+  animation: smoke 4s ease-in-out infinite;
+}
+
+/* Выбор места для семени: светлые кружки на свободных местах. */
+.pick-spot {
+  cursor: pointer;
+}
+
+.pick-spot__ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pick-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pick-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .valley__mist {
     transition: none;
@@ -514,7 +562,10 @@ h2 {
   .decor--new,
   .campfire__flame,
   .campfire__smoke,
-  .firefly {
+  .firefly,
+  .kettle__steam,
+  .lantern__glow,
+  .pick-spot__ring {
     animation: none;
   }
 }
@@ -1312,6 +1363,345 @@ textarea:focus {
 .entry-delete {
   align-self: center;
   color: var(--color-error);
+}
+
+/* Лавка */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.shop-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  border: none;
+  box-shadow: inset 0 0 0 2px var(--color-gold);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shop-entry__title {
+  font-size: 19px;
+  font-weight: 600;
+  color: #a87a22;
+}
+
+.tabs {
+  display: flex;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--color-card);
+}
+
+.tab {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab--on {
+  background: var(--color-card-strong);
+  color: var(--color-text);
+  box-shadow: 0 1px 3px rgba(63, 58, 52, 0.12);
+}
+
+.shop__wallet {
+  justify-content: center;
+}
+
+.goods__hint {
+  margin: -6px 0 6px;
+}
+
+.good,
+.prize {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.good + .good,
+.prize + .prize {
+  border-top: 1px solid rgba(63, 58, 52, 0.08);
+}
+
+/* Рамка картинки: небо и трава, как в долине. */
+.good__art {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  background: linear-gradient(var(--color-sky) 62%, var(--color-hill-mid) 62%);
+}
+
+.good__art--decor {
+  background: linear-gradient(var(--color-sky) 30%, var(--color-hill-near) 30%);
+}
+
+.good__body,
+.prize__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.good__name,
+.prize__title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.good__buy,
+.prize__buy {
+  flex: none;
+  gap: 6px;
+  min-width: 76px;
+  padding: 10px 14px;
+}
+
+.good__buy .wallet__gold {
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.7);
+}
+
+.prize__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--color-card-strong);
+  color: var(--color-gold);
+  font-size: 26px;
+}
+
+.prize__edit {
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+.prizes__buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.prizes__buttons .button {
+  flex: 1;
+  padding: 12px;
+}
+
+.prizes__hint {
+  margin: 8px 0 0;
+}
+
+.coupon-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border: 2px dashed var(--color-gold);
+  border-radius: 16px;
+  background: var(--color-card-strong);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.coupon-row--given {
+  border-color: rgba(63, 58, 52, 0.18);
+  opacity: 0.75;
+}
+
+.coupon-row__icon {
+  flex: none;
+  color: var(--color-gold);
+  font-size: 24px;
+}
+
+.coupon-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.coupon-row__title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.coupon-row__price {
+  flex: none;
+  color: #a87a22;
+  font-weight: 600;
+}
+
+.coupons__given {
+  margin-top: 12px;
+}
+
+.coupons__given summary {
+  min-height: 36px;
+  cursor: pointer;
+}
+
+/* Форма приза */
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stepper .icon-button {
+  width: 48px;
+  height: 48px;
+  background: var(--color-card-strong);
+  font-size: 24px;
+}
+
+.stepper__value {
+  min-width: 64px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.icon-pick {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-card-strong);
+  color: var(--color-gold);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.icon-pick--on {
+  box-shadow: inset 0 0 0 3px var(--color-hill-near);
+}
+
+/* Купон во весь экран */
+
+.coupon {
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: radial-gradient(circle at 50% 35%, #fff6df, var(--color-sky) 70%);
+  max-width: none;
+}
+
+.coupon__close {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+}
+
+.coupon__ticket {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 400px;
+  padding: 32px 24px 28px;
+  border: 3px dashed var(--color-gold);
+  border-radius: 28px;
+  background: var(--color-card-strong);
+  box-shadow: 0 8px 30px rgba(168, 122, 34, 0.18);
+  text-align: center;
+  animation: coupon-in 0.7s ease-out;
+}
+
+@keyframes coupon-in {
+  from { transform: scale(0.92) rotate(-2deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.coupon__kicker {
+  color: #a87a22;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.coupon__icon {
+  color: var(--color-gold);
+  font-size: 72px;
+  line-height: 1.1;
+}
+
+.coupon__title {
+  font-size: 28px;
+  overflow-wrap: anywhere;
+}
+
+.coupon__price {
+  color: var(--color-gold);
+  font-size: 24px;
+  letter-spacing: 0.1em;
+}
+
+.coupon__note {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.coupon__date {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.coupon__stamp {
+  margin-top: 4px;
+  padding: 4px 10px;
+  border: 2px solid var(--color-hill-near);
+  border-radius: 8px;
+  color: var(--color-hill-near);
+  font-weight: 700;
+  transform: rotate(-8deg);
+}
+
+.coupon__give {
+  width: 100%;
+  max-width: 400px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coupon__ticket {
+    animation: none;
+  }
 }
 
 .save-error {

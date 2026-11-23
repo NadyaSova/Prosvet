@@ -152,9 +152,50 @@ export interface ValleyDecor {
   plantedAt: number;
 }
 
+/** Вещи лагеря из лавки. У каждой — своё постоянное место у костра. */
+export const CAMP_KINDS = ['tent', 'lantern', 'kettle'] as const;
+export type CampKind = (typeof CAMP_KINDS)[number];
+
 export interface ValleyState {
   plants: ValleyPlant[];
   decor: ValleyDecor[];
+  /** Купленные вещи лагеря; каждая — не больше одной. */
+  camp: CampKind[];
+}
+
+/** Внешний приз — шаблон, который пользователь заводит сама. SPEC.md §9.5. */
+export interface Prize {
+  id: string;
+  title: string;
+  /** Цена в звёздах. */
+  price: number;
+  /** Значок (эмодзи) из короткого списка; необязателен. */
+  icon?: string;
+  createdAt: number;
+}
+
+/**
+ * Купон — купленный приз. Название, цена и значок копируются из приза: удалить или поменять приз
+ * можно, купленные купоны от этого не меняются. У «своего купона» приза нет.
+ */
+export interface Coupon {
+  id: string;
+  title: string;
+  price: number;
+  icon?: string;
+  /** Из какого приза; нет — «свой купон». */
+  prizeId?: string;
+  boughtAt: number;
+  /** «куплен» → «выдан» (отмечает пользователь). */
+  status: 'bought' | 'given';
+  givenAt?: number;
+}
+
+/** Внешние призы и купоны. */
+export interface ShopState {
+  prizes: Prize[];
+  /** Свежие сверху. */
+  coupons: Coupon[];
 }
 
 /** Доска заданий. */

@@ -12,6 +12,13 @@ export const VIEW_WIDTH = 380;
 /** Лагерь в левой части: странница сидит у костра. */
 export const CAMP = { wandererX: 58, fireX: 96, y: 226 } as const;
 
+/** Места вещей лагеря из лавки: палатка позади странницы, фонарь справа от костра, котелок над огнём. */
+export const CAMP_SPOTS = {
+  tent: { x: 22, y: 216 },
+  lantern: { x: 126, y: 228 },
+  kettle: { x: CAMP.fireX, y: CAMP.y },
+} as const;
+
 /** Докуда долина открыта с самого начала (вокруг лагеря и реки). */
 export const MIST_START_X = 300;
 

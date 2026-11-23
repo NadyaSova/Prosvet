@@ -9,6 +9,7 @@ import {
   PLANT_KINDS,
   type Branch,
   type BranchXp,
+  type CampKind,
   type DecorKind,
   type PlantKind,
   type PlantSize,
@@ -18,10 +19,10 @@ import {
 } from '../model/types';
 import type { Completion } from './rewards';
 import type { Rng } from './rng';
-import { DECOR_ANCHORS, depthScale, MIST_START_X, riverX, SLOTS, WORLD, type Band } from './valley-district';
+import { CAMP_SPOTS, DECOR_ANCHORS, depthScale, MIST_START_X, riverX, SLOTS, WORLD, type Band } from './valley-district';
 
 export function emptyValley(): ValleyState {
-  return { plants: [], decor: [] };
+  return { plants: [], decor: [], camp: [] };
 }
 
 /** Сколько растений помещается в район. */
@@ -96,15 +97,33 @@ function newSeed(rng: Rng): number {
   return Math.floor(rng() * 4_294_967_296) >>> 0;
 }
 
+/**
+ * Куда можно посадить семя или саженец (номера мест): свободные места в открытой части долины,
+ * а если их там мало — ещё ближайшие свободные у края хмари. Пусто — район полон.
+ */
+export function plantChoices(v: ValleyState): number[] {
+  const taken = new Set(v.plants.map((p) => p.slot));
+  // Место у самого края хмари видно плохо — оставляем запас.
+  const edge = mistFrontier(v) - 20;
+  const open: number[] = [];
+  const beyond: number[] = [];
+  SLOTS.forEach((s, i) => {
+    if (taken.has(i)) return;
+    if (s.x < edge) open.push(i);
+    else beyond.push(i);
+  });
+  return [...open, ...beyond.slice(0, Math.max(0, BALANCE.valley.minChoices - open.length))].sort((a, b) => a - b);
+}
+
 function addPlant(
   v: ValleyState,
   kind: PlantKind,
   size: PlantSize,
   now: number,
   rng: Rng,
-  extra: { branch?: Branch; id?: string } = {},
+  extra: { branch?: Branch; id?: string; slot?: number } = {},
 ): { valley: ValleyState; plant: ValleyPlant } | null {
-  const slot = chooseSlot(v, kind);
+  const slot = extra.slot ?? chooseSlot(v, kind);
   if (slot === null) return null;
   const plant: ValleyPlant = { id: extra.id ?? `plant-${now}-${slot}`, kind, size, slot, seed: newSeed(rng), plantedAt: now };
   if (extra.branch) plant.branch = extra.branch;
@@ -122,28 +141,36 @@ export function plantForCompletion(
   return addPlant(v, plantKindFor(c.branch, size), size, now, rng, { branch: c.branch });
 }
 
-function isSeed(item: string): item is PlantKind {
-  return (BALANCE.loot.seeds as readonly string[]).includes(item) && (PLANT_KINDS as readonly string[]).includes(item);
+/** Семя из карты добычи или саженец из лавки: растение, которому пользователь выбирает место. */
+export function isPlantItem(item: string): item is PlantKind {
+  return (
+    (PLANT_KINDS as readonly string[]).includes(item) &&
+    ((BALANCE.loot.seeds as readonly string[]).includes(item) || item in BALANCE.shop.plants)
+  );
 }
 
-function isDecor(item: string): item is DecorKind {
+export function isDecorItem(item: string): item is DecorKind {
   return (DECOR_KINDS as readonly string[]).includes(item);
 }
 
-/** Можно ли сейчас посадить предмет из добычи: семени нужно свободное место, редкости — нет. */
+/** Можно ли сейчас посадить предмет из запаса: растению нужно свободное место, редкости — нет. */
 export function canPlantItem(v: ValleyState, item: string): boolean {
-  if (isDecor(item)) return true;
-  return isSeed(item) && !isDistrictOpen(v);
+  if (isDecorItem(item)) return true;
+  return isPlantItem(item) && !isDistrictOpen(v);
 }
 
-/** Сажает семя или ставит редкость. null — такого предмета нет или семени негде расти. */
+/**
+ * Сажает семя или саженец (на место slot, если оно среди plantChoices; без slot — место выбирает приложение)
+ * или ставит редкость. null — такого предмета нет, растению негде расти или место не подходит.
+ */
 export function plantItem(
   v: ValleyState,
   item: string,
   now: number,
   rng: Rng,
+  slot?: number,
 ): { valley: ValleyState; object: ValleyPlant | ValleyDecor } | null {
-  if (isDecor(item)) {
+  if (isDecorItem(item)) {
     const count = v.decor.filter((d) => d.kind === item).length;
     const decor: ValleyDecor = {
       id: `${item}-${now}-${count}`,
@@ -154,9 +181,16 @@ export function plantItem(
     };
     return { valley: { ...v, decor: [...v.decor, decor] }, object: decor };
   }
-  if (!isSeed(item)) return null;
-  const r = addPlant(v, item, 'medium', now, rng);
+  if (!isPlantItem(item)) return null;
+  if (slot !== undefined && !plantChoices(v).includes(slot)) return null;
+  const r = addPlant(v, item, 'medium', now, rng, { slot });
   return r && { valley: r.valley, object: r.plant };
+}
+
+/** Ставит вещь лагеря. null — такая уже есть. */
+export function addCampItem(v: ValleyState, kind: CampKind): ValleyState | null {
+  if (v.camp.includes(kind)) return null;
+  return { ...v, camp: [...v.camp, kind] };
 }
 
 /** Долина для того, что сыграно до её появления: по опыту веток, вперемешку. */
@@ -199,9 +233,16 @@ export interface SceneDecor extends ValleyDecor {
   layer: number;
 }
 
+export interface SceneCamp {
+  kind: CampKind;
+  x: number;
+  y: number;
+}
+
 export interface ValleyScene {
   plants: ScenePlant[];
   decor: SceneDecor[];
+  camp: SceneCamp[];
   mistX: number;
   open: boolean;
 }
@@ -224,7 +265,8 @@ export function sceneOf(v: ValleyState): ValleyScene {
     perAnchor.set(key, layer + 1);
     return { ...d, x: a.x, y: a.y, layer };
   });
-  return { plants, decor, mistX: mistFrontier(v), open: isDistrictOpen(v) };
+  const camp = v.camp.map((kind) => ({ kind, ...CAMP_SPOTS[kind] }));
+  return { plants, decor, camp, mistX: mistFrontier(v), open: isDistrictOpen(v) };
 }
 
 /** Последнее посаженное растение — к нему прокручивается панорама. */

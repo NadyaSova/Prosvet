@@ -1,4 +1,5 @@
-// Экраны по адресу после #: #/settings, #/custom, #/loft, #/journal (Летопись), #/valley (долина крупно). Главный экран — без #.
+// Экраны по адресу после #: #/settings, #/custom, #/loft, #/journal (Летопись), #/valley (долина крупно), #/shop (лавка).
+// Главный экран — без #.
 // Переход вперёд добавляет запись в историю, поэтому системная кнопка «Назад» на Android возвращает на главный.
 
 import { useEffect, useState } from 'preact/hooks';
@@ -39,8 +40,42 @@ export function journalRoute(route: string): JournalRoute | null {
   return null;
 }
 
+/**
+ * Лавка: #/shop — за золото, #/shop/stars — призы за звёзды и купоны, #/shop/prize/new — новый приз,
+ * #/shop/prize/<id> — правка приза, #/shop/coupon — свой купон, #/coupon/<id> — купон во весь экран.
+ */
+export type ShopRoute =
+  | { view: 'gold' }
+  | { view: 'stars' }
+  | { view: 'prize'; id: string | null }
+  | { view: 'own' }
+  | { view: 'coupon'; id: string };
+
+export function shopRoute(route: string): ShopRoute | null {
+  if (route === 'shop') return { view: 'gold' };
+  if (route === 'shop/stars') return { view: 'stars' };
+  if (route === 'shop/prize/new') return { view: 'prize', id: null };
+  if (route.startsWith('shop/prize/')) return { view: 'prize', id: decodeURIComponent(route.slice('shop/prize/'.length)) };
+  if (route === 'shop/coupon') return { view: 'own' };
+  if (route.startsWith('coupon/')) return { view: 'coupon', id: decodeURIComponent(route.slice('coupon/'.length)) };
+  return null;
+}
+
+/** Долина крупно: #/valley; #/valley/plant/<семя> — сразу выбор места для этого семени. */
+export function valleyRoute(route: string): { choosing?: string } | null {
+  if (route === 'valley') return {};
+  if (route.startsWith('valley/plant/')) return { choosing: decodeURIComponent(route.slice('valley/plant/'.length)) };
+  return null;
+}
+
 export function go(path: string): void {
   history.pushState({ prosvet: true }, '', `#/${path}`);
+  dispatchEvent(new Event(EVENT));
+}
+
+/** Сменить экран без новой записи в истории — например, вкладку лавки: «Назад» всё равно ведёт на главный. */
+export function replaceRoute(path: string): void {
+  history.replaceState(history.state, '', `#/${path}`);
   dispatchEvent(new Event(EVENT));
 }
 

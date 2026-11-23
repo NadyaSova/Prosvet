@@ -334,18 +334,19 @@ export function returnOverduePigeons(
 }
 
 /**
- * Посадить семя или поставить редкость из добычи (кнопка «Посадить»). Предмет уходит из запаса.
- * null — такого предмета в запасе нет или семени негде расти.
+ * Посадить семя или саженец на выбранное место (slot) или поставить редкость из запаса. Предмет уходит из запаса.
+ * null — такого предмета в запасе нет, растению негде расти или место не подходит.
  */
 export function plantFromInventory(
   state: GameState,
   item: string,
   now: number,
   rng: Rng,
+  slot?: number,
 ): { state: GameState; object: ValleyPlant | ValleyDecor } | null {
   const index = state.player.inventory.indexOf(item);
   if (index < 0) return null;
-  const r = plantItem(state.valley, item, now, rng);
+  const r = plantItem(state.valley, item, now, rng, slot);
   if (!r) return null;
   const inventory = state.player.inventory.filter((_, i) => i !== index);
   return { state: { ...state, player: { ...state.player, inventory }, valley: r.valley }, object: r.object };

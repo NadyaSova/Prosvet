@@ -6,7 +6,9 @@ import { completeInstantTask, ensureBoard, finishTimedTask, plantFromInventory, 
 import { createLoft } from './pigeons';
 import type { Completion } from './rewards';
 import { createRng } from './rng';
+import { BALANCE } from '../config/balance';
 import {
+  addCampItem,
   CAPACITY,
   canPlantItem,
   chooseSlot,
@@ -14,13 +16,14 @@ import {
   isDistrictOpen,
   mistFrontier,
   plantForCompletion,
+  plantChoices,
   plantItem,
   plantKindFor,
   plantSize,
   sceneOf,
   valleyFromXp,
 } from './valley';
-import { DECOR_ANCHORS, MIST_START_X, riverWidth, riverX, SLOTS, WORLD } from './valley-district';
+import { CAMP_SPOTS, DECOR_ANCHORS, MIST_START_X, riverWidth, riverX, SLOTS, WORLD } from './valley-district';
 
 const NOW = new Date(2026, 10, 23, 12, 0).getTime();
 const MIN = 60_000;
@@ -152,6 +155,41 @@ describe('семена и редкости', () => {
     expect(sceneOf(v).decor.map((d) => d.layer)).toEqual([0, 1]);
   });
 
+  it('место для семени: свободные места в открытой части, у края хмари — не меньше нескольких', () => {
+    // Пустая долина: открыт только лагерь, свободные места — левее края хмари.
+    const empty = plantChoices(emptyValley());
+    expect(empty.length).toBeGreaterThanOrEqual(BALANCE.valley.minChoices);
+    for (const i of empty) expect(SLOTS[i]!.x).toBeLessThan(MIST_START_X);
+
+    let v = emptyValley();
+    for (let i = 0; i < 30; i++) v = plantForCompletion(v, timed(5), NOW + i, createRng(i))!.valley;
+    const taken = new Set(v.plants.map((p) => p.slot));
+    const choices = plantChoices(v);
+    expect(choices.length).toBeGreaterThanOrEqual(BALANCE.valley.minChoices);
+    for (const i of choices) expect(taken.has(i)).toBe(false);
+    expect(plantChoices(fullValley())).toEqual([]);
+  });
+
+  it('семя сажается на выбранное место; занятое или чужое место не подходит', () => {
+    const v = plantForCompletion(emptyValley(), timed(5), NOW, createRng(1))!.valley;
+    const [first, , third] = plantChoices(v);
+    const r = plantItem(v, 'sunflower', NOW, createRng(2), third)!;
+    expect(r.object).toMatchObject({ kind: 'sunflower', slot: third });
+    expect(plantItem(r.valley, 'rowan', NOW, createRng(3), third)).toBeNull();
+    expect(plantItem(v, 'rowan', NOW, createRng(3), v.plants[0]!.slot)).toBeNull();
+    expect(plantItem(v, 'rowan', NOW, createRng(3), 9999)).toBeNull();
+    // Цветы из лавки — тоже саженец.
+    expect(plantItem(v, 'flowers', NOW, createRng(3), first)?.object).toMatchObject({ kind: 'flowers', slot: first });
+    // Растения веток семенами не бывают.
+    expect(plantItem(v, 'oak', NOW, createRng(3), first)).toBeNull();
+  });
+
+  it('вещи лагеря стоят на своих местах, каждая одна', () => {
+    const v = addCampItem(emptyValley(), 'kettle')!;
+    expect(addCampItem(v, 'kettle')).toBeNull();
+    expect(sceneOf(v).camp).toEqual([{ kind: 'kettle', ...CAMP_SPOTS.kettle }]);
+  });
+
   it('в полном районе семени негде расти, а редкость поставить можно', () => {
     const v = fullValley();
     expect(canPlantItem(v, 'apple')).toBe(false);
@@ -230,6 +268,16 @@ describe('долина в игре', () => {
     expect(plantFromInventory(g, 'rowan', NOW, createRng(1))).toBeNull();
     const full: GameState = { ...g, valley: fullValley() };
     expect(plantFromInventory(full, 'apple', NOW, createRng(1))).toBeNull();
+  });
+
+  it('семя из запаса — на выбранное место; неподходящее место оставляет семя в запасе', () => {
+    const g: GameState = { ...newGame(), player: { ...createPlayer(), inventory: ['apple'] } };
+    const slot = plantChoices(g.valley).at(-1)!;
+    const r = plantFromInventory(g, 'apple', NOW, createRng(1), slot)!;
+    expect(r.object).toMatchObject({ kind: 'apple', slot });
+    expect(r.state.player.inventory).toEqual([]);
+    expect(plantFromInventory(r.state, 'apple', NOW, createRng(1), slot)).toBeNull();
+    expect(plantFromInventory(g, 'apple', NOW, createRng(1), 9999)).toBeNull();
   });
 
   it('последнее место в районе — долина открыта', () => {

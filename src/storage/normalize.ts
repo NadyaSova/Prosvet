@@ -10,8 +10,12 @@ import { CAPACITY } from '../logic/valley';
 import { createPlayer } from '../model/player';
 import {
   BRANCHES,
+  CAMP_KINDS,
   DECOR_KINDS,
   type Achievement,
+  type Coupon,
+  type Prize,
+  type ShopState,
   PIGEON_COLORS,
   PIGEON_POSES,
   PIGEON_SIZES,
@@ -208,5 +212,61 @@ export function normalizeValley(raw: unknown): ValleyState | null {
     }
   }
   const decor = (Array.isArray(raw.decor) ? raw.decor : []).map(normalizeDecor).filter((d) => d !== null);
-  return { plants, decor };
+  // Вещи лагеря появились на шаге 8. Каждая — не больше одной.
+  const camp = CAMP_KINDS.filter((k) => Array.isArray(raw.camp) && raw.camp.includes(k));
+  return { plants, decor, camp };
+}
+
+/** Значок приза — короткая строка (эмодзи); остальное отбрасываем. */
+function normalizeIcon(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.trim() !== '' && raw.length <= 16 ? raw : undefined;
+}
+
+function isPrice(raw: unknown): raw is number {
+  return Number.isInteger(raw) && (raw as number) >= 1 && (raw as number) <= BALANCE.shop.maxStars;
+}
+
+function normalizePrize(raw: unknown): Prize | null {
+  if (!isObject(raw) || typeof raw.id !== 'string' || typeof raw.title !== 'string' || !raw.title.trim() || !isPrice(raw.price)) {
+    return null;
+  }
+  const p: Prize = { id: raw.id, title: raw.title, price: raw.price, createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : 0 };
+  const icon = normalizeIcon(raw.icon);
+  if (icon) p.icon = icon;
+  return p;
+}
+
+function normalizeCoupon(raw: unknown): Coupon | null {
+  if (
+    !isObject(raw) ||
+    typeof raw.id !== 'string' ||
+    typeof raw.title !== 'string' ||
+    !Number.isInteger(raw.price) ||
+    typeof raw.boughtAt !== 'number'
+  ) {
+    return null;
+  }
+  const c: Coupon = {
+    id: raw.id,
+    title: raw.title,
+    price: raw.price as number,
+    boughtAt: raw.boughtAt,
+    status: raw.status === 'given' ? 'given' : 'bought',
+  };
+  const icon = normalizeIcon(raw.icon);
+  if (icon) c.icon = icon;
+  if (typeof raw.prizeId === 'string') c.prizeId = raw.prizeId;
+  if (c.status === 'given') c.givenAt = typeof raw.givenAt === 'number' ? raw.givenAt : raw.boughtAt;
+  return c;
+}
+
+/** Призы и купоны. Записи нет (база или копия старше шага 8) — пусто. Купоны — свежие сверху. */
+export function normalizeShop(raw: unknown): ShopState {
+  if (!isObject(raw)) return { prizes: [], coupons: [] };
+  const list = <T>(x: unknown, f: (r: unknown) => T | null): T[] =>
+    (Array.isArray(x) ? x : []).map(f).filter((v): v is T => v !== null);
+  return {
+    prizes: list(raw.prizes, normalizePrize),
+    coupons: list(raw.coupons, normalizeCoupon).sort((a, b) => b.boughtAt - a.boughtAt),
+  };
 }

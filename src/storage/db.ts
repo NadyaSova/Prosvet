@@ -2,7 +2,17 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { RunningTask } from '../logic/game';
-import type { Achievement, BoardState, LoftState, Pigeon, PlayerState, Settings, TaskTemplate, ValleyState } from '../model/types';
+import type {
+  Achievement,
+  BoardState,
+  LoftState,
+  Pigeon,
+  PlayerState,
+  Settings,
+  ShopState,
+  TaskTemplate,
+  ValleyState,
+} from '../model/types';
 
 export const DB_NAME = 'prosvet';
 
@@ -25,13 +35,15 @@ export interface KvMap {
   loft: LoftState;
   /** Что растёт в долине. Появилось на шаге 6; в старых базах и копиях записи нет. */
   valley: ValleyState;
+  /** Внешние призы и купоны. Появилось на шаге 8; в старых базах и копиях записи нет. */
+  shop: ShopState;
 }
 
 export interface PhraseHistory {
   recent: string[];
 }
 export type KvKey = keyof KvMap;
-export const KV_KEYS: readonly KvKey[] = ['player', 'settings', 'board', 'timer', 'phrases', 'loft', 'valley'];
+export const KV_KEYS: readonly KvKey[] = ['player', 'settings', 'board', 'timer', 'phrases', 'loft', 'valley', 'shop'];
 
 export interface ProsvetSchema extends DBSchema {
   kv: { key: string; value: unknown };

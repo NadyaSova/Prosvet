@@ -1,5 +1,5 @@
 // Главный экран: долина с костром и странницей, семена для посадки, героиня, серия, вопрос голубя,
-// доска заданий, «Не хочу ничего», своё задание, Летопись с быстрой записью, вход в голубятню, ветки.
+// доска заданий, «Не хочу ничего», своё задание, Летопись с быстрой записью, вход в голубятню и в лавку, ветки.
 
 import { useState } from 'preact/hooks';
 import type { GameState, StreakNews } from '../logic/game';
@@ -40,6 +40,8 @@ interface Props {
   onPlant: (item: string) => void;
   /** Записи Летописи: всего и черновиков. */
   journal: { total: number; drafts: number };
+  /** Сколько купонов куплено и ещё не выдано. */
+  coupons: number;
 }
 
 function newsText(news: StreakNews): string {
@@ -67,6 +69,7 @@ export function MainScreen({
   fresh,
   onPlant,
   journal,
+  coupons,
 }: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
   const { player } = game;
@@ -104,7 +107,12 @@ export function MainScreen({
             </svg>
           </button>
         </div>
-        <PlantRow valley={game.valley} inventory={player.inventory} onPlant={onPlant} />
+        <PlantRow
+          valley={game.valley}
+          inventory={player.inventory}
+          onPlant={onPlant}
+          onChoose={(item) => go(`valley/plant/${encodeURIComponent(item)}`)}
+        />
         {isDistrictOpen(game.valley) && <p class="muted small valley-card__open">Долина открыта: хмари больше нет.</p>}
       </section>
 
@@ -222,6 +230,15 @@ export function MainScreen({
         <span class="loft-entry__title">Голубятня</span>
         <span class="muted small">
           {pigeonsInFlight > 0 ? `В пути: ${pigeonsInFlight}` : 'Отправила отклик? Здесь ждут голуби'}
+        </span>
+      </button>
+
+      <button type="button" class="card shop-entry" onClick={() => go('shop')}>
+        <span class="shop-entry__title">Лавка</span>
+        <span class="muted small">
+          {coupons > 0
+            ? `Купонов ждут выдачи: ${coupons}`
+            : 'Саженцы и вещи для лагеря за золото, призы за звёзды'}
         </span>
       </button>
 

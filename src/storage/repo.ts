@@ -5,7 +5,17 @@ import { sortEntries } from '../logic/journal';
 import { createLoft } from '../logic/pigeons';
 import { valleyFromXp } from '../logic/valley';
 import type { Rng } from '../logic/rng';
-import type { Achievement, BoardState, LoftState, Pigeon, PlayerState, Settings, TaskTemplate, ValleyState } from '../model/types';
+import type {
+  Achievement,
+  BoardState,
+  LoftState,
+  Pigeon,
+  PlayerState,
+  Settings,
+  ShopState,
+  TaskTemplate,
+  ValleyState,
+} from '../model/types';
 import type { KvKey, KvMap, PhraseHistory, ProsvetDb } from './db';
 import {
   createSettings,
@@ -16,6 +26,7 @@ import {
   normalizePigeons,
   normalizePlayer,
   normalizeSettings,
+  normalizeShop,
   normalizeTimer,
   normalizeValley,
 } from './normalize';
@@ -40,6 +51,7 @@ export interface AppData {
   valley: ValleyState;
   /** Записи Летописи, свежие сверху (по дате создания). */
   achievements: Achievement[];
+  shop: ShopState;
 }
 
 /**
@@ -47,17 +59,19 @@ export interface AppData {
  * Долины нет (база или копия старше шага 6) — она вырастает по уже накопленному опыту веток.
  */
 export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.random): Promise<AppData> {
-  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley, rawAchievements] = await Promise.all([
-    getKv(db, 'player'),
-    getKv(db, 'settings'),
-    getKv(db, 'board'),
-    getKv(db, 'timer'),
-    getKv(db, 'phrases'),
-    getKv(db, 'loft'),
-    db.getAll('pigeons'),
-    getKv(db, 'valley'),
-    db.getAll('achievements') as Promise<unknown[]>,
-  ]);
+  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley, rawAchievements, rawShop] =
+    await Promise.all([
+      getKv(db, 'player'),
+      getKv(db, 'settings'),
+      getKv(db, 'board'),
+      getKv(db, 'timer'),
+      getKv(db, 'phrases'),
+      getKv(db, 'loft'),
+      db.getAll('pigeons'),
+      getKv(db, 'valley'),
+      db.getAll('achievements') as Promise<unknown[]>,
+      getKv(db, 'shop'),
+    ]);
   const player = normalizePlayer(rawPlayer);
   const storedLoft = normalizeLoft(rawLoft);
   const loft = storedLoft ?? createLoft(rng);
@@ -73,6 +87,7 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
     pigeons: sortPigeons(normalizePigeons(rawPigeons)),
     valley,
     achievements: sortEntries(normalizeAchievements(rawAchievements)),
+    shop: normalizeShop(rawShop),
   };
   if (rawPlayer === undefined) await setKv(db, 'player', data.player);
   if (rawSettings === undefined) await setKv(db, 'settings', data.settings);
@@ -87,6 +102,8 @@ export interface SaveExtras {
   /** Новые и изменённые голуби. */
   pigeons?: readonly Pigeon[];
   loft?: LoftState;
+  /** Призы и купоны: покупка купона списывает звёзды той же транзакцией. */
+  shop?: ShopState;
 }
 
 /**
@@ -104,6 +121,7 @@ export async function saveGame(db: ProsvetDb, game: GameState, extras: SaveExtra
   ];
   if (extras.achievement) writes.push(tx.objectStore('achievements').put(extras.achievement));
   if (extras.loft) writes.push(kv.put(extras.loft, 'loft'));
+  if (extras.shop) writes.push(kv.put(extras.shop, 'shop'));
   for (const p of extras.pigeons ?? []) writes.push(tx.objectStore('pigeons').put(p));
   await Promise.all([...writes, tx.done]);
 }

@@ -1,6 +1,18 @@
 // Подписи для интерфейса: названия веток и предметов из добычи.
 
-import type { Branch, PigeonColor, PigeonSize, PlantKind, PlantSize, ValleyDecor, ValleyPlant } from '../model/types';
+import type { BALANCE } from '../config/balance';
+import type { Good } from '../logic/shop';
+import type {
+  Branch,
+  CampKind,
+  DecorKind,
+  PigeonColor,
+  PigeonSize,
+  PlantKind,
+  PlantSize,
+  ValleyDecor,
+  ValleyPlant,
+} from '../model/types';
 
 export const PIGEON_COLOR_NAMES: Record<PigeonColor, string> = {
   slate: 'сизый',
@@ -31,12 +43,13 @@ export const BRANCH_NAMES: Record<Branch, string> = {
   hunt: 'Охота',
 };
 
-/** Семена и редкий декор из карты добычи (BALANCE.loot.seeds и rareDecor). */
+/** Предметы в запасе: семена из карты добычи и саженцы из лавки, редкий декор (BALANCE.loot, BALANCE.shop). */
 export const ITEM_NAMES: Record<string, string> = {
   rowan: 'Семя рябины',
   apple: 'Семя яблони',
   lilac: 'Семя сирени',
   sunflower: 'Семя подсолнуха',
+  flowers: 'Семена цветов',
   fireflies: 'Светлячки',
   rainbow: 'Радуга над рекой',
   deer: 'Олень у воды',
@@ -71,6 +84,27 @@ const DECOR_NAMES: Record<ValleyDecor['kind'], string> = {
   rainbow: 'радуга над рекой',
   deer: 'олень у воды',
 };
+
+/** Товары лавки за золото: название и строчка о том, что это. */
+type GoodId = keyof typeof BALANCE.shop.plants | DecorKind | CampKind;
+
+export const GOOD_LABELS: Record<GoodId, { name: string; note: string }> = {
+  flowers: { name: 'Цветы', note: 'Полянка на выбранном месте' },
+  sunflower: { name: 'Подсолнухи', note: 'Саженец' },
+  lilac: { name: 'Сирень', note: 'Саженец' },
+  rowan: { name: 'Рябина', note: 'Саженец' },
+  apple: { name: 'Яблоня', note: 'Саженец' },
+  fireflies: { name: 'Светлячки', note: 'Мерцают над травой' },
+  deer: { name: 'Олень у воды', note: 'Приходит к реке' },
+  rainbow: { name: 'Радуга над рекой', note: 'Вторая делает её двойной' },
+  lantern: { name: 'Фонарь', note: 'На шесте у костра' },
+  kettle: { name: 'Котелок', note: 'На треноге над костром' },
+  tent: { name: 'Палатка', note: 'Позади странницы' },
+};
+
+export function goodLabel(good: Good): { name: string; note: string } {
+  return GOOD_LABELS[good.id as GoodId] ?? { name: good.id, note: '' };
+}
 
 /** Что появилось в долине: растение или редкость. */
 export function valleyObjectName(o: ValleyPlant | ValleyDecor): string {

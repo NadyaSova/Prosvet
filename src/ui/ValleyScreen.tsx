@@ -10,11 +10,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Feather } from '../logic/pigeons';
 import type { FireLevel } from '../logic/streak';
-import { CAPACITY, sceneOf } from '../logic/valley';
+import { canPlantItem, CAPACITY, isPlantItem, plantChoices, sceneOf } from '../logic/valley';
 import { VIEW_WIDTH, WORLD } from '../logic/valley-district';
-import type { ValleyState } from '../model/types';
+import type { PlantKind, ValleyState } from '../model/types';
 import { BackBar } from './common';
 import { plural } from './format';
+import { plantName } from './labels';
 import { PlantRow } from './valley/PlantRow';
 import { focusOf, SCENE_HEIGHT, ValleyScene } from './valley/ValleyView';
 
@@ -25,9 +26,14 @@ interface Props {
   cloakStage: number;
   /** Только что выросшее — для анимации роста. */
   fresh: string | null;
-  /** Запас семян и редкостей из карт добычи. */
+  /** Запас: семена из карт добычи, саженцы из лавки, редкости. */
   inventory: readonly string[];
+  /** Поставить редкость (место у неё своё). */
   onPlant: (item: string) => void;
+  /** Посадить семя или саженец на выбранное место. */
+  onPlantAt: (item: string, slot: number) => void;
+  /** Открыть экран сразу в выборе места для этого семени (кнопка «Посадить» на главном экране и в лавке). */
+  choosing?: string;
 }
 
 /** Шаг кнопок «+» и «−». */
@@ -55,7 +61,11 @@ function useTurned(): boolean {
   return turned;
 }
 
-export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, inventory, onPlant }: Props) {
+export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, inventory, onPlant, onPlantAt, choosing }: Props) {
+  // Семя или саженец, которому выбирают место; null — просто смотрим.
+  const [item, setItem] = useState<string | null>(() =>
+    choosing && inventory.includes(choosing) && canPlantItem(valley, choosing) ? choosing : null,
+  );
   const turned = useTurned();
   const turnedRef = useRef(turned);
   turnedRef.current = turned;
@@ -251,15 +261,59 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, invent
   const n = scene.plants.length;
   const grown = `${n} ${plural(n, ['растение', 'растения', 'растений'])}`;
 
+  // Семена и саженцы в запасе — по видам, сколько каждого.
+  const seeds = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const i of inventory) if (isPlantItem(i)) counts.set(i, (counts.get(i) ?? 0) + 1);
+    return [...counts];
+  }, [inventory]);
+  const choosingNow = item !== null && inventory.includes(item) && canPlantItem(valley, item) ? item : null;
+  const slots = useMemo(() => (choosingNow ? plantChoices(valley) : []), [choosingNow, valley]);
+
+  function pickSlot(slot: number) {
+    if (!choosingNow) return;
+    onPlantAt(choosingNow, slot);
+    setItem(null);
+  }
+
   return (
     <main class={turned ? 'screen valley-screen valley-screen--turn' : 'screen valley-screen'}>
       <BackBar title="Долина">{zoom}</BackBar>
       <div class="valley-screen__bar">
-        <p class="muted small valley-screen__note">
-          {scene.open ? `Выросло ${grown}. Хмари больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
-          пальцами или кнопками.
-        </p>
-        <PlantRow valley={valley} inventory={inventory} onPlant={onPlant} />
+        {choosingNow ? (
+          <div class="choose-bar">
+            {seeds.length > 1 && (
+              <div class="choose-bar__seeds" role="group" aria-label="Что посадить">
+                {seeds.map(([kind, count]) => (
+                  <button
+                    type="button"
+                    key={kind}
+                    class={kind === choosingNow ? 'choice choice--on' : 'choice'}
+                    aria-pressed={kind === choosingNow}
+                    onClick={() => setItem(kind)}
+                  >
+                    {plantName({ kind: kind as PlantKind, size: 'medium' })}
+                    {count > 1 && <span class="muted"> ×{count}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p class="small valley-screen__note">
+              Куда посадить: {plantName({ kind: choosingNow as PlantKind, size: 'medium' })}? Нажми на светлый кружок.
+            </p>
+            <button type="button" class="link-button" onClick={() => setItem(null)}>
+              Отмена
+            </button>
+          </div>
+        ) : (
+          <>
+            <p class="muted small valley-screen__note">
+              {scene.open ? `Выросло ${grown}. Хмари больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
+              пальцами или кнопками.
+            </p>
+            <PlantRow valley={valley} inventory={inventory} onPlant={onPlant} onChoose={setItem} />
+          </>
+        )}
       </div>
       <div class="valley-big" ref={boxRef}>
         {scale !== null && (
@@ -270,6 +324,7 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, invent
             cloakStage={cloakStage}
             fresh={fresh}
             style={{ width: `${WORLD.width * scale}px`, height: `${SCENE_HEIGHT * scale}px` }}
+            pick={choosingNow ? { slots, onPick: pickSlot } : undefined}
           />
         )}
       </div>

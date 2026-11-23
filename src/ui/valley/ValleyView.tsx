@@ -10,6 +10,7 @@ import { CAPACITY, latestPlant, mistFrontier, sceneOf } from '../../logic/valley
 import {
   BANDS,
   CAMP,
+  depthScale,
   hillTop,
   RIVER,
   riverWidth,
@@ -21,6 +22,7 @@ import {
 } from '../../logic/valley-district';
 import type { ValleyState } from '../../model/types';
 import { plural } from '../format';
+import { CampArt } from './camp-art';
 import { CampfireArt } from './campfire-art';
 import { DecorArt } from './decor-art';
 import { PlantArt, sways } from './plant-art';
@@ -132,7 +134,12 @@ export function ValleyScene({
   cloakStage,
   fresh,
   style,
-}: SceneProps & { style?: Record<string, string> }) {
+  pick,
+}: SceneProps & {
+  style?: Record<string, string>;
+  /** Выбор места для семени или саженца: свободные места кружками, нажатие — посадить сюда. */
+  pick?: { slots: readonly number[]; onPick: (slot: number) => void };
+}) {
   const scene = useMemo(() => sceneOf(valley), [valley]);
 
   // Хмарь отходит медленно: сначала там, где была до нового растения, потом на новом месте.
@@ -210,8 +217,14 @@ export function ValleyScene({
         </g>
       ))}
 
+      {scene.camp.filter((c) => c.kind === 'tent').map((c) => (
+        <CampArt key={c.kind} item={c} />
+      ))}
       <WandererArt feathers={feathers} stage={cloakStage} x={CAMP.wandererX} y={CAMP.y} />
       <CampfireArt level={fire} x={CAMP.fireX} y={CAMP.y} />
+      {scene.camp.filter((c) => c.kind !== 'tent').map((c) => (
+        <CampArt key={c.kind} item={c} />
+      ))}
 
       {scene.decor.filter((d) => d.kind === 'fireflies').map((d) => (
         <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
@@ -236,6 +249,30 @@ export function ValleyScene({
           />
         ))}
       </g>
+
+      {pick && (
+        <g class="valley__pick">
+          {pick.slots.map((i) => {
+            const s = SLOTS[i]!;
+            const k = depthScale(s.y);
+            return (
+              <g
+                key={i}
+                class="pick-spot"
+                transform={`translate(${s.x} ${s.y})`}
+                role="button"
+                aria-label={`Место ${i + 1}`}
+                onClick={() => pick.onPick(i)}
+              >
+                {/* Зона нажатия больше видимого кружка. */}
+                <circle r={11 * k} fill="transparent" />
+                <circle class="pick-spot__ring" r={4.5 * k} fill="#fffaf2" fill-opacity="0.55" stroke="#fffaf2" stroke-width="1.2" />
+                <circle r={1.4 * k} fill="#5a3d2b" opacity="0.6" />
+              </g>
+            );
+          })}
+        </g>
+      )}
     </svg>
   );
 }

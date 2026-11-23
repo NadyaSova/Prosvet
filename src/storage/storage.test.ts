@@ -15,7 +15,7 @@ import {
   serializeSnapshot,
 } from './backup';
 import { openProsvetDb, SCHEMA_VERSION } from './db';
-import { normalizeLoft, normalizePigeon, normalizePlayer, normalizeTimer, normalizeValley } from './normalize';
+import { normalizeLoft, normalizePigeon, normalizePlayer, normalizeShop, normalizeTimer, normalizeValley } from './normalize';
 import {
   getKv,
   listAchievements,
@@ -345,6 +345,48 @@ describe('долина', () => {
     });
     expect(v?.plants.map((p) => p.id)).toEqual(['a']);
     expect(v?.decor).toEqual([{ id: 'x', kind: 'deer', anchor: 1, seed: 0, plantedAt: 0 }]);
+  });
+});
+
+describe('лавка', () => {
+  const coupon = { id: 'c1', title: 'Массаж', price: 3, boughtAt: NOW, status: 'bought' as const };
+  const shop = { prizes: [{ id: 'p1', title: 'Массаж', price: 3, icon: '💆', createdAt: NOW }], coupons: [coupon] };
+
+  it('новый игрок — призов и купонов нет; долина старше лавки получает пустой лагерь', async () => {
+    const db = await freshDb();
+    await setKv(db, 'valley', { plants: [], decor: [] } as never);
+    const data = await loadAppData(db, NOW);
+    expect(data.shop).toEqual({ prizes: [], coupons: [] });
+    expect(data.valley.camp).toEqual([]);
+  });
+
+  it('купон пишется вместе со звёздами и попадает в копию', async () => {
+    const source = await freshDb();
+    const data = await loadAppData(source, NOW);
+    await saveGame(source, { ...data, player: { ...data.player, stars: 1 } }, { shop });
+    const loaded = await loadAppData(source, NOW);
+    expect(loaded.shop).toEqual(shop);
+    expect(loaded.player.stars).toBe(1);
+
+    const target = await freshDb();
+    await importSnapshot(target, parseSnapshot(serializeSnapshot(await exportSnapshot(source, NOW))));
+    expect((await loadAppData(target, NOW)).shop).toEqual(shop);
+  });
+
+  it('испорченные призы и купоны отбрасываются, у выданного купона есть дата выдачи', () => {
+    expect(normalizeShop('мусор')).toEqual({ prizes: [], coupons: [] });
+    const s = normalizeShop({
+      prizes: [shop.prizes[0], { id: 'p2', title: '', price: 2 }, { id: 'p3', title: 'Даром', price: 0 }, { id: 'p4', title: 'Ок', price: 2, icon: 7 }],
+      coupons: [coupon, { ...coupon, id: 'c2', status: 'given', boughtAt: NOW + 1 }, { id: 'c3', title: 'Без даты', price: 1 }],
+    });
+    expect(s.prizes.map((p) => p.id)).toEqual(['p1', 'p4']);
+    expect(s.prizes[1]).not.toHaveProperty('icon');
+    expect(s.coupons.map((c) => c.id)).toEqual(['c2', 'c1']);
+    expect(s.coupons[0]).toMatchObject({ status: 'given', givenAt: NOW + 1 });
+  });
+
+  it('вещи лагеря без повторов, неизвестные отбрасываются', () => {
+    expect(normalizeValley({ plants: [], decor: [], camp: ['tent', 'tent', 'замок', 'lantern'] })?.camp).toEqual(['tent', 'lantern']);
   });
 });
 

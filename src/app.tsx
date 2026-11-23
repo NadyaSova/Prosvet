@@ -24,12 +24,13 @@ import {
 } from './logic/game';
 import { allSkills, createEntry, updateEntry, type EntryFields } from './logic/journal';
 import { pickPhrase } from './logic/phrases';
+import { buyCoupon, buyGood, removePrize, savePrize, setCouponGiven, type Good, type PrizeInput } from './logic/shop';
 import { cloakView, dueQuestion, feathersOf, markAsked } from './logic/pigeons';
 import { viewStreak } from './logic/streak';
 import { mergeTemplates } from './logic/tasks';
 import { dayOf } from './logic/time';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
-import type { Achievement, Branch, LoftState, Pigeon, Settings, TaskTemplate } from './model/types';
+import type { Achievement, Branch, LoftState, Pigeon, Settings, ShopState, TaskTemplate } from './model/types';
 import { requestPersistence, type Persistence } from './storage/browser';
 import { openProsvetDb, type ProsvetDb } from './storage/db';
 import {
@@ -53,8 +54,11 @@ import { LoftScreen } from './ui/LoftScreen';
 import { MainScreen } from './ui/MainScreen';
 import { askNotificationPermission, signalTimerEnd } from './ui/notify';
 import { RewardScreen, type ShownReward } from './ui/RewardScreen';
-import { go, goHome, journalRoute, useRoute } from './ui/router';
+import { CouponScreen } from './ui/CouponScreen';
+import { PrizeScreen } from './ui/PrizeScreen';
+import { go, goHome, journalRoute, replaceRoute, shopRoute, useRoute, valleyRoute } from './ui/router';
 import { SettingsScreen } from './ui/SettingsScreen';
+import { ShopScreen } from './ui/ShopScreen';
 import { TimerScreen } from './ui/TimerScreen';
 import { ValleyScreen } from './ui/ValleyScreen';
 
@@ -144,6 +148,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const [entries, setEntries] = useState<Achievement[]>(initial.achievements);
   const [pigeons, setPigeons] = useState<Pigeon[]>(initial.pigeons);
   const [loft, setLoft] = useState<LoftState>(initial.loft);
+  /** Призы за звёзды и купоны. */
+  const [shop, setShop] = useState<ShopState>(initial.shop);
   /** Экраны вернувшихся перьев — по очереди. */
   const [feathers, setFeathers] = useState<ShownFeather[]>([]);
   const [news, setNews] = useState<StreakNews | null>(null);
@@ -167,10 +173,15 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const phrasesRef = useRef(initial.phrases.recent);
   const pigeonsRef = useRef(initial.pigeons);
   const loftRef = useRef(initial.loft);
+  const shopRef = useRef(initial.shop);
 
   function commit(next: GameState, extras: SaveExtras = {}) {
     gameRef.current = next;
     setGame(next);
+    if (extras.shop) {
+      shopRef.current = extras.shop;
+      setShop(extras.shop);
+    }
     if (extras.pigeons?.length) {
       pigeonsRef.current = mergePigeons(pigeonsRef.current, extras.pigeons);
       setPigeons(pigeonsRef.current);
@@ -330,11 +341,56 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     showFeather(r.feather);
   }
 
-  function plant(item: string) {
-    const r = plantFromInventory(gameRef.current, item, Date.now(), Math.random);
+  /** Поставить редкость из запаса или посадить семя на выбранное место (slot). */
+  function plant(item: string, slot?: number) {
+    const r = plantFromInventory(gameRef.current, item, Date.now(), Math.random, slot);
     if (!r) return;
     commit(r.state);
     setFresh(r.object.id);
+  }
+
+  // Лавка
+
+  function buyGoodAction(good: Good): boolean {
+    const r = buyGood(gameRef.current, good, Date.now(), Math.random);
+    if (!r) return false;
+    commit(r.state);
+    if (r.placed) setFresh(r.placed.id);
+    return true;
+  }
+
+  /** Призы и отметки купонов: звёзды не меняются, игру сохранять не нужно. */
+  function saveShop(next: ShopState) {
+    shopRef.current = next;
+    setShop(next);
+    setKv(db, 'shop', next).catch((e: unknown) => setSaveError(String(e)));
+  }
+
+  function savePrizeAction(input: PrizeInput, id: string | null) {
+    const next = savePrize(shopRef.current, input, id ?? crypto.randomUUID(), Date.now());
+    if (!next) return;
+    saveShop(next);
+    goHome();
+  }
+
+  function deletePrize(id: string) {
+    saveShop(removePrize(shopRef.current, id));
+    goHome();
+  }
+
+  /** Купон: звёзды списываются и купон записывается одной транзакцией. Свой купон заменяет форму, чтобы «Назад» вёл в лавку. */
+  function buyCouponAction(input: PrizeInput & { prizeId?: string }) {
+    const r = buyCoupon(gameRef.current.player, shopRef.current, input, crypto.randomUUID(), Date.now());
+    if (!r) return;
+    commit({ ...gameRef.current, player: r.player }, { shop: r.shop });
+    const path = `coupon/${encodeURIComponent(r.coupon.id)}`;
+    if (input.prizeId) go(path);
+    else replaceRoute(path);
+  }
+
+  function buyPrizeAction(prizeId: string) {
+    const prize = shopRef.current.prizes.find((p) => p.id === prizeId);
+    if (prize) buyCouponAction({ title: prize.title, price: prize.price, icon: prize.icon, prizeId });
   }
 
   function notYet(id: string) {
@@ -394,9 +450,11 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     phrasesRef.current = data.phrases.recent;
     pigeonsRef.current = data.pigeons;
     loftRef.current = data.loft;
+    shopRef.current = data.shop;
     setGame(loaded);
     setPigeons(data.pigeons);
     setLoft(data.loft);
+    setShop(data.shop);
     setEntries(data.achievements);
     setSettings(data.settings);
     setCustom(nextCustom);
@@ -415,11 +473,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
 
   const flying = pigeons.filter((p) => p.status === 'flying');
   const feathersList = useMemo(() => feathersOf(pigeons), [pigeons]);
-  const onMain = !reward && !feather && !game.timer && !journal && !['loft', 'settings', 'custom', 'valley'].includes(route);
+  const valleyView = valleyRoute(route);
+  const shopView = shopRoute(route);
+  const onMain =
+    !reward && !feather && !game.timer && !journal && !valleyView && !shopView && !['loft', 'settings', 'custom'].includes(route);
 
   // Анимация роста показывается один раз: через несколько секунд на главном экране или на экране «Долина»
   // растение считается обычным.
-  const onValley = route === 'valley' && !reward && !feather && !journal;
+  const onValley = valleyView !== null && !reward && !feather && !journal;
   useEffect(() => {
     if (!fresh || !(onMain || onValley)) return;
     const id = setTimeout(() => setFresh(null), 6000);
@@ -468,7 +529,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         onLateInvite={lateInvite}
       />
     );
-  } else if (route === 'valley') {
+  } else if (valleyView) {
     screen = (
       <ValleyScreen
         valley={game.valley}
@@ -477,7 +538,42 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         cloakStage={cloakView(feathersList.length).stage}
         fresh={fresh}
         inventory={game.player.inventory}
-        onPlant={plant}
+        onPlant={(item) => plant(item)}
+        onPlantAt={plant}
+        choosing={valleyView.choosing}
+      />
+    );
+  } else if (shopView?.view === 'coupon') {
+    const coupon = shop.coupons.find((c) => c.id === shopView.id);
+    screen = coupon ? (
+      <CouponScreen
+        coupon={coupon}
+        onGiven={(given) => saveShop(setCouponGiven(shopRef.current, coupon.id, given, Date.now()))}
+      />
+    ) : (
+      <ShopScreen tab="stars" player={game.player} valley={game.valley} shop={shop} onBuyGood={buyGoodAction} onBuyPrize={buyPrizeAction} />
+    );
+  } else if (shopView?.view === 'prize' || shopView?.view === 'own') {
+    const prize = shopView.view === 'prize' && shopView.id ? shop.prizes.find((p) => p.id === shopView.id) : undefined;
+    screen = (
+      <PrizeScreen
+        key={route}
+        mode={shopView.view === 'own' ? 'own' : 'prize'}
+        prize={prize}
+        stars={game.player.stars}
+        onSave={(input) => (shopView.view === 'own' ? buyCouponAction(input) : savePrizeAction(input, prize?.id ?? null))}
+        onDelete={prize ? () => deletePrize(prize.id) : undefined}
+      />
+    );
+  } else if (shopView) {
+    screen = (
+      <ShopScreen
+        tab={shopView.view === 'stars' ? 'stars' : 'gold'}
+        player={game.player}
+        valley={game.valley}
+        shop={shop}
+        onBuyGood={buyGoodAction}
+        onBuyPrize={buyPrizeAction}
       />
     );
   } else if (route === 'settings') {
@@ -535,8 +631,9 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         feathers={feathersList}
         cloakStage={cloakView(feathersList.length).stage}
         fresh={fresh}
-        onPlant={plant}
+        onPlant={(item) => plant(item)}
         journal={{ total: entries.length, drafts: entries.filter((a) => a.status === 'draft').length }}
+        coupons={shop.coupons.filter((c) => c.status === 'bought').length}
       />
     );
   }
