@@ -1,0 +1,65 @@
+/* Цвета — из эскиза docs/reference-valley.svg. Через переменные, чтобы позже добавить тёмную тему. */
+:root {
+  --color-sky: #f4e7d4;
+  --color-sun: #f6c177;
+  --color-fire: #e8833a;
+  --color-hill-far: #bcd1b3;
+  --color-hill-mid: #94b98f;
+  --color-hill-near: #5a8758;
+  --color-river: #9cc9db;
+  --color-mist: #d3d3d6;
+  --color-text: #3f3a34;
+  --color-text-muted: #7a6e62;
+
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-sky);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.placeholder {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.placeholder__icon {
+  width: 144px;
+  height: 144px;
+  border-radius: 32px;
+}
+
+.placeholder h1 {
+  margin: 8px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.placeholder p {
+  margin: 0;
+  max-width: 28ch;
+  color: var(--color-text-muted);
+}
