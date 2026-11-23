@@ -19,7 +19,7 @@ describe('сборка доски', () => {
     }
   });
 
-  it('отчёты («Получила отказ») и скрытые задания на доску не попадают', () => {
+  it('скрытые задания и задания не для доски на доску не попадают', () => {
     const hidden = DEFAULT_TASKS.map((t) => (t.id === 'image-one-line' ? { ...t, hidden: true } : t));
     for (let seed = 0; seed < 300; seed++) {
       const board = buildBoard(hidden, ctx, createRng(seed)).map(get);

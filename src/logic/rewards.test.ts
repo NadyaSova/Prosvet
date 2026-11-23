@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../config/balance';
 import { createPlayer } from '../model/player';
 import type { PlayerState } from '../model/types';
-import { applyCompletion, exchangeScars, refreshStreak } from './rewards';
+import { applyCompletion, refreshStreak } from './rewards';
 import type { Rng } from './rng';
 import { dayOf } from './time';
 
@@ -35,17 +35,12 @@ describe('таймерное задание', () => {
 });
 
 describe('мгновенные задания', () => {
-  it('отказ — шрам и 10 опыта Охоте', () => {
-    const { state, report } = applyCompletion(createPlayer(), { kind: 'instant', branch: 'hunt', instant: 'rejection' }, NOW, PHRASE);
-    expect(report.scar).toBe(true);
-    expect(state.scars).toBe(1);
-    expect(state.scarsTotal).toBe(1);
-    expect(state.xp.hunt).toBe(10);
-  });
-
-  it('приглашение на собеседование — 30 опыта', () => {
-    const { report } = applyCompletion(createPlayer(), { kind: 'instant', branch: 'hunt', instant: 'interview' }, NOW, PHRASE);
-    expect(report.xp).toBe(30);
+  it('запись в журнал — опыт и золото Летописи, карта добычи', () => {
+    const { state, report } = applyCompletion(createPlayer(), { kind: 'instant', branch: 'chronicle', instant: 'journal' }, NOW, PHRASE);
+    expect(report.xp).toBe(BALANCE.xp.instant.journal);
+    expect(state.xp.chronicle).toBe(BALANCE.xp.instant.journal);
+    expect(report.gold).toBe(BALANCE.gold.instant.journal + BALANCE.loot.phraseGold);
+    expect(report.loot?.kind).toBe('phrase');
   });
 });
 
@@ -92,17 +87,6 @@ describe('добыча', () => {
   it('семя попадает в запас декора', () => {
     const { state } = applyCompletion(createPlayer(), { kind: 'timed', branch: 'image', minutes: 5, full: true }, NOW, SEED);
     expect(state.inventory).toHaveLength(1);
-  });
-});
-
-describe('шрамы', () => {
-  it('3 шрама меняются на звезду, счётчик коллекции не уменьшается', () => {
-    const p = { ...createPlayer(), scars: 3, scarsTotal: 3 };
-    const next = exchangeScars(p)!;
-    expect(next.scars).toBe(0);
-    expect(next.stars).toBe(1);
-    expect(next.scarsTotal).toBe(3);
-    expect(exchangeScars(next)).toBeNull();
   });
 });
 

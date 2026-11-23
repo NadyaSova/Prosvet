@@ -1,4 +1,4 @@
-// Раздел «Данные»: защита от очистки, резервная копия, восстановление. Позже переедет в «Настройки».
+// Раздел «Данные» в настройках: защита от очистки, резервная копия, восстановление.
 
 import { useState } from 'preact/hooks';
 import {
@@ -11,12 +11,13 @@ import {
   serializeSnapshot,
 } from '../storage/backup';
 import { downloadText, type Persistence } from '../storage/browser';
+import type { Settings } from '../model/types';
 import type { ProsvetDb } from '../storage/db';
 import { loadAppData, type AppData } from '../storage/repo';
 
 interface Props {
   db: ProsvetDb;
-  data: AppData;
+  settings: Settings;
   /** null — браузер ещё не ответил. */
   persistence: Persistence | null;
   onChange: (data: AppData) => void;
@@ -30,9 +31,8 @@ const PERSISTENCE_TEXT: Record<Persistence, string> = {
   unsupported: 'Браузер не умеет защищать данные от очистки. Делай резервные копии.',
 };
 
-export function DataSection({ db, data, persistence, onChange }: Props) {
+export function DataSection({ db, settings, persistence, onChange }: Props) {
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
-  const { settings } = data;
 
   async function backup() {
     const now = Date.now();
@@ -56,7 +56,7 @@ export function DataSection({ db, data, persistence, onChange }: Props) {
   }
 
   return (
-    <section class="data">
+    <section class="card data">
       <h2>Данные</h2>
       <p>Всё хранится только на этом телефоне. {persistence && PERSISTENCE_TEXT[persistence]}</p>
       <p>

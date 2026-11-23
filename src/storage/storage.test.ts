@@ -12,8 +12,8 @@ import {
   serializeSnapshot,
 } from './backup';
 import { openProsvetDb, SCHEMA_VERSION } from './db';
-import { normalizePlayer } from './normalize';
-import { getKv, listAchievements, listCustomTasks, loadAppData, putAchievement, putCustomTask, setKv } from './repo';
+import { normalizePlayer, normalizeTimer } from './normalize';
+import { getKv, listAchievements, listCustomTasks, loadAppData, putAchievement, putCustomTask, saveGame, setKv } from './repo';
 
 const NOW = new Date(2026, 10, 23, 12, 0).getTime();
 const DAY_MS = 86_400_000;
@@ -65,6 +65,37 @@ describe('старые данные без новых полей', () => {
 
   it('мусор вместо игрока — новый игрок', () => {
     expect(normalizePlayer('мусор')).toEqual(createPlayer());
+  });
+
+  it('шрамы из старых версий отбрасываются', () => {
+    const p = normalizePlayer({ gold: 3, scars: 2, scarsTotal: 5 });
+    expect(p.gold).toBe(3);
+    expect('scars' in p).toBe(false);
+    expect('scarsTotal' in p).toBe(false);
+  });
+
+  it('таймер без названия или ветки не загружается', () => {
+    const base = { templateId: 'x', startedAt: NOW, durationMs: 60_000 };
+    expect(normalizeTimer(base)).toBeNull();
+    expect(normalizeTimer({ ...base, title: 'Задание', branch: 'нет такой' })).toBeNull();
+    expect(normalizeTimer({ ...base, title: 'Задание', branch: 'hunt' })).toMatchObject({ pausesUsed: 0, branch: 'hunt' });
+  });
+});
+
+describe('сохранение игры', () => {
+  it('игрок, доска, таймер и запись журнала пишутся вместе', async () => {
+    const db = await freshDb();
+    await loadAppData(db, NOW);
+    const timer = { templateId: 'x', title: 'Задание', branch: 'hunt' as const, startedAt: NOW, durationMs: 60_000, pausedAt: null, pausedMs: 0, pausesUsed: 0 };
+    await saveGame(db, { player: { ...createPlayer(), gold: 5 }, board: { taskIds: ['a'], rerolls: null }, timer }, achievement('j', NOW));
+    const data = await loadAppData(db, NOW);
+    expect(data.player.gold).toBe(5);
+    expect(data.board.taskIds).toEqual(['a']);
+    expect(data.timer).toEqual(timer);
+    expect((await listAchievements(db)).map((a) => a.id)).toEqual(['j']);
+
+    await saveGame(db, { ...data, timer: null });
+    expect((await loadAppData(db, NOW)).timer).toBeNull();
   });
 });
 

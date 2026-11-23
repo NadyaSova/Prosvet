@@ -29,6 +29,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // Нажатие на уведомление о конце таймера открывает приложение.
+        importScripts: ['sw-notification.js'],
       },
     }),
   ],

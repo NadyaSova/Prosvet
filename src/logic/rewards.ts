@@ -1,4 +1,4 @@
-// Награда за засчитанное задание: опыт, золото, карта добычи, шрамы, серия. SPEC.md §5, §9.
+// Награда за засчитанное задание: опыт, золото, карта добычи, серия. SPEC.md §5, §9.
 // Чистая функция: состояние игрока, итог задания, время и генератор случайных чисел — на входе.
 
 import { BALANCE } from '../config/balance';
@@ -18,11 +18,12 @@ export interface RewardReport {
   xp: number;
   /** Всё золото за задание, включая золото из карты добычи. */
   gold: number;
+  /** Из него — золото из карты добычи (чтобы не раскрывать карту раньше времени). */
+  lootGold: number;
   /** null — карта не тянется (досрочное завершение). */
   loot: LootCard | null;
   /** Полено выпало, но запас полон — вместо него дали золото. */
   logConverted: boolean;
-  scar: boolean;
   /** Новый общий уровень, если он повысился. */
   newLevel: number | null;
   /** Новый уровень ветки, если он повысился. */
@@ -98,15 +99,11 @@ export function applyCompletion(
     }
   }
 
-  const scar = c.kind === 'instant' && c.instant === 'rejection';
-
   const next: PlayerState = {
     ...state,
     xp: newXp,
     gold: state.gold + gold + lootGold,
     stars: state.stars + stars,
-    scars: state.scars + (scar ? 1 : 0),
-    scarsTotal: state.scarsTotal + (scar ? 1 : 0),
     streak,
     branchLastTouched: { ...state.branchLastTouched, [c.branch]: today },
     inventory,
@@ -118,9 +115,9 @@ export function applyCompletion(
       branch: c.branch,
       xp,
       gold: gold + lootGold,
+      lootGold,
       loot,
       logConverted,
-      scar,
       newLevel: newLevel > oldLevel ? newLevel : null,
       newBranchLevel: newBranchLevel > oldBranchLevel ? newBranchLevel : null,
       stars,
@@ -138,10 +135,4 @@ export function refreshStreak(
 ): { state: PlayerState; logsBurned: number; broken: boolean } {
   const r = resolveStreak(state.streak, dayOf(now));
   return { state: r.streak === state.streak ? state : { ...state, streak: r.streak }, logsBurned: r.logsBurned, broken: r.broken };
-}
-
-/** Обмен шрамов на звезду. null — шрамов не хватает. */
-export function exchangeScars(state: PlayerState): PlayerState | null {
-  if (state.scars < BALANCE.scars.perStar) return null;
-  return { ...state, scars: state.scars - BALANCE.scars.perStar, stars: state.stars + 1 };
 }

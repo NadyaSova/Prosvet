@@ -50,7 +50,7 @@ export function isFinished(t: TimerState, now: number): boolean {
   return remainingMs(t, now) <= 0;
 }
 
-/** Когда таймер закончится (для уведомления). null — на паузе. */
+/** Когда таймер закончится (для уведомления и для награды, если приложение было закрыто). null — на паузе. */
 export function endsAt(t: TimerState): number | null {
   if (t.pausedAt !== null) return null;
   return t.startedAt + t.pausedMs + t.durationMs;
@@ -60,12 +60,12 @@ export function canPause(t: TimerState, now: number): boolean {
   return t.pausedAt === null && t.pausesUsed < BALANCE.timer.maxPauses && !isFinished(t, now);
 }
 
-export function pauseTimer(t: TimerState, now: number): TimerState {
+export function pauseTimer<T extends TimerState>(t: T, now: number): T {
   if (!canPause(t, now)) throw new Error('Паузу сейчас поставить нельзя');
   return { ...t, pausedAt: now, pausesUsed: t.pausesUsed + 1 };
 }
 
-export function resumeTimer(t: TimerState, now: number): TimerState {
+export function resumeTimer<T extends TimerState>(t: T, now: number): T {
   if (t.pausedAt === null) return t;
   return { ...t, pausedAt: null, pausedMs: t.pausedMs + Math.max(0, now - t.pausedAt) };
 }

@@ -1,9 +1,16 @@
 // Чтение и запись данных приложения.
 
-import type { TimerState } from '../logic/timer';
+import type { GameState, RunningTask } from '../logic/game';
 import type { Achievement, BoardState, PlayerState, Settings, TaskTemplate } from '../model/types';
-import type { KvKey, KvMap, ProsvetDb } from './db';
-import { createSettings, normalizeBoard, normalizePlayer, normalizeSettings, normalizeTimer } from './normalize';
+import type { KvKey, KvMap, PhraseHistory, ProsvetDb } from './db';
+import {
+  createSettings,
+  normalizeBoard,
+  normalizePhrases,
+  normalizePlayer,
+  normalizeSettings,
+  normalizeTimer,
+} from './normalize';
 
 export async function getKv<K extends KvKey>(db: ProsvetDb, key: K): Promise<unknown> {
   return db.get('kv', key);
@@ -18,26 +25,45 @@ export interface AppData {
   player: PlayerState;
   settings: Settings;
   board: BoardState;
-  timer: TimerState | null;
+  timer: RunningTask | null;
+  phrases: PhraseHistory;
 }
 
 /** Загружает данные; при первом запуске создаёт игрока и настройки. */
 export async function loadAppData(db: ProsvetDb, now: number): Promise<AppData> {
-  const [rawPlayer, rawSettings, rawBoard, rawTimer] = await Promise.all([
+  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases] = await Promise.all([
     getKv(db, 'player'),
     getKv(db, 'settings'),
     getKv(db, 'board'),
     getKv(db, 'timer'),
+    getKv(db, 'phrases'),
   ]);
   const data: AppData = {
     player: normalizePlayer(rawPlayer),
     settings: rawSettings === undefined ? createSettings(now) : normalizeSettings(rawSettings, now),
     board: normalizeBoard(rawBoard),
     timer: normalizeTimer(rawTimer),
+    phrases: normalizePhrases(rawPhrases),
   };
   if (rawPlayer === undefined) await setKv(db, 'player', data.player);
   if (rawSettings === undefined) await setKv(db, 'settings', data.settings);
   return data;
+}
+
+/**
+ * Сохраняет игру одной транзакцией: игрока, доску и таймер, а если передана — и запись журнала.
+ * Так награда и снятие таймера не могут разойтись: либо записалось всё, либо ничего.
+ */
+export async function saveGame(db: ProsvetDb, game: GameState, achievement?: Achievement): Promise<void> {
+  const tx = db.transaction(['kv', 'achievements'], 'readwrite');
+  const kv = tx.objectStore('kv');
+  const writes: Promise<unknown>[] = [
+    kv.put(game.player, 'player'),
+    kv.put(game.board, 'board'),
+    kv.put(game.timer, 'timer'),
+  ];
+  if (achievement) writes.push(tx.objectStore('achievements').put(achievement));
+  await Promise.all([...writes, tx.done]);
 }
 
 // Свои задания

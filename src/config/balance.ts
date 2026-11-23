@@ -14,7 +14,7 @@ export const BALANCE = {
 
   xp: {
     perTimedMinute: 1,
-    instant: { application: 10, rejection: 10, journal: 8, interview: 30 },
+    instant: { application: 10, journal: 8 },
     /** Порог уровня n: levelStep × n опыта сверх предыдущего уровня. */
     levelStep: 50,
   },
@@ -22,7 +22,7 @@ export const BALANCE = {
   gold: {
     /** Полное таймерное задание: округление minutes × perTimedMinute. Досрочное — округление вниз. */
     perTimedMinute: 0.5,
-    instant: { application: 5, rejection: 5, journal: 4, interview: 15 },
+    instant: { application: 5, journal: 4 },
   },
 
   level: {
@@ -58,9 +58,9 @@ export const BALANCE = {
     rareDecor: ['fireflies', 'rainbow', 'deer'],
   },
 
-  scars: {
-    /** Сколько шрамов меняется на одну звезду. */
-    perStar: 3,
+  phrases: {
+    /** Фраза не повторяется, пока не покажут столько других из того же пула (или весь пул, если он меньше). */
+    noRepeatWindow: 10,
   },
 
   timer: {

@@ -122,6 +122,43 @@ export function refillSlot(
   return next;
 }
 
+/**
+ * Приводит доску в порядок после того, как задания скрыли или удалили:
+ * негодное задание заменяется на том же месте, недостающие места добираются.
+ * Если менять нечего, возвращает тот же массив.
+ */
+export function repairBoard(
+  board: readonly string[],
+  templates: readonly TaskTemplate[],
+  ctx: BoardContext,
+  rng: Rng,
+): readonly string[] {
+  const valid = new Set(boardable(templates).map((t) => t.id));
+  let next: string[] = board.filter((id, i) => board.indexOf(id) === i);
+  // С конца: refillSlot может убрать ячейку, если заменить нечем.
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (!valid.has(next[i]!)) next = refillSlot(next, i, templates, ctx, rng);
+  }
+  if (next.length === 0) next = buildBoard(templates, ctx, rng);
+
+  const byId = new Map(templates.map((t) => [t.id, t]));
+  const chosen = next.map((id) => byId.get(id)!);
+  const weights = branchWeights(ctx);
+  while (chosen.length < BALANCE.board.size) {
+    const buckets = new Set(chosen.map(sizeBucket));
+    const pick = pickOne(
+      boardable(templates).filter((t) => !chosen.includes(t)),
+      [(t) => !chosen.some((c) => c.branch === t.branch), (t) => !buckets.has(sizeBucket(t))],
+      weights,
+      rng,
+    );
+    if (!pick) break;
+    chosen.push(pick);
+  }
+  const ids = chosen.map((t) => t.id);
+  return ids.length === board.length && ids.every((id, i) => id === board[i]) ? board : ids;
+}
+
 /** Задание для кнопки «Не хочу ничего»: короткое, по возможности не с доски. */
 export function pickTinyTask(
   templates: readonly TaskTemplate[],

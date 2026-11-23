@@ -52,12 +52,5 @@ export const DEFAULT_TASKS: TaskTemplate[] = [
     title: 'Просмотреть свежие вакансии в одном источнике' },
   { id: 'hunt-apply-session', branch: 'hunt', kind: 'timed', minutes: 30, onBoard: true,
     title: 'Подготовить и отправить один отклик' },
-
-  // Отчёты: не на доске, доступны всегда.
-  { id: 'report-application', branch: 'hunt', kind: 'instant', instant: 'application', onBoard: false,
-    title: 'Отправила отклик' },
-  { id: 'report-rejection', branch: 'hunt', kind: 'instant', instant: 'rejection', onBoard: false,
-    title: 'Получила отказ' },
-  { id: 'report-interview', branch: 'hunt', kind: 'instant', instant: 'interview', onBoard: false,
-    title: 'Пригласили на собеседование' },
+  // Отметка отправленного отклика и ответов на него — в голубятне (шаг 5), не здесь.
 ];

@@ -10,8 +10,11 @@ export type Branch = (typeof BRANCHES)[number];
 export const TASK_MINUTES = [5, 10, 15, 25, 30, 45, 60] as const;
 export type TaskMinutes = (typeof TASK_MINUTES)[number];
 
-/** Виды мгновенных заданий — у каждого своя награда. */
-export type InstantKind = 'application' | 'rejection' | 'interview' | 'journal';
+/**
+ * Виды мгновенных заданий — у каждого своя награда.
+ * application — голубь улетел с откликом; пока не используется, понадобится в голубятне (шаг 5).
+ */
+export type InstantKind = 'application' | 'journal';
 
 interface TaskTemplateBase {
   id: string;
@@ -19,7 +22,7 @@ interface TaskTemplateBase {
   title: string;
   description?: string;
   tags?: string[];
-  /** false — задание не попадает на доску (например, «Получила отказ» — это отчёт, он доступен всегда). */
+  /** false — задание не попадает на доску. */
   onBoard: boolean;
   /** Пользователь скрыла задание. */
   hidden?: boolean;
@@ -48,10 +51,6 @@ export interface PlayerState {
   xp: BranchXp;
   gold: number;
   stars: number;
-  /** Шрамы, которые ещё можно обменять на звезду. */
-  scars: number;
-  /** Все шрамы за всё время — для «Коллекции шрамов». */
-  scarsTotal: number;
   streak: StreakState;
   /** Когда каждую ветку трогали в последний раз — для весов доски. */
   branchLastTouched: Partial<Record<Branch, Day>>;

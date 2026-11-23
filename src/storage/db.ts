@@ -1,7 +1,7 @@
 // База IndexedDB на телефоне. Данные никуда не уходят с устройства.
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { TimerState } from '../logic/timer';
+import type { RunningTask } from '../logic/game';
 import type { Achievement, BoardState, PlayerState, Settings, TaskTemplate } from '../model/types';
 
 export const DB_NAME = 'prosvet';
@@ -18,10 +18,16 @@ export interface KvMap {
   settings: Settings;
   board: BoardState;
   /** Идущий таймер; null — таймера нет. */
-  timer: TimerState | null;
+  timer: RunningTask | null;
+  /** Недавно показанные фразы — чтобы не повторяться. */
+  phrases: PhraseHistory;
+}
+
+export interface PhraseHistory {
+  recent: string[];
 }
 export type KvKey = keyof KvMap;
-export const KV_KEYS: readonly KvKey[] = ['player', 'settings', 'board', 'timer'];
+export const KV_KEYS: readonly KvKey[] = ['player', 'settings', 'board', 'timer', 'phrases'];
 
 export interface ProsvetSchema extends DBSchema {
   kv: { key: string; value: unknown };
