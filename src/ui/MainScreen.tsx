@@ -1,6 +1,7 @@
-// Главный экран: долина с костром и странницей, семена для посадки, героиня, серия, вопрос голубя,
-// доска заданий, «Не хочу ничего», своё задание, разделы: Летопись, голубятня, лавка.
-// Нажатие на карточку героини открывает экран героини с ветками.
+// Главный экран сверху вниз: шапка с огоньком серии, долина с костром и странницей, семена для посадки,
+// фраза, заметки (костёр, вопрос голубя), героиня, разделы (Летопись, голубятня, лавка),
+// доска заданий строками с кнопкой ▶, «Не хочу ничего» и «Своё задание».
+// Нажатие на огонёк показывает подробности серии, на карточку героини — экран героини с ветками.
 
 import { useState } from 'preact/hooks';
 import type { GameState, StreakNews } from '../logic/game';
@@ -16,6 +17,7 @@ import { daysText, fireText, plural } from './format';
 import { PigeonArt } from './pigeon-art';
 import { go } from './router';
 import { SectionTiles } from './SectionTiles';
+import { StreakBadge, StreakDetails } from './StreakBadge';
 import { PlantRow } from './valley/PlantRow';
 import { ValleyView } from './valley/ValleyView';
 
@@ -71,6 +73,7 @@ export function MainScreen({
   coupons,
 }: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
+  const [streakOpen, setStreakOpen] = useState(false);
   const { player } = game;
   const today = dayOf(now);
   const level = levelInfo(totalXp(player.xp));
@@ -83,14 +86,19 @@ export function MainScreen({
     <main class="screen home">
       <header class="home__top">
         <span class="home__name">Просвет</span>
-        <button type="button" class="icon-button" aria-label="Настройки" onClick={() => go('settings')}>
-          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M4 7h16M4 17h16" />
-            <circle cx="9" cy="7" r="2.4" fill="var(--color-card-strong)" />
-            <circle cx="15" cy="17" r="2.4" fill="var(--color-card-strong)" />
-          </svg>
-        </button>
+        <div class="home__end">
+          <StreakBadge view={streak} open={streakOpen} onToggle={() => setStreakOpen(!streakOpen)} />
+          <button type="button" class="icon-button" aria-label="Настройки" onClick={() => go('settings')}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M4 7h16M4 17h16" />
+              <circle cx="9" cy="7" r="2.4" fill="var(--color-card-strong)" />
+              <circle cx="15" cy="17" r="2.4" fill="var(--color-card-strong)" />
+            </svg>
+          </button>
+        </div>
       </header>
+
+      {streakOpen && <StreakDetails view={streak} fireText={fireText(streak, today, player.streak.lastActiveDay !== null)} />}
 
       <section class="valley-card">
         <div class="valley-card__frame">
@@ -115,37 +123,7 @@ export function MainScreen({
         {isDistrictOpen(game.valley) && <p class="muted small valley-card__open">Долина открыта: хмари больше нет.</p>}
       </section>
 
-      <button type="button" class="card hero hero--link" onClick={() => go('hero')}>
-        <span class="hero__row">
-          <span>
-            <span class="hero__title">{titleFor(level.level)}</span>
-            <span class="muted small">Уровень {level.level}</span>
-          </span>
-          <span class="wallet">
-            <span class="wallet__item" title="Золото">
-              <span class="wallet__gold" aria-hidden="true" /> {player.gold}
-            </span>
-            <span class="wallet__item" title="Звёзды">
-              <span class="wallet__star" aria-hidden="true">★</span> {player.stars}
-            </span>
-            <svg class="hero__chevron" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </span>
-        </span>
-        <Progress value={level.xpIntoLevel} max={level.xpForNext} />
-        <span class="muted small">
-          {level.xpIntoLevel} из {level.xpForNext} опыта до следующего уровня
-        </span>
-      </button>
-
-      <section class="card streak">
-        <div>
-          <div class="streak__value">{streak.value > 0 ? `Серия: ${daysText(streak.value)}` : 'Серии пока нет'}</div>
-          <div class="small">{fireText(streak, today, player.streak.lastActiveDay !== null)}</div>
-          {streak.logs > 0 && <div class="muted small">Поленья в запасе: {streak.logs}</div>}
-        </div>
-      </section>
+      <p class="phrase">{idlePhrase}</p>
 
       {news && (
         <div class="notice" role="status">
@@ -178,7 +156,31 @@ export function MainScreen({
         </section>
       )}
 
-      <p class="phrase">{idlePhrase}</p>
+      <button type="button" class="card hero hero--link" onClick={() => go('hero')}>
+        <span class="hero__row">
+          <span>
+            <span class="hero__title">{titleFor(level.level)}</span>
+            <span class="muted small">Уровень {level.level}</span>
+          </span>
+          <span class="wallet">
+            <span class="wallet__item" title="Золото">
+              <span class="wallet__gold" aria-hidden="true" /> {player.gold}
+            </span>
+            <span class="wallet__item" title="Звёзды">
+              <span class="wallet__star" aria-hidden="true">★</span> {player.stars}
+            </span>
+            <svg class="hero__chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+        </span>
+        <Progress value={level.xpIntoLevel} max={level.xpForNext} />
+        <span class="muted small">
+          {level.xpIntoLevel} из {level.xpForNext} опыта до следующего уровня
+        </span>
+      </button>
+
+      <SectionTiles pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
 
       <section class="board">
         <div class="board__head">
@@ -194,26 +196,27 @@ export function MainScreen({
       </section>
 
       <section class="home__more">
-        {tiny ? (
+        {tiny && (
           <div class="tiny">
             <div class="tiny__label">Совсем немного — и уже засчитано:</div>
             <TaskCard task={tiny} onStart={() => onStart(tiny)}>
-              <button type="button" class="link-button" onClick={() => setTiny(pickTiny(tiny.id) ?? null)}>
+              <button type="button" class="link-button task__other" onClick={() => setTiny(pickTiny(tiny.id) ?? null)}>
                 Другое
               </button>
             </TaskCard>
           </div>
-        ) : (
-          <button type="button" class="button button--secondary" onClick={() => setTiny(pickTiny() ?? null)}>
-            Не хочу ничего
-          </button>
         )}
-        <button type="button" class="button button--secondary" onClick={() => go('custom')}>
-          Своё задание
-        </button>
+        <div class="home__more-row">
+          {!tiny && (
+            <button type="button" class="button button--secondary" onClick={() => setTiny(pickTiny() ?? null)}>
+              Не хочу ничего
+            </button>
+          )}
+          <button type="button" class="button button--secondary" onClick={() => go('custom')}>
+            Своё задание
+          </button>
+        </div>
       </section>
-
-      <SectionTiles pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
     </main>
   );
 }

@@ -34,20 +34,24 @@ export function BranchChip({ branch }: { branch: TaskTemplate['branch'] }) {
   return <span class={`chip chip--${branch}`}>{BRANCH_NAMES[branch]}</span>;
 }
 
+/** Задание одной строкой: название, ветка и время, справа кнопка ▶. В children — например, «Другое». */
 export function TaskCard({ task, onStart, children }: { task: TaskTemplate; onStart: () => void; children?: ComponentChildren }) {
+  const action = task.kind === 'timed' ? 'Начать' : 'Записать';
   return (
     <article class={`task task--${task.branch}`}>
-      <div class="task__meta">
-        <BranchChip branch={task.branch} />
-        <span class="muted small">{task.kind === 'timed' ? minutesText(task.minutes) : 'сразу'}</span>
-      </div>
-      <div class="task__title">{task.title}</div>
-      <div class="task__actions">
-        <button type="button" class="button" onClick={onStart}>
-          {task.kind === 'timed' ? 'Начать' : 'Записать'}
-        </button>
+      <div class="task__body">
+        <div class="task__title">{task.title}</div>
+        <div class="task__meta small">
+          <span class="task__branch">{BRANCH_NAMES[task.branch]}</span>
+          <span class="muted"> · {task.kind === 'timed' ? minutesText(task.minutes) : 'сразу'}</span>
+        </div>
         {children}
       </div>
+      <button type="button" class="play-button" aria-label={`${action}: ${task.title}`} onClick={onStart}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8.5 5.6v12.8a1 1 0 0 0 1.5.86l10.2-6.4a1 1 0 0 0 0-1.72L10 4.74a1 1 0 0 0-1.5.86z" fill="currentColor" />
+        </svg>
+      </button>
     </article>
   );
 }

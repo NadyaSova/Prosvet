@@ -297,13 +297,65 @@ h2 {
   color: var(--color-gold);
 }
 
-.streak {
+.home__end {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
 }
 
-.streak__value {
+/* Серия в шапке: огонёк и число, рядом полено с запасом. */
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 14px 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-card);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.streak-badge__flame {
+  width: 26px;
+  height: 26px;
+}
+
+.streak-badge__log {
+  width: 20px;
+  height: 20px;
+  margin-left: 8px;
+}
+
+.streak-badge__logs {
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+
+/* Огонёк — по костру в долине: ярко в день дела, тусклее, пока идут запасные дни. */
+.flame__outer { fill: var(--color-fire); }
+.flame__inner { fill: var(--color-sun); }
+.flame--medium { opacity: 0.85; }
+.flame--low { opacity: 0.65; }
+.flame--embers .flame__outer { fill: #b5562a; }
+.flame--embers .flame__inner { fill: #e8833a; }
+.flame--embers { opacity: 0.7; }
+.flame--out .flame__outer { fill: var(--color-mist); }
+.flame--out .flame__inner { fill: #d6d6da; }
+
+.streak-details p {
+  margin: 0 0 4px;
+}
+
+.streak-details p:last-child {
+  margin-bottom: 0;
+}
+
+.streak-details__value {
   font-weight: 600;
 }
 
@@ -637,14 +689,15 @@ h2 {
   justify-content: space-between;
 }
 
+/* Задание одной строкой: слева название, ветка и время; справа кнопка ▶. */
 .task {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: var(--radius);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 16px;
   background: var(--color-card-strong);
-  border-left: 6px solid var(--task-color, var(--color-hill-near));
+  border-left: 5px solid var(--task-color, var(--color-hill-near));
 }
 
 .task--chronicle { --task-color: var(--branch-chronicle); }
@@ -653,30 +706,69 @@ h2 {
 .task--scouting { --task-color: var(--branch-scouting); }
 .task--hunt { --task-color: var(--branch-hunt); }
 
-.task__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.task__body {
+  flex: 1;
+  min-width: 0;
 }
 
 .task__title {
   font-weight: 600;
+  line-height: 1.3;
 }
 
-.task__actions {
-  display: flex;
+.task__meta {
+  margin-top: 2px;
+}
+
+.task__branch {
+  color: var(--task-color, var(--color-hill-near));
+  font-weight: 600;
+}
+
+.task__other {
+  min-height: 36px;
+  padding: 4px 0 0;
+}
+
+.play-button {
+  flex: none;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-hill-near);
+  color: #fff;
+  cursor: pointer;
 }
 
-.task__actions .button {
-  flex: 1;
+.play-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.play-button:active {
+  transform: scale(0.94);
 }
 
 .home__more {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.home__more-row {
+  display: flex;
+  gap: 10px;
+}
+
+.home__more-row .button {
+  flex: 1;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .tiny {
