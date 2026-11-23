@@ -1,5 +1,9 @@
 // Рисунок голубя и пера по виду (PigeonLook). Только отрисовка: модель голубя о ней не знает,
 // рисунок можно заменить, не трогая игровую логику (SPEC.md §12.3). Стиль — плоский, как docs/reference-valley.svg.
+//
+// Голубь — один силуэт-«капля», как у настоящего сизого голубя: маленькая голова сразу переходит в толстую шею,
+// шея расширяется в выпуклую грудь, спина почти прямой линией уходит к длинному хвосту.
+// Отлив — широкая зона по всей шее, крыло лежит вдоль бока, на нём две тёмные полосы.
 
 import type { PigeonColor, PigeonLook, PigeonSize } from '../model/types';
 
@@ -7,16 +11,21 @@ interface Palette {
   body: string;
   wing: string;
   bars: string;
+  /** Отлив на шее: от neck к neck2 (у сизого — зелёный в сиреневый). */
   neck: string;
+  neck2: string;
   /** Обводка — чтобы белый голубь не терялся на светлом фоне. */
   line: string;
+  /** Клюв; по умолчанию — общий BEAK. */
+  beak?: string;
 }
 
 export const PIGEON_PALETTE: Record<PigeonColor, Palette> = {
-  slate: { body: '#9aa6b8', wing: '#808ca3', bars: '#56617a', neck: '#8db3a6', line: '#6c7890' },
-  white: { body: '#fbf8f2', wing: '#ebe5da', bars: '#cdc4b5', neck: '#efe3ee', line: '#c9bfae' },
-  rose: { body: '#dcb7b6', wing: '#c79fa2', bars: '#9b7176', neck: '#e8cbcd', line: '#ad8589' },
-  lilac: { body: '#bcaad2', wing: '#a28fbd', bars: '#76659b', neck: '#d0c3e3', line: '#8b79ab' },
+  slate: { body: '#9aa6b8', wing: '#8592a8', bars: '#56617a', neck: '#7fb3a0', neck2: '#9a8bbf', line: '#6c7890' },
+  white: { body: '#fbf8f2', wing: '#efe9df', bars: '#cdc4b5', neck: '#efe3ee', neck2: '#e3eef0', line: '#c9bfae' },
+  // Клюв темнее общего: светлый терялся на розовом, особенно когда голубь чистит перо.
+  rose: { body: '#dcb7b6', wing: '#cda6a8', bars: '#9b7176', neck: '#ead0d3', neck2: '#d9c3e0', line: '#ad8589', beak: '#8f5d57' },
+  lilac: { body: '#bcaad2', wing: '#a997c4', bars: '#76659b', neck: '#d6c9e8', neck2: '#c4dcd6', line: '#8b79ab' },
 };
 
 export const FEATHER_COLORS: Record<PigeonColor | 'gold', { fill: string; vein: string }> = {
@@ -33,64 +42,171 @@ const FEET = { x: 49, y: 84 };
 const EYE = '#3b2f2a';
 const BEAK = '#d8a48f';
 const LEGS = '#d9776b';
+/** Дальняя лапка чуть темнее — видно, что лапок две. */
+const LEGS_FAR = '#bf6358';
+const CLAWS = '#7a4a42';
 
-/** Голова в разных позах: центр, клюв, глаз. */
-function head(pose: PigeonLook['pose'], p: Palette) {
-  switch (pose) {
-    case 'sit':
-      return (
-        <g>
-          <ellipse cx="66" cy="46" rx="11" ry="13" fill={p.neck} />
-          <circle cx="72" cy="31" r="11" fill={p.body} stroke={p.line} stroke-width="1" />
-          <path d="M82 29 L91 33 L82 36 Z" fill={BEAK} />
-          <circle cx="81.5" cy="29.5" r="1.6" fill="#fff" />
-          <circle cx="75" cy="29" r="2.4" fill="#e9925a" />
-          <circle cx="75" cy="29" r="1.2" fill={EYE} />
-        </g>
-      );
-    case 'look':
-      // Оглядывается назад, через плечо.
-      return (
-        <g>
-          <ellipse cx="64" cy="45" rx="11" ry="13" fill={p.neck} />
-          <circle cx="62" cy="30" r="11" fill={p.body} stroke={p.line} stroke-width="1" />
-          <path d="M52 28 L43 32 L52 35 Z" fill={BEAK} />
-          <circle cx="52.5" cy="28.5" r="1.6" fill="#fff" />
-          <circle cx="58" cy="28" r="2.4" fill="#e9925a" />
-          <circle cx="58" cy="28" r="1.2" fill={EYE} />
-        </g>
-      );
-    case 'preen':
-      // Чистит перо: голова опущена к крылу.
-      return (
-        <g>
-          <ellipse cx="62" cy="47" rx="11" ry="11" fill={p.neck} />
-          <circle cx="57" cy="40" r="10.5" fill={p.body} stroke={p.line} stroke-width="1" />
-          <path d="M49 44 L43 51 L51 49 Z" fill={BEAK} />
-          <circle cx="54" cy="38" r="2.2" fill="#e9925a" />
-          <circle cx="54" cy="38" r="1.1" fill={EYE} />
-        </g>
-      );
-  }
+/**
+ * Лапка как у настоящего голубя: короткая цевка с чешуйками выходит из-под перьев живота,
+ * два пальца вперёд веером, один назад, на кончиках — коготки. x — где лапка выходит из-под живота.
+ */
+function Leg({ x, color }: { x: number; color: string }) {
+  const toes: [number, number][] = [
+    [x + 8, 83.6],
+    [x + 5.6, 84.4],
+    [x - 4, 83.6],
+  ];
+  return (
+    <g>
+      <path d={`M${x - 1.4} 69 L${x + 1.4} 69 L${x + 1.9} 81 L${x + 0.1} 81.6 Z`} fill={color} />
+      <path d={`M${x - 0.6} 74 h2.4 M${x - 0.3} 77.5 h2.4`} stroke={CLAWS} stroke-width="0.45" opacity="0.5" />
+      <path
+        d={`M${x + 1} 81.3 Q${x + 4.5} 81.9 ${toes[0]![0]} ${toes[0]![1]} M${x + 1} 81.5 Q${x + 3.4} 83 ${toes[1]![0]} ${toes[1]![1]} M${x + 0.6} 81.5 Q${x - 1.8} 82.3 ${toes[2]![0]} ${toes[2]![1]}`}
+        stroke={color}
+        stroke-width="1.6"
+        stroke-linecap="round"
+        fill="none"
+      />
+      {toes.map(([tx, ty]) => (
+        <circle key={`${tx}`} cx={tx + (tx > x ? 0.3 : -0.3)} cy={ty + 0.1} r="0.6" fill={CLAWS} />
+      ))}
+    </g>
+  );
 }
+
+/** Поза — это всё тело, а не только голова: свой силуэт, крыло, хвост и постановка лапок. */
+interface PoseShape {
+  /** Весь силуэт одной линией: голова, шея, грудь, живот, хвост, спина. */
+  outline: string;
+  /** Отлив на шее — широкая зона от головы до груди. */
+  sheen: string;
+  /** Сложенное крыло вдоль бока, тёмные полосы на нём и тёмный край хвоста. */
+  wing: string;
+  wingBars: string;
+  tailTip: string;
+  /**
+   * Шея, перекрученная назад, с головой на конце — отдельная дуга поверх тела и крыла.
+   * fill — открытый контур заливки: от груди по внутреннему краю дуги к голове и обратно по внешнему краю.
+   * line — обводка: тот же контур, но складка начинается выше, у плеча её нет.
+   * Отлив на шее идёт вдоль дуги. Если задана, обычный sheen не рисуется.
+   */
+  twistedNeck?: { fill: string; line: string };
+  /** Где лапки выходят из-под живота: дальняя и ближняя. */
+  legs: [number, number];
+  beak: string;
+  cere: [number, number];
+  eye: [number, number];
+}
+
+/** Голова и внешний край перекрученной шеи — общая часть заливки и обводки. */
+const PREEN_NECK_REST =
+  'C62.5 45 58 47.5 53 49.2 C49 49.6 47 45 47.5 40.5 C48 35 52 32 56.5 31.5 ' +
+  'C63 29 70 28.5 75 31 C81 34 84.5 41 84 49 C83.8 53 83 56.5 82 60';
+
+const POSES: Record<PigeonLook['pose'], PoseShape> = {
+  // Сидит: спокойно стоит, тело почти горизонтально, хвост чуть вниз.
+  sit: {
+    outline:
+      'M63 31 C63 23 76 22 78 30 C79 34 78 37 79 41 C82 46 83 52 82 57 ' +
+      'C81 63 77 67 71 70 C64 72.5 54 73 45 71.5 L15 72 L11 66 C22 59 37 50 52 47 C58 45 63 40 63 31 Z',
+    sheen: 'M63.5 35 C66 39 71 41 79 41 C82 45 83 50 82 54 C73 53 63 49 57 45 C60 42 62.5 39 63.5 35 Z',
+    wing: 'M54 49 C64 49 69 56 65 64 C57 69 38 69 18 65 C29 57 42 51 54 49 Z',
+    wingBars: 'M42 60.5 C48 59 54 60.8 58.4 63.6 M35 63.8 C41.6 62.8 47.6 64.4 52 66.6',
+    tailTip: 'M11 66 L15 72 L20.4 71.6 L16.4 64.8 Z',
+    legs: [52, 60],
+    beak: 'M77.6 28.6 L83.4 30.6 L77.6 32.4 Z',
+    cere: [78.2, 29.2],
+    eye: [72.6, 28.6],
+  },
+  // Оглядывается назад через плечо: настороженная, более прямая стойка — грудь выше, хвост круче вниз.
+  look: {
+    outline:
+      'M61 28 C61 20 74 19 76 27 C77 31 76 34 77 38 C81 44 82 51 80 57 ' +
+      'C78 64 74 69 67 71 C60 73 52 73 45 71 L17 78 L13 73 C24 62 38 50 50 44 C56 41 61 36 61 28 Z',
+    sheen: 'M61.5 32 C64 36 69 38 77 38 C80 42 81.5 47 81 51 C72 50 62 46 55 42 C58 39 60.5 36 61.5 32 Z',
+    wing: 'M52 46 C62 46 68 54 64 62 C56 68 38 69 19 72 C29 61 40 50 52 46 Z',
+    wingBars: 'M41 59 C47 57.5 53 59 57.4 62 M34 63.5 C40.6 62.5 46.6 64 51 66.5',
+    tailTip: 'M13 73 L17 78 L22.2 77 L18.6 71 Z',
+    legs: [54, 62],
+    beak: 'M62 25.6 L56.2 27.6 L62 29.4 Z',
+    cere: [61.4, 26.2],
+    eye: [66.6, 25.6],
+  },
+  // Чистит перо (как на фото): тело того же размера, что в других позах, но без шеи.
+  // Шея — отдельная дуга поверх тела: от груди вверх и назад, голова — её конец, лежит на спине,
+  // клюв зарылся в перья у крыла. Внутренний край дуги обведён — по нему виден изгиб.
+  // Шея перекручена, поэтому отлив идёт вдоль дуги, а не сверху вниз: у груди сиреневый, выше зелёный,
+  // у головы плавно переходит в серый (см. twistedNeck в PigeonArt).
+  preen: {
+    outline:
+      'M11 68 C19 63 30 54 44 49 C52 46 60 43 68 43 C76 43 83 51 82 60 ' +
+      'C81 65 77 69 71 71.5 C64 74 54 74.5 45 73 L15 74 Z',
+    sheen: '',
+    // Шея толстая: основание во всю грудь, от плеча до груди. Прилегает к спине — под дугой нет просвета,
+    // изгиб виден складкой. Складка одной плавной линией уходит прямо к клюву, без выемки под головой,
+    // чтобы голова переходила в шею без шва. Обводка складки начинается выше плеча — так она короче.
+    twistedNeck: {
+      fill: `M66.5 58 C68 53 68 49 65.5 47 ${PREEN_NECK_REST}`,
+      line: `M67.36 50.3 C67.1 48.92 66.5 47.8 65.5 47 ${PREEN_NECK_REST}`,
+    },
+    wing: 'M50 50 C62 48 70 54 67 63 C59 69 40 69 18 66.5 C28 59 39 52 50 50 Z',
+    wingBars: 'M42 60 C48 58.6 54 60.4 58.4 63.2 M35 63.6 C41.6 62.6 47.6 64.2 52 66.4',
+    tailTip: 'M11 68 L15 74 L20.4 73.6 L16.4 66.8 Z',
+    legs: [52, 60],
+    beak: 'M50 45 L43.6 51.6 L52.4 47.6 Z',
+    cere: [49.9, 45.6],
+    eye: [52.4, 39.2],
+  },
+};
 
 export function PigeonArt({ look, class: className }: { look: PigeonLook; class?: string }) {
   const p = PIGEON_PALETTE[look.color];
   const s = SIZE_SCALE[look.size];
+  const pose = POSES[look.pose];
+  const [ex, ey] = pose.eye;
+  // Одинаковые градиенты на странице повторяются с одним id — это безопасно: содержимое у них одно.
+  const sheenId = `pigeon-sheen-${look.color}`;
+  const twistId = `pigeon-twist-${look.color}`;
   return (
     <svg class={className} viewBox="0 0 100 90" aria-hidden="true">
+      <defs>
+        <linearGradient id={sheenId} x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0" stop-color={p.neck} />
+          <stop offset="1" stop-color={p.neck2} />
+        </linearGradient>
+        {/* Отлив вдоль перекрученной шеи: голова серая, у головы зелёный, у груди сиреневый. */}
+        <linearGradient id={twistId} gradientUnits="userSpaceOnUse" x1="48" y1="38" x2="84" y2="54">
+          <stop offset="0" stop-color={p.body} />
+          <stop offset="0.3" stop-color={p.body} />
+          <stop offset="0.45" stop-color={p.neck} />
+          <stop offset="1" stop-color={p.neck2} />
+        </linearGradient>
+      </defs>
       <g transform={`translate(${FEET.x} ${FEET.y}) scale(${s}) translate(${-FEET.x} ${-FEET.y})`}>
-        {/* хвост */}
-        <path d="M27 52 L6 59 L8 67 L30 61 Z" fill={p.wing} stroke={p.line} stroke-width="1" />
-        <path d="M7 62 L9 67 L14 65.5 L12 60.5 Z" fill={p.bars} />
-        {/* лапы */}
-        <path d="M44 70 L42 83 M54 70 L56 83 M38 83 h8 M52 83 h8" stroke={LEGS} stroke-width="2.4" stroke-linecap="round" fill="none" />
-        {/* тело */}
-        <ellipse cx="48" cy="55" rx="26" ry="18" fill={p.body} stroke={p.line} stroke-width="1" />
-        {/* крыло с полосками */}
-        <path d="M28 49 Q48 36 66 50 Q57 66 30 61 Z" fill={p.wing} />
-        <path d="M36 53 Q42 50 48 53 M34 57.5 Q41 54.5 47 57.5" stroke={p.bars} stroke-width="2.4" stroke-linecap="round" fill="none" />
-        {head(look.pose, p)}
+        {/* лапки под телом: дальняя, потом ближняя */}
+        <Leg x={pose.legs[0]} color={LEGS_FAR} />
+        <Leg x={pose.legs[1]} color={LEGS} />
+        {/* силуэт целиком: голова, шея, грудь, живот, хвост, спина */}
+        <path d={pose.outline} fill={p.body} stroke={p.line} stroke-width="1" stroke-linejoin="round" />
+        <path d={pose.tailTip} fill={p.bars} />
+        {!pose.twistedNeck && <path d={pose.sheen} fill={`url(#${sheenId})`} opacity="0.9" />}
+        <path d={pose.wing} fill={p.wing} />
+        <path d={pose.wingBars} stroke={p.bars} stroke-width="2.6" stroke-linecap="round" fill="none" />
+        {pose.twistedNeck && (
+          <>
+            {/* Подложка цвета тела, чтобы полупрозрачный отлив не просвечивал крылом. */}
+            {/* Нижний край заливки скруглён по груди, чтобы отлив не обрывался прямой линией. */}
+            <path d={`${pose.twistedNeck.fill} C78 63 71 62 66.5 58 Z`} fill={p.body} />
+            <path d={`${pose.twistedNeck.fill} C78 63 71 62 66.5 58 Z`} fill={`url(#${twistId})`} opacity="0.9" />
+            <path d={pose.twistedNeck.line} fill="none" stroke={p.line} stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
+          </>
+        )}
+        <path d={pose.beak} fill={p.beak ?? BEAK} />
+        <ellipse cx={pose.cere[0]} cy={pose.cere[1]} rx="1.5" ry="1" fill="#fff" />
+        {/* крупный тёмный глаз с бликом и тонким оранжевым кольцом */}
+        <circle cx={ex} cy={ey} r="2.8" fill="#e9925a" />
+        <circle cx={ex} cy={ey} r="2.1" fill={EYE} />
+        <circle cx={ex + 0.75} cy={ey - 0.75} r="0.75" fill="#fff" />
       </g>
     </svg>
   );
