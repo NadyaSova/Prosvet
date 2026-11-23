@@ -171,42 +171,87 @@ function Rowan({ h, rng }: { h: number; rng: Rng }) {
     [
       ['#93ba68', '#80a95a', '#a2c678'],
       ['#9cbf6c', '#88ae5e', '#aacb7c'],
+      ['#7fa95a', '#6d9750', '#8fb868'],
+      ['#a9c06a', '#97ae5c', '#b8cc7c'],
     ],
     rng,
   );
   const w = Math.max(1.4, h * 0.06);
-  const lean = (rng() - 0.5) * h * 0.06;
+  const lean = (rng() - 0.5) * h * 0.12;
   const berry = Math.max(0.65, h * 0.026);
-  // Гроздь — щиток из ягод, свисает с края кроны.
-  const cluster = (cx: number, cy: number, key: number) => (
-    <g key={key}>
-      {[
-        [0, 0],
-        [-1.1, 0.5],
-        [1.1, 0.5],
-        [-0.55, 1.3],
-        [0.55, 1.3],
-        [0, 2.1],
-      ].map(([dx, dy], i) => (
-        <circle key={i} cx={cx + dx! * berry * 1.5} cy={cy + dy! * berry * 1.4} r={berry} fill={i % 2 ? '#c2421f' : '#e65a2a'} />
-      ))}
-    </g>
-  );
+  // Крона: главный овал (верх — на высоте дерева) и два боковых, их место и величина у каждого дерева свои.
+  const ry = h * vary(rng, 0.28, 0.12);
+  const rx = h * vary(rng, 0.17, 0.18);
+  const cy = -h + ry;
+  const trunkTop = cy + ry * 0.6;
+  const flip = rng() < 0.5 ? 1 : -1;
+  // Низ бокового овала не опускается ниже главного — иначе он «свисает».
+  const lobes = [-1, 1].map((side) => {
+    const lry = h * vary(rng, 0.19, 0.18);
+    return {
+      x: lean + side * flip * h * vary(rng, 0.13, 0.25),
+      y: Math.min(cy + ry * vary(rng, 0.3, 0.5), cy + ry * 0.92 - lry),
+      rx: h * vary(rng, 0.11, 0.22),
+      ry: lry,
+    };
+  });
+  // Иногда сверху сбоку ещё одна ветка с листвой.
+  const top = rng() < 0.5 ? { x: lean + flip * h * 0.1, y: cy - ry * 0.25, rx: h * 0.09, ry: h * 0.14 } : null;
+  // Гроздь — щиток из ягод, свисает с края кроны. Грозди идут сверху вниз, по очереди с разных сторон.
+  const n = h > 20 ? 3 + Math.floor(rng() * 3) : 2 + Math.floor(rng() * 2);
+  const clusters = Array.from({ length: n }, (_, i) => {
+    const side = (i % 2 ? 1 : -1) * flip;
+    const dx = side * rx * vary(rng, 0.6, 0.45);
+    // Гроздь целиком внутри главного овала: её низ не ниже края кроны в этом месте.
+    const edge = cy + ry * Math.sqrt(1 - (dx / rx) ** 2);
+    const y = cy - ry * 0.55 + (n > 1 ? i / (n - 1) : 0.5) * ry * 1.0 + (rng() - 0.5) * berry * 2;
+    return {
+      x: lean + dx,
+      y: Math.min(y, edge - berry * 4),
+      tilt: (rng() - 0.5) * 50,
+      size: rng() < 0.5 ? 5 : 6,
+    };
+  });
+  const berries = [
+    [0, 0],
+    [-1.1, 0.5],
+    [1.1, 0.5],
+    [-0.55, 1.3],
+    [0.55, 1.3],
+    [0, 2.1],
+  ];
   return (
     <>
-      <rect x={-w / 2} y={-h * 0.52} width={w} height={h * 0.52} fill={TRUNK} />
-      <ellipse cx={lean - h * 0.13} cy={-h * 0.58} rx={h * vary(rng, 0.12)} ry={h * 0.2} fill={colors[1]} />
-      <ellipse cx={lean + h * 0.13} cy={-h * 0.6} rx={h * vary(rng, 0.12)} ry={h * 0.21} fill={colors[2]} />
-      <ellipse cx={lean} cy={-h * 0.7} rx={h * vary(rng, 0.17, 0.08)} ry={h * 0.29} fill={colors[0]} />
-      {cluster(lean - h * 0.15, -h * 0.5, 0)}
-      {cluster(lean + h * 0.14, -h * 0.56, 1)}
-      {cluster(lean + h * 0.02, -h * 0.8, 2)}
-      {h > 20 && cluster(lean - h * 0.06, -h * 0.64, 3)}
+      <rect x={-w / 2} y={trunkTop} width={w} height={-trunkTop} fill={TRUNK} />
+      <path
+        d={`M0 ${trunkTop * 0.75} L${flip * h * 0.12} ${trunkTop * 1.2}`}
+        stroke={TRUNK}
+        stroke-width={w * 0.6}
+        stroke-linecap="round"
+      />
+      <ellipse cx={lobes[0]!.x} cy={lobes[0]!.y} rx={lobes[0]!.rx} ry={lobes[0]!.ry} fill={colors[1]} />
+      <ellipse cx={lobes[1]!.x} cy={lobes[1]!.y} rx={lobes[1]!.rx} ry={lobes[1]!.ry} fill={colors[2]} />
+      {top && <ellipse cx={top.x} cy={top.y} rx={top.rx} ry={top.ry} fill={colors[2]} />}
+      <ellipse cx={lean} cy={cy} rx={rx} ry={ry} fill={colors[0]} />
+      {clusters.map((c, k) => (
+        <g key={k} transform={`rotate(${c.tilt.toFixed(1)} ${c.x.toFixed(2)} ${c.y.toFixed(2)})`}>
+          {berries.slice(0, c.size).map(([dx, dy], i) => (
+            <circle key={i} cx={c.x + dx! * berry * 1.5} cy={c.y + dy! * berry * 1.4} r={berry} fill={i % 2 ? '#c2421f' : '#e65a2a'} />
+          ))}
+        </g>
+      ))}
     </>
   );
 }
 
-/** Яблоня: низкая и раскидистая, кривой ствол, тёмная плоская крона, крупные яблоки с бликом. */
+/** У маленькой яблони три яблока: внизу, посередине и сверху. */
+const SMALL_APPLES = [
+  [-0.28, -0.5],
+  [0.26, -0.64],
+  [-0.12, -0.84],
+];
+
+/** Яблоня: низкая и раскидистая, кривой ствол, крона — пышный купол из нескольких шаров, крупные яблоки с бликом. */
 function AppleTree({ h, rng }: { h: number; rng: Rng }) {
   const colors = pickFrom(
     [
@@ -216,16 +261,23 @@ function AppleTree({ h, rng }: { h: number; rng: Rng }) {
     rng,
   );
   const w = Math.max(2, h * 0.11);
-  const rx = h * vary(rng, 0.44, 0.06);
-  const cy = -h * 0.62;
-  const fruit = Math.max(1.2, h * 0.05);
+  const fruit = Math.max(1.2, h * 0.055);
+  // Шары кроны: два нижних по бокам темнее, сверху — светлее. Вместе — широкий купол с неровным краем.
+  const balls = [
+    { x: -0.3, y: -0.52, r: 0.2, c: colors[1] },
+    { x: 0.31, y: -0.53, r: 0.19, c: colors[1] },
+    { x: 0, y: -0.62, r: 0.27, c: colors[0] },
+    { x: -0.18, y: -0.8, r: 0.18, c: colors[0] },
+    { x: 0.17, y: -0.79, r: 0.17, c: colors[2] },
+  ];
   const apples = [
-    [-0.55, 0.35],
-    [-0.2, 0.55],
-    [0.25, 0.45],
-    [0.6, 0.2],
-    [0.05, -0.15],
-    [-0.4, -0.3],
+    [-0.32, -0.5],
+    [-0.1, -0.44],
+    [0.2, -0.48],
+    [0.36, -0.58],
+    [0.04, -0.68],
+    [-0.22, -0.74],
+    [0.2, -0.84],
   ];
   return (
     <>
@@ -236,12 +288,12 @@ function AppleTree({ h, rng }: { h: number; rng: Rng }) {
         stroke-linecap="round"
         fill="none"
       />
-      <circle cx={-rx * 0.45} cy={cy - h * 0.14} r={h * 0.2} fill={colors[1]} />
-      <circle cx={rx * 0.4} cy={cy - h * 0.16} r={h * vary(rng, 0.19)} fill={colors[2]} />
-      <ellipse cx={0} cy={cy} rx={rx} ry={h * 0.24} fill={colors[0]} />
-      {apples.map(([ax, ay], i) => {
-        const x = ax! * rx * 0.85 + (rng() - 0.5) * fruit;
-        const y = cy + ay! * h * 0.24;
+      {balls.map((b, i) => (
+        <circle key={i} cx={b.x * h} cy={b.y * h} r={h * vary(rng, b.r, 0.08)} fill={b.c} />
+      ))}
+      {(h > 20 ? apples : SMALL_APPLES).map(([ax, ay], i) => {
+        const x = ax! * h + (rng() - 0.5) * fruit;
+        const y = ay! * h + (rng() - 0.5) * fruit;
         return (
           <g key={i}>
             <circle cx={x} cy={y} r={fruit} fill={i === 3 ? '#e9a23b' : '#d8403a'} />
