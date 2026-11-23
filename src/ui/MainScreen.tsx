@@ -99,7 +99,7 @@ export function MainScreen({ game, templates, now, idlePhrase, news, onDismissNe
         <div class="board__head">
           <h2>Доска заданий</h2>
           <button type="button" class="link-button" disabled={!canReroll || board.length === 0} onClick={onReroll}>
-            {canReroll ? 'Перетянуть' : 'Перетянуть — завтра'}
+            {canReroll ? 'Сменить задания' : 'Сменить можно завтра'}
           </button>
         </div>
         {board.length === 0 && <p class="muted">Все задания скрыты. Включи хотя бы несколько в настройках.</p>}
