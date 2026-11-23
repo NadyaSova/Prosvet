@@ -262,9 +262,39 @@ h2 {
   cursor: pointer;
 }
 
-.hero--link .hero__row > span:first-child {
+/* На главном — две строки: титул, уровень и награды; под ними полоса опыта. */
+.hero--link {
+  gap: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.hero--link .hero__row {
+  align-items: center;
+}
+
+.hero--link .hero__name {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Уровень — число в круглом значке перед титулом, тем же шрифтом, что титул. */
+.hero__level {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-gold) 22%, var(--color-sky));
+  box-shadow: inset 0 0 0 1.5px var(--color-gold);
+  color: #8a6220;
+  font-family: var(--font-head);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .hero--link .wallet {
@@ -708,13 +738,20 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Отступ до плиток разделов под доской. */
+  margin-bottom: 14px;
 }
 
-/* Смена заданий — круглая кнопка внизу доски, справа под записками. Доска из-за неё чуть длиннее. */
-.board__reroll {
-  position: relative;
-  align-self: flex-end;
+/* Круглые кнопки внизу доски, справа под записками: «+» (своё задание) и смена заданий. */
+.board__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
   margin: -4px 2px 0 0;
+}
+
+.board__knob {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -732,29 +769,112 @@ h2 {
 }
 
 /* Нажимать можно и чуть вокруг: видно 38 точек, область нажатия — 46. */
-.board__reroll::before {
+.board__knob::before {
   content: '';
   position: absolute;
   inset: -4px;
 }
 
-.board__reroll svg {
+.board__knob svg {
   width: 20px;
   height: 20px;
 }
 
-.board__reroll:active {
+.board__knob:active {
   transform: scale(0.94);
 }
 
 /* Сегодня уже меняла — кнопка бледнее, нажатие показывает подсказку. */
-.board__reroll--spent {
+.board__knob--spent {
   color: rgba(122, 79, 44, 0.45);
 }
 
 .board__hint {
   margin: 0 4px;
   text-align: right;
+}
+
+/* Пустая доска — объяснение на листке. */
+.board__empty {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 4px;
+  background: #fbf3e2;
+  color: var(--color-text-muted);
+}
+
+/* «Не хочу ничего» — бумажный ярлычок, засунутый под нижний край доски: верх спрятан под доской,
+   ярлычок чуть наклонён и свисает. Доска лежит выше (z-index), ярлычок — под ней. */
+.board__plank {
+  z-index: 1;
+}
+
+.board__tuck {
+  position: relative;
+  align-self: flex-start;
+  margin: -24px 0 0 26px;
+  padding: 22px 18px 10px;
+  border: none;
+  border-radius: 0 0 4px 4px;
+  background: #fbf3e2;
+  box-shadow: 0 2px 4px rgba(60, 35, 15, 0.25);
+  color: var(--color-text);
+  font: inherit;
+  font-style: italic;
+  transform: rotate(-2deg);
+  transform-origin: 50% 0;
+  cursor: pointer;
+}
+
+.board__tuck:active {
+  transform: rotate(-2deg) translateY(2px);
+}
+
+/* Развёрнутый ярлычок — записка с крошечным заданием, тоже из-под доски, но во всю ширину. */
+.board__tuck--open {
+  align-self: stretch;
+  margin: -24px 10px 0;
+  padding: 22px 0 4px;
+  background: color-mix(in srgb, var(--task-color) 10%, #fbf3e2);
+  font-style: normal;
+  transform: rotate(-0.6deg);
+  cursor: default;
+  animation: tuck-unfold 0.3s ease-out;
+}
+
+.board__tuck--open:active {
+  transform: rotate(-0.6deg);
+}
+
+.board__tuck-label {
+  padding: 0 14px;
+  color: var(--color-text-muted);
+}
+
+/* Записка внутри ярлычка — без своей бумаги и кнопки-булавки: бумага уже есть. */
+.board__tuck .task {
+  background: none;
+  box-shadow: none;
+  padding-top: 4px;
+}
+
+.board__tuck .task::before {
+  display: none;
+}
+
+.board__tuck-links {
+  display: flex;
+  gap: 18px;
+}
+
+@keyframes tuck-unfold {
+  from { transform: rotate(-2deg) scaleY(0.4); opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board__tuck--open {
+    animation: none;
+  }
 }
 
 /* Божья коровка на доске. Кнопка 40×40 (область нажатия), рисунок внутри — 22 точки.
@@ -1047,34 +1167,6 @@ h2 {
 
 body.no-scroll {
   overflow: hidden;
-}
-
-.home__more {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.home__more-row {
-  display: flex;
-  gap: 10px;
-}
-
-.home__more-row .button {
-  flex: 1;
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
-.tiny {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.tiny__label {
-  font-size: 12.5px;
-  color: var(--color-text-muted);
 }
 
 .branch-row {

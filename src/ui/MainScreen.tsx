@@ -172,9 +172,11 @@ export function MainScreen({
 
       <button type="button" class="card hero hero--link" onClick={() => go('hero')}>
         <span class="hero__row">
-          <span>
+          <span class="hero__name">
+            <span class="hero__level" title={`Уровень ${level.level}`} aria-label={`Уровень ${level.level}`}>
+              {level.level}
+            </span>
             <span class="hero__title">{titleFor(level.level)}</span>
-            <span class="muted small">Уровень {level.level}</span>
           </span>
           <span class="wallet">
             <span class="wallet__item" title="Золото">
@@ -188,61 +190,65 @@ export function MainScreen({
             </svg>
           </span>
         </span>
+        {/* Точное число опыта — на экране героини. */}
         <Progress value={level.xpIntoLevel} max={level.xpForNext} />
-        <span class="muted small">
-          {level.xpIntoLevel} из {level.xpForNext} опыта до следующего уровня
-        </span>
       </button>
 
-      <SectionTiles pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
-
       <section class="board" aria-label="Доска заданий">
-        {board.length === 0 && <p class="muted">Все задания скрыты. Включи хотя бы несколько в настройках.</p>}
-        {board.length > 0 && (
-          <div class="board__plank" ref={plankRef}>
-            {board.map((t) => (
-              <TaskCard key={t.id} task={t} onOpen={() => openNote(t)} />
-            ))}
-            <Ladybug plankRef={plankRef} notes={board.map((t) => t.id).join(' ')} />
-            {/* Смена заданий — круглая кнопка внизу доски. Если сегодня уже меняла, нажатие объясняет, почему нельзя. */}
-            <button
-              type="button"
-              class={`board__reroll${canReroll ? '' : ' board__reroll--spent'}`}
-              aria-label={canReroll ? 'Сменить задания' : 'Сменить задания можно завтра'}
-              onClick={() => (canReroll ? onReroll() : setRerollHint(true))}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19.5 12a7.5 7.5 0 0 1-13 5.1M4.5 12a7.5 7.5 0 0 1 13-5.1" />
-                <path d="M17.8 3.6v3.6h-3.6M6.2 20.4v-3.6h3.6" />
+        <div class="board__plank" ref={plankRef}>
+          {board.length === 0 && <p class="board__empty">Все задания скрыты. Включи хотя бы несколько в настройках.</p>}
+          {board.map((t) => (
+            <TaskCard key={t.id} task={t} onOpen={() => openNote(t)} />
+          ))}
+          {board.length > 0 && <Ladybug plankRef={plankRef} notes={board.map((t) => t.id).join(' ')} />}
+          {/* Круглые кнопки внизу доски: своё задание и смена заданий. Если сегодня уже меняла, нажатие объясняет, почему нельзя. */}
+          <div class="board__tools">
+            <button type="button" class="board__knob" aria-label="Своё задание" onClick={() => go('custom')}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <path d="M12 5.5v13M5.5 12h13" />
               </svg>
             </button>
+            {board.length > 0 && (
+              <button
+                type="button"
+                class={`board__knob${canReroll ? '' : ' board__knob--spent'}`}
+                aria-label={canReroll ? 'Сменить задания' : 'Сменить задания можно завтра'}
+                onClick={() => (canReroll ? onReroll() : setRerollHint(true))}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19.5 12a7.5 7.5 0 0 1-13 5.1M4.5 12a7.5 7.5 0 0 1 13-5.1" />
+                  <path d="M17.8 3.6v3.6h-3.6M6.2 20.4v-3.6h3.6" />
+                </svg>
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* «Ничего не хочется…» — бумажный ярлычок, засунутый под нижний край доски.
+            Нажатие разворачивает его в записку с крошечным заданием. */}
+        {tiny ? (
+          <div class={`board__tuck board__tuck--open task--${tiny.branch}`}>
+            <div class="board__tuck-label small">Совсем немного — и уже засчитано:</div>
+            <TaskCard task={tiny} onOpen={() => openNote(tiny)}>
+              <span class="board__tuck-links">
+                <button type="button" class="link-button task__other" onClick={() => setTiny(pickTiny(tiny.id) ?? null)}>
+                  Другое
+                </button>
+                <button type="button" class="link-button task__other" onClick={() => setTiny(null)}>
+                  Свернуть
+                </button>
+              </span>
+            </TaskCard>
+          </div>
+        ) : (
+          <button type="button" class="board__tuck" onClick={() => setTiny(pickTiny() ?? null)}>
+            Ничего не хочется…
+          </button>
         )}
         {rerollHint && !canReroll && <p class="muted small board__hint">Сменить задания можно завтра.</p>}
       </section>
 
-      <section class="home__more">
-        {tiny && (
-          <div class="tiny">
-            <div class="tiny__label">Совсем немного — и уже засчитано:</div>
-            <TaskCard task={tiny} onOpen={() => openNote(tiny)}>
-              <button type="button" class="link-button task__other" onClick={() => setTiny(pickTiny(tiny.id) ?? null)}>
-                Другое
-              </button>
-            </TaskCard>
-          </div>
-        )}
-        <div class="home__more-row">
-          {!tiny && (
-            <button type="button" class="button button--secondary" onClick={() => setTiny(pickTiny() ?? null)}>
-              Не хочу ничего
-            </button>
-          )}
-          <button type="button" class="button button--secondary" onClick={() => go('custom')}>
-            Своё задание
-          </button>
-        </div>
-      </section>
+      <SectionTiles pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
 
       {note && <TaskNote task={note} valley={game.valley} onStart={onStart} />}
     </main>
