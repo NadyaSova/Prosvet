@@ -159,7 +159,8 @@ const POSES: Record<PigeonLook['pose'], PoseShape> = {
   },
 };
 
-export function PigeonArt({ look, class: className }: { look: PigeonLook; class?: string }) {
+/** mirrored — голубь смотрит влево: рисунок отражён относительно середины рамки. */
+export function PigeonArt({ look, mirrored = false, class: className }: { look: PigeonLook; mirrored?: boolean; class?: string }) {
   const p = PIGEON_PALETTE[look.color];
   const s = SIZE_SCALE[look.size];
   const pose = POSES[look.pose];
@@ -182,7 +183,7 @@ export function PigeonArt({ look, class: className }: { look: PigeonLook; class?
           <stop offset="1" stop-color={p.neck2} />
         </linearGradient>
       </defs>
-      <g transform={`translate(${FEET.x} ${FEET.y}) scale(${s}) translate(${-FEET.x} ${-FEET.y})`}>
+      <g transform={`${mirrored ? 'translate(100 0) scale(-1 1) ' : ''}translate(${FEET.x} ${FEET.y}) scale(${s}) translate(${-FEET.x} ${-FEET.y})`}>
         {/* лапки под телом: дальняя, потом ближняя */}
         <Leg x={pose.legs[0]} color={LEGS_FAR} />
         <Leg x={pose.legs[1]} color={LEGS} />

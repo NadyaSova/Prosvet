@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { BALANCE } from '../config/balance';
-import { canLateInvite, cloakView, daysInFlight, feathersOf } from '../logic/pigeons';
-import type { LoftState, Pigeon } from '../model/types';
+import { canLateInvite, cloakView, daysInFlight, feathersOf, lookKey } from '../logic/pigeons';
+import type { LoftState, Pigeon, PigeonLook } from '../model/types';
 import { CloakArt } from './cloak-art';
 import { BackBar } from './common';
 import { dateText, daysText, feathersText, plural } from './format';
@@ -29,6 +29,18 @@ function outcomeText(p: Pigeon): string {
 function flightText(p: Pigeon, now: number): string {
   const d = daysInFlight(p, now);
   return d === 0 ? 'улетел сегодня' : `с ${dateText(p.sentAt)} · ${daysText(d)} в пути`;
+}
+
+/**
+ * Голубь в прямой позе иногда смотрит влево. Сторона выводится из места на жёрдочке и вида голубя,
+ * поэтому не меняется при перерисовке и перезапуске, а у нового голубя на том же месте может быть другой.
+ */
+function facesLeft(look: PigeonLook, index: number): boolean {
+  if (look.pose !== 'sit') return false;
+  // Хэш FNV-1a. Простая сумма кодов не годится: её чётность зависит только от места.
+  let h = 2166136261 ^ index;
+  for (const ch of lookKey(look)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return ((h >>> 15) & 1) === 1;
 }
 
 export function LoftScreen({ pigeons, loft, now, onSend, onAnswer, onLateInvite }: Props) {
@@ -94,7 +106,7 @@ export function LoftScreen({ pigeons, loft, now, onSend, onAnswer, onLateInvite 
               aria-pressed={picked === i}
               onClick={() => setPicked(picked === i ? null : i)}
             >
-              <PigeonArt class="perch__art" look={look} />
+              <PigeonArt class="perch__art" look={look} mirrored={facesLeft(look, i)} />
               {picked === i && <MessageScrollArt class="perch__scroll" />}
             </button>
           ))}
