@@ -81,7 +81,7 @@ export function JournalScreen({ entries, drafts }: Props) {
             {skills.map((s) => chip({ kind: 'skill', skill: s }, s, `skill-${s}`))}
           </div>
 
-          {shown.length === 0 && <p class="muted">Черновиков нет — все записи полные.</p>}
+          {shown.length === 0 && <p class="muted">Черновиков нет — все записи готовы.</p>}
           {shown.map((a) => (
             <button type="button" key={a.id} class="entry" onClick={() => go(`journal/edit/${encodeURIComponent(a.id)}`)}>
               <span class="muted small">

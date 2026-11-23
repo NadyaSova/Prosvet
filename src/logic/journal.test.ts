@@ -3,7 +3,6 @@ import type { Achievement } from '../model/types';
 import {
   allSkills,
   createEntry,
-  entryStatus,
   filterEntries,
   journalFileName,
   journalMarkdown,
@@ -22,10 +21,10 @@ const entry = (id: string, createdAt: number, extra: Partial<Achievement> = {}):
 });
 
 describe('статус записи', () => {
-  it('черновик, пока не заполнены контекст, как сделала и результат', () => {
-    expect(entryStatus({})).toBe('draft');
+  it('готова — только по отметке пользователя, пустые части лишь подсказка', () => {
     expect(missingParts({ context: 'Проект', result: '  ' })).toEqual(['action', 'result']);
-    expect(entryStatus({ context: 'Проект', action: 'Сделала', result: 'Быстрее в 3 раза' })).toBe('complete');
+    expect(createEntry({ title: 'Только заголовок', complete: true }, 'a', NOW).status).toBe('complete');
+    expect(createEntry({ title: 'Всё заполнено', context: 'К', action: 'Д', result: 'Р' }, 'b', NOW).status).toBe('draft');
   });
 });
 
@@ -77,13 +76,13 @@ describe('создание и правка', () => {
     expect(a).toEqual({ id: 'id1', createdAt: NOW, updatedAt: NOW, title: 'Ускорила сборку', action: 'Перешла на Vite', skills: ['Vite'], status: 'draft' });
   });
 
-  it('правка: дата создания остаётся, статус пересчитывается, стёртое поле пропадает', () => {
+  it('правка: дата создания остаётся, статус — по отметке, стёртое поле пропадает', () => {
     const a = createEntry({ title: 'Ускорила сборку', action: 'Vite' }, 'id1', NOW);
-    const b = updateEntry(a, { title: 'Ускорила сборку', context: 'CI шёл 9 минут', action: 'Vite', result: '3 минуты' }, NOW + DAY_MS);
+    const b = updateEntry(a, { title: 'Ускорила сборку', action: 'Vite', result: '3 минуты', complete: true }, NOW + DAY_MS);
     expect(b.createdAt).toBe(NOW);
     expect(b.updatedAt).toBe(NOW + DAY_MS);
     expect(b.status).toBe('complete');
-    const c = updateEntry(b, { title: 'Ускорила сборку', action: 'Vite' }, NOW + 2 * DAY_MS);
+    const c = updateEntry(b, { title: 'Ускорила сборку', action: 'Vite', complete: false }, NOW + 2 * DAY_MS);
     expect(c.status).toBe('draft');
     expect('result' in c).toBe(false);
   });

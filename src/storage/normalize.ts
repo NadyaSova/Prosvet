@@ -4,7 +4,7 @@
 
 import { BALANCE } from '../config/balance';
 import type { RunningTask } from '../logic/game';
-import { ENTRY_PARTS, entryStatus, normalizeSkills } from '../logic/journal';
+import { ENTRY_PARTS, normalizeSkills } from '../logic/journal';
 import { lookKey } from '../logic/pigeons';
 import { CAPACITY } from '../logic/valley';
 import { createPlayer } from '../model/player';
@@ -129,8 +129,7 @@ export function normalizePigeons(raw: readonly unknown[]): Pigeon[] {
 }
 
 /**
- * Запись Летописи из базы или копии. null — без id или заголовка.
- * Статус пересчитывается по заполненным частям: он не может разойтись с самой записью.
+ * Запись Летописи из базы или копии. null — без id или заголовка. Непонятный статус — черновик.
  */
 export function normalizeAchievement(raw: unknown): Achievement | null {
   if (!isObject(raw) || typeof raw.id !== 'string' || typeof raw.title !== 'string') return null;
@@ -140,7 +139,7 @@ export function normalizeAchievement(raw: unknown): Achievement | null {
     createdAt,
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : createdAt,
     title: raw.title,
-    status: 'draft',
+    status: raw.status === 'complete' ? 'complete' : 'draft',
   };
   for (const p of ENTRY_PARTS) {
     const v = raw[p];
@@ -148,7 +147,6 @@ export function normalizeAchievement(raw: unknown): Achievement | null {
   }
   const skills = Array.isArray(raw.skills) ? normalizeSkills(raw.skills.filter((s) => typeof s === 'string')) : [];
   if (skills.length > 0) a.skills = skills;
-  a.status = entryStatus(a);
   return a;
 }
 

@@ -1,9 +1,9 @@
 // Запись Летописи: новая или правка. SPEC.md §10.1–10.2.
 // Новая — одно обязательное поле «Что я сделала», остальное под «Подробнее»: запись за 30 секунд, черновиком.
-// Правка — все части: контекст, как сделала, результат, навыки. Полная запись — когда заполнены три части.
+// Правка — все части: контекст, как сделала, результат, навыки. Готова ли запись, отмечает пользователь сама.
 
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ENTRY_PARTS, MAX_SKILL_LENGTH, PART_LABELS, entryStatus, missingParts, normalizeSkills, parseSkillInput, type EntryFields, type EntryPart } from '../logic/journal';
+import { ENTRY_PARTS, MAX_SKILL_LENGTH, PART_LABELS, missingParts, normalizeSkills, parseSkillInput, type EntryFields, type EntryPart } from '../logic/journal';
 import type { Achievement } from '../model/types';
 import { BackBar } from './common';
 import { dateText } from './format';
@@ -43,6 +43,7 @@ export function JournalEntryScreen({ entry, knownSkills, rewardWaiting, onSave, 
   });
   const [skills, setSkills] = useState<string[]>(entry?.skills ?? []);
   const [skillText, setSkillText] = useState('');
+  const [complete, setComplete] = useState(entry?.status === 'complete');
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const ready = title.trim() !== '';
   const isNew = !entry;
@@ -71,7 +72,7 @@ export function JournalEntryScreen({ entry, knownSkills, rewardWaiting, onSave, 
     if (!ready) return;
     // Сначала отпустить поле, чтобы клавиатура Android дописала слово и закрылась (см. LoftScreen).
     (document.activeElement as HTMLElement | null)?.blur();
-    onSave({ title, ...parts, skills: [...skills, ...parseSkillInput(skillText)] });
+    onSave({ title, ...parts, skills: [...skills, ...parseSkillInput(skillText)], complete });
   }
 
   const partFields = ENTRY_PARTS.map((p) => (
@@ -153,8 +154,8 @@ export function JournalEntryScreen({ entry, knownSkills, rewardWaiting, onSave, 
       <form class="form" onSubmit={save}>
         {entry && (
           <p class="muted small">
-            {dateText(entry.createdAt)} ·{' '}
-            {entryStatus(parts) === 'complete' ? 'запись полная' : `черновик: допиши ${partsList(missing)}`}
+            {dateText(entry.createdAt)} · {complete ? 'готово' : 'черновик'}
+            {missing.length > 0 && ` · пусто: ${partsList(missing)}`}
           </p>
         )}
         <label class="field">
@@ -184,8 +185,13 @@ export function JournalEntryScreen({ entry, knownSkills, rewardWaiting, onSave, 
           </>
         )}
 
-        {isNew && (
-          <p class="muted small">Запись засчитается как задание Летописи. Без подробностей она сохранится черновиком.</p>
+        {isNew ? (
+          <p class="muted small">Запись засчитается как задание Летописи и сохранится черновиком — дописать можно позже.</p>
+        ) : (
+          <label class="check">
+            <input type="checkbox" checked={complete} onChange={(e) => setComplete(e.currentTarget.checked)} />
+            <span>Запись готова — убрать из черновиков</span>
+          </label>
         )}
         <button type="submit" class="button" disabled={!ready}>
           {isNew ? 'Записать' : 'Сохранить'}

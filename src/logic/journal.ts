@@ -9,9 +9,11 @@ export interface EntryFields {
   action?: string;
   result?: string;
   skills?: readonly string[];
+  /** Пользователь отметила «Запись готова». Решает она сама, а не заполненность частей. */
+  complete?: boolean;
 }
 
-/** Части полной записи, кроме заголовка. Без любой из них запись остаётся черновиком. */
+/** Части записи кроме заголовка. */
 export const ENTRY_PARTS = ['context', 'action', 'result'] as const;
 export type EntryPart = (typeof ENTRY_PARTS)[number];
 
@@ -19,14 +21,9 @@ export const MAX_SKILL_LENGTH = 40;
 
 const filled = (s: string | undefined): s is string => s !== undefined && s.trim() !== '';
 
-/** Каких частей не хватает до полной записи. */
+/** Какие части пустые — только подсказка, на статус не влияет. */
 export function missingParts(a: Pick<Achievement, EntryPart>): EntryPart[] {
   return ENTRY_PARTS.filter((p) => !filled(a[p]));
-}
-
-/** Запись полная, когда заполнены контекст, как сделала и результат. Иначе — черновик. */
-export function entryStatus(a: Pick<Achievement, EntryPart>): Achievement['status'] {
-  return missingParts(a).length === 0 ? 'complete' : 'draft';
 }
 
 const skillKey = (s: string) => s.toLocaleLowerCase('ru');
@@ -87,22 +84,22 @@ export function sortEntries(entries: readonly Achievement[]): Achievement[] {
 }
 
 function applyFields(base: Pick<Achievement, 'id' | 'createdAt' | 'updatedAt'>, f: EntryFields): Achievement {
-  const a: Achievement = { ...base, title: f.title.trim(), status: 'draft' };
+  const a: Achievement = { ...base, title: f.title.trim(), status: f.complete ? 'complete' : 'draft' };
   for (const p of ENTRY_PARTS) {
     const v = f[p];
     if (filled(v)) a[p] = v.trim();
   }
   const skills = normalizeSkills(f.skills ?? []);
   if (skills.length > 0) a.skills = skills;
-  a.status = entryStatus(a);
   return a;
 }
 
+/** Новая запись — черновик, если не отмечено «Запись готова». */
 export function createEntry(f: EntryFields, id: string, now: number): Achievement {
   return applyFields({ id, createdAt: now, updatedAt: now }, f);
 }
 
-/** Правка записи: дата создания остаётся, статус пересчитывается. */
+/** Правка записи: дата создания остаётся, статус — как отмечен в форме. */
 export function updateEntry(a: Achievement, f: EntryFields, now: number): Achievement {
   return applyFields({ id: a.id, createdAt: a.createdAt, updatedAt: now }, f);
 }
