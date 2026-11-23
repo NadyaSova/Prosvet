@@ -2,6 +2,7 @@
 // Стадия плаща — по числу пройденных порогов; каждое перо вшито в плащ своим цветом и величиной.
 // Места перьев стабильны между запусками: порядок мест — постоянный сид, небольшой разброс — сид от id голубя.
 
+import { useId } from 'preact/hooks';
 import type { Feather } from '../logic/pigeons';
 import { createRng, shuffled } from '../logic/rng';
 import { FeatherShape } from './pigeon-art';
@@ -29,7 +30,7 @@ export const HEROINE = {
   hair: '#e3c48a',
   hairLine: '#bf9a5a',
   bun: '#cfa968',
-  ribbon: '#4e7a57',
+  ribbon: '#b9473d',
   cloak: '#cdbfa8',
   cloakLine: '#a8977c',
   collar: '#e2b04a',
@@ -68,7 +69,8 @@ function cloakPath({ w, hem }: CloakShape, train: boolean): string {
   const right = CX + w;
   const left = CX - w;
   const hemPart = train
-    ? `L${right} ${hem} Q${right + 26} ${hem + 2} ${right + 40} ${hem + 10} Q${CX + 20} ${hem + 12} ${left} ${hem}`
+    ? // Шлейф лежит на земле за спиной и расходится в обе стороны поровну — вид со спины.
+      `L${right} ${hem} Q${right + 4} ${hem + 7} ${right + 16} ${hem + 10} Q${CX} ${hem + 16} ${left - 16} ${hem + 10} Q${left - 4} ${hem + 7} ${left} ${hem}`
     : `L${right} ${hem} Q${CX} ${hem + 8} ${left} ${hem}`;
   return `M${CX - SHOULDER} ${TOP + 2} Q${CX} ${TOP - 10} ${CX + SHOULDER} ${TOP + 2} ${hemPart} Z`;
 }
@@ -94,14 +96,19 @@ export function CloakArt({ feathers, stage, class: className }: { feathers: read
   // Нижние ряды рисуются первыми, верхние ложатся на них — как черепица.
   const drawOrder = [...placed].sort((a, b) => b.y - a.y);
   const path = cloakPath(shape, train);
+  // id обрезки и блика — свои у каждого плаща: в галерее плащи разных стадий стоят на одной странице,
+  // и с общим id браузер обрезал бы все перья по первому, самому короткому плащу.
+  const uid = useId();
+  const clipId = `cloak-clip-${uid}`;
+  const shimmerId = `cloak-shimmer-${uid}`;
 
   return (
     <svg class={className} viewBox="0 0 200 236" role="img" aria-label="Странница в плаще из перьев">
       <defs>
-        <clipPath id="cloak-clip">
+        <clipPath id={clipId}>
           <path d={path} />
         </clipPath>
-        <linearGradient id="cloak-shimmer" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={shimmerId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="#fff" stop-opacity="0" />
           <stop offset="0.5" stop-color="#fff" stop-opacity="0.45" />
           <stop offset="1" stop-color="#fff" stop-opacity="0" />
@@ -109,7 +116,7 @@ export function CloakArt({ feathers, stage, class: className }: { feathers: read
       </defs>
 
       {/* земля */}
-      <ellipse cx={CX + (train ? 14 : 0)} cy="226" rx={shape.w + (train ? 40 : 18)} ry="7" fill="#94b98f" opacity="0.5" />
+      <ellipse cx={CX} cy="226" rx={shape.w + (train ? 26 : 18)} ry="7" fill="#94b98f" opacity="0.5" />
       {/* платье и ноги видны под короткой накидкой */}
       <path d={`M${CX - 20} 96 L${CX - 26} 220 L${CX + 26} 220 L${CX + 20} 96 Z`} fill="#6f8f6a" />
       <ellipse cx={CX - 10} cy="223" rx="7" ry="4" fill="#6b4a36" />
@@ -117,11 +124,11 @@ export function CloakArt({ feathers, stage, class: className }: { feathers: read
 
       {/* плащ */}
       <path d={path} fill={HEROINE.cloak} />
-      <g clip-path="url(#cloak-clip)">
+      <g clip-path={`url(#${clipId})`}>
         {drawOrder.map(({ f, x, y, rotate }, i) => (
           <FeatherShape key={`${f.pigeonId}-${i}`} color={f.color} size={f.size} x={x} y={y} rotate={rotate} scale={0.95} />
         ))}
-        {shimmer && <rect class="cloak__shimmer" x="0" y="0" width="200" height="236" fill="url(#cloak-shimmer)" />}
+        {shimmer && <rect class="cloak__shimmer" x="0" y="0" width="200" height="236" fill={`url(#${shimmerId})`} />}
       </g>
       <path d={path} fill="none" stroke={HEROINE.cloakLine} stroke-width="1.5" />
 

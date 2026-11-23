@@ -17,7 +17,8 @@ const STEP = 3.1;
 function cloakPath(w: number, train: boolean): string {
   const side = `C${w * 0.7} -18 ${w} -8 ${w} -1`;
   const back = `C${-w} -8 ${-w * 0.7} -18 ${-SHOULDER} ${NECK_Y}`;
-  const hem = train ? `Q${w + 12} -0.5 ${w + 20} 1.6 Q${w} 4.5 0 3 Q${-w * 0.5} 2.6 ${-w} -1` : `Q0 3 ${-w} -1`;
+  // Шлейф лежит на земле за спиной и расходится в обе стороны поровну — как у плаща в голубятне.
+  const hem = train ? `Q${w + 3} 1 ${w + 8} 2 Q0 4.5 ${-w - 8} 2 Q${-w - 3} 1 ${-w} -1` : `Q0 3 ${-w} -1`;
   return `M${-SHOULDER} ${NECK_Y} Q0 ${NECK_Y - 4} ${SHOULDER} ${NECK_Y} ${side} ${hem} ${back} Z`;
 }
 
@@ -69,13 +70,13 @@ export function WandererArt({ feathers, stage, x, y }: { feathers: readonly Feat
           <stop offset="1" stop-color="#fff" stop-opacity="0" />
         </linearGradient>
       </defs>
-      <ellipse cx={train ? 6 : 0} cy="1.5" rx={w + (train ? 18 : 4)} ry="3" fill="#3f6b4a" opacity="0.28" />
+      <ellipse cx="0" cy="1.5" rx={w + (train ? 10 : 4)} ry="3" fill="#3f6b4a" opacity="0.28" />
       <path d={path} fill={HEROINE.cloak} />
       <g clip-path="url(#wanderer-clip)">
         {drawOrder.map(({ f, x: fx, y: fy, rotate }, i) => (
           <FeatherShape key={`${f.pigeonId}-${i}`} color={f.color} size={f.size} x={fx} y={fy} rotate={rotate} scale={0.15} />
         ))}
-        {shimmer && <rect class="cloak__shimmer" x={-w - 4} y={NECK_Y - 4} width={2 * w + 30} height={34} fill="url(#wanderer-shimmer)" />}
+        {shimmer && <rect class="cloak__shimmer" x={-w - 10} y={NECK_Y - 4} width={2 * w + 20} height={34} fill="url(#wanderer-shimmer)" />}
       </g>
       <path d={path} fill="none" stroke={HEROINE.cloakLine} stroke-width="0.6" />
       {collar && (
