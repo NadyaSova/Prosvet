@@ -12,6 +12,25 @@ export async function requestPersistence(): Promise<Persistence> {
   return (await navigator.storage.persist()) ? 'persisted' : 'not-persisted';
 }
 
+export const canShare = (): boolean => typeof navigator.share === 'function';
+
+/**
+ * «Поделиться» на Android: файлом, если браузер разрешает такой файл, иначе текстом
+ * (Chrome делится не любыми файлами; Obsidian принимает текст и создаёт из него заметку).
+ * false — пользователь закрыл окно, ничего не выбрав.
+ */
+export async function shareText(text: string, fileName: string, title: string, mime = 'text/markdown'): Promise<boolean> {
+  const file = new File([text], fileName, { type: mime });
+  try {
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title });
+    else await navigator.share({ title, text });
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return false;
+    throw e;
+  }
+}
+
 /** Скачивает текст как файл (на Android файл попадает в «Загрузки»). */
 export function downloadText(text: string, fileName: string, mime = 'application/json'): void {
   const url = URL.createObjectURL(new Blob([text], { type: mime }));

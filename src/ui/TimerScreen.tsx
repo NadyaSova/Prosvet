@@ -13,12 +13,14 @@ interface Props {
   onResume: () => void;
   onFinishEarly: () => void;
   onCancel: () => void;
+  /** Задание про журнал: открыть Летопись, не останавливая таймер. */
+  onJournal?: () => void;
 }
 
 const R = 88;
 const CIRCLE = 2 * Math.PI * R;
 
-export function TimerScreen({ timer, now, phrase, onPause, onResume, onFinishEarly, onCancel }: Props) {
+export function TimerScreen({ timer, now, phrase, onPause, onResume, onFinishEarly, onCancel, onJournal }: Props) {
   const paused = timer.pausedAt !== null;
   const done = elapsedMs(timer, now) / timer.durationMs;
 
@@ -49,6 +51,11 @@ export function TimerScreen({ timer, now, phrase, onPause, onResume, onFinishEar
       <p class="phrase">{phrase}</p>
 
       <div class="timer__buttons">
+        {onJournal && (
+          <button type="button" class="button button--secondary" onClick={onJournal}>
+            Открыть Летопись
+          </button>
+        )}
         {paused ? (
           <button type="button" class="button" onClick={onResume}>
             Продолжить

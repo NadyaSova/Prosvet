@@ -10,7 +10,7 @@
 //
 // Снимок экрана: переменная окружения SCREENSHOT=<путь к .png>. Тогда окно — как у телефона (412×915),
 // снимок делается в конце, после действия и перезагрузок. SHOT_ACTION=<JS> — выполнить перед самым снимком
-// (например, прокрутить панораму).
+// (например, прокрутить панораму). Если действие возвращает промис (async-функция), скрипт ждёт его.
 //
 // Почему не --dump-dom: он снимает страницу сразу после загрузки и не ждёт асинхронного открытия IndexedDB.
 
@@ -84,7 +84,7 @@ try {
   console.log('--- страница ---\n' + (await text()));
 
   if (action) {
-    await send('Runtime.evaluate', { expression: action });
+    await send('Runtime.evaluate', { expression: action, awaitPromise: true });
     await sleep(Number(waitMs));
     console.log('--- после действия ---\n' + (await text()));
   }
@@ -95,7 +95,7 @@ try {
   }
   if (screenshot) {
     if (process.env.SHOT_ACTION) {
-      await send('Runtime.evaluate', { expression: process.env.SHOT_ACTION });
+      await send('Runtime.evaluate', { expression: process.env.SHOT_ACTION, awaitPromise: true });
       await sleep(800);
     }
     const shot = await send('Page.captureScreenshot', { format: 'png' });

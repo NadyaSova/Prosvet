@@ -1,5 +1,5 @@
 // Главный экран: долина с костром и странницей, семена для посадки, героиня, серия, вопрос голубя,
-// доска заданий, «Не хочу ничего», своё задание, вход в голубятню, ветки.
+// доска заданий, «Не хочу ничего», своё задание, Летопись с быстрой записью, вход в голубятню, ветки.
 
 import { useState } from 'preact/hooks';
 import { BALANCE } from '../config/balance';
@@ -39,6 +39,8 @@ interface Props {
   /** Только что выросшее в долине — для анимации. */
   fresh: string | null;
   onPlant: (item: string) => void;
+  /** Записи Летописи: всего и черновиков. */
+  journal: { total: number; drafts: number };
 }
 
 function newsText(news: StreakNews): string {
@@ -65,6 +67,7 @@ export function MainScreen({
   cloakStage,
   fresh,
   onPlant,
+  journal,
 }: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
   const { player } = game;
@@ -198,6 +201,21 @@ export function MainScreen({
         )}
         <button type="button" class="button button--secondary" onClick={() => go('custom')}>
           Своё задание
+        </button>
+      </section>
+
+      <section class="card chronicle-card">
+        <button type="button" class="chronicle-card__open" onClick={() => go('journal')}>
+          <span class="chronicle-card__title">Летопись</span>
+          <span class="muted small">
+            {journal.total > 0
+              ? `${journal.total} ${plural(journal.total, ['запись', 'записи', 'записей'])}` +
+                (journal.drafts > 0 ? ` · черновиков: ${journal.drafts}` : '')
+              : 'Журнал достижений для резюме и собеседований'}
+          </span>
+        </button>
+        <button type="button" class="button chronicle-card__quick" onClick={() => go('journal/new')}>
+          Записать
         </button>
       </section>
 

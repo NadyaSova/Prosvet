@@ -1,4 +1,5 @@
 // Стартовый набор заданий. SPEC.md §7.2. Пользователь сможет добавлять свои и скрывать эти.
+// Метка journal — на экране таймера есть кнопка «Открыть Летопись»; drafts — Летопись открывается на черновиках.
 
 import type { TaskTemplate } from '../model/types';
 
@@ -6,11 +7,11 @@ export const DEFAULT_TASKS: TaskTemplate[] = [
   // Летопись
   { id: 'chronicle-achievement', branch: 'chronicle', kind: 'instant', instant: 'journal', onBoard: true,
     title: 'Записать одно достижение за эту неделю' },
-  { id: 'chronicle-fill-draft', branch: 'chronicle', kind: 'timed', minutes: 10, onBoard: true,
+  { id: 'chronicle-fill-draft', branch: 'chronicle', kind: 'timed', minutes: 10, onBoard: true, tags: ['journal', 'drafts'],
     title: 'Дополнить одну черновую запись журнала результатом и цифрами' },
-  { id: 'chronicle-hard-task', branch: 'chronicle', kind: 'timed', minutes: 15, onBoard: true,
+  { id: 'chronicle-hard-task', branch: 'chronicle', kind: 'timed', minutes: 15, onBoard: true, tags: ['journal'],
     title: 'Вспомнить и записать одну сложную задачу за последний месяц' },
-  { id: 'chronicle-history', branch: 'chronicle', kind: 'timed', minutes: 25, onBoard: true,
+  { id: 'chronicle-history', branch: 'chronicle', kind: 'timed', minutes: 25, onBoard: true, tags: ['journal'],
     title: 'Пройтись по истории задач и коммитов за месяц и выписать 3 кандидата в журнал' },
 
   // Облик
@@ -18,7 +19,7 @@ export const DEFAULT_TASKS: TaskTemplate[] = [
     title: 'Переписать одну строку резюме' },
   { id: 'image-keywords', branch: 'image', kind: 'timed', minutes: 15, onBoard: true,
     title: 'Сравнить резюме с одной вакансией и выписать недостающие ключевые слова' },
-  { id: 'image-journal-to-cv', branch: 'image', kind: 'timed', minutes: 15, onBoard: true,
+  { id: 'image-journal-to-cv', branch: 'image', kind: 'timed', minutes: 15, onBoard: true, tags: ['journal'],
     title: 'Перенести одну запись журнала в формулировку для резюме' },
   { id: 'image-free-session', branch: 'image', kind: 'timed', minutes: 30, onBoard: true,
     title: 'Работа над резюме (свободная сессия)' },

@@ -4,12 +4,14 @@
 
 import { BALANCE } from '../config/balance';
 import type { RunningTask } from '../logic/game';
+import { ENTRY_PARTS, entryStatus, normalizeSkills } from '../logic/journal';
 import { lookKey } from '../logic/pigeons';
 import { CAPACITY } from '../logic/valley';
 import { createPlayer } from '../model/player';
 import {
   BRANCHES,
   DECOR_KINDS,
+  type Achievement,
   PIGEON_COLORS,
   PIGEON_POSES,
   PIGEON_SIZES,
@@ -124,6 +126,34 @@ export function normalizePigeon(raw: unknown): Pigeon | null {
 
 export function normalizePigeons(raw: readonly unknown[]): Pigeon[] {
   return raw.map(normalizePigeon).filter((p) => p !== null);
+}
+
+/**
+ * Запись Летописи из базы или копии. null — без id или заголовка.
+ * Статус пересчитывается по заполненным частям: он не может разойтись с самой записью.
+ */
+export function normalizeAchievement(raw: unknown): Achievement | null {
+  if (!isObject(raw) || typeof raw.id !== 'string' || typeof raw.title !== 'string') return null;
+  const createdAt = typeof raw.createdAt === 'number' ? raw.createdAt : 0;
+  const a: Achievement = {
+    id: raw.id,
+    createdAt,
+    updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : createdAt,
+    title: raw.title,
+    status: 'draft',
+  };
+  for (const p of ENTRY_PARTS) {
+    const v = raw[p];
+    if (typeof v === 'string' && v.trim() !== '') a[p] = v;
+  }
+  const skills = Array.isArray(raw.skills) ? normalizeSkills(raw.skills.filter((s) => typeof s === 'string')) : [];
+  if (skills.length > 0) a.skills = skills;
+  a.status = entryStatus(a);
+  return a;
+}
+
+export function normalizeAchievements(raw: readonly unknown[]): Achievement[] {
+  return raw.map(normalizeAchievement).filter((a) => a !== null);
 }
 
 export function normalizePhrases(raw: unknown): PhraseHistory {

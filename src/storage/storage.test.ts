@@ -121,6 +121,19 @@ describe('журнал и свои задания', () => {
     expect((await listAchievements(db)).map((a) => a.id)).toEqual(['b', 'c', 'a']);
   });
 
+  it('при запуске записи загружаются по дате создания, статус пересчитывается, испорченные отбрасываются', async () => {
+    const db = await freshDb();
+    await putAchievement(db, { ...achievement('old', NOW), updatedAt: NOW + 5 });
+    await putAchievement(db, {
+      ...achievement('new', NOW + 1),
+      context: 'Проект', action: 'Сделала', result: 'Вышло', skills: ['CI', 'ci', ' '], status: 'draft',
+    });
+    await (db as unknown as { put: (s: string, v: unknown) => Promise<unknown> }).put('achievements', { id: 'broken' });
+    const data = await loadAppData(db, NOW);
+    expect(data.achievements.map((a) => a.id)).toEqual(['new', 'old']);
+    expect(data.achievements[0]).toMatchObject({ status: 'complete', skills: ['CI'] });
+  });
+
   it('свои задания сохраняются', async () => {
     const db = await freshDb();
     await putCustomTask(db, customTask);

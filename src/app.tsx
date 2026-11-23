@@ -22,6 +22,7 @@ import {
   type ReturnedFeather,
   type StreakNews,
 } from './logic/game';
+import { allSkills, createEntry, updateEntry, type EntryFields } from './logic/journal';
 import { pickPhrase } from './logic/phrases';
 import { cloakView, dueQuestion, feathersOf, markAsked } from './logic/pigeons';
 import { mergeTemplates } from './logic/tasks';
@@ -30,9 +31,11 @@ import type { Achievement, Branch, LoftState, Pigeon, Settings, TaskTemplate } f
 import { requestPersistence, type Persistence } from './storage/browser';
 import { openProsvetDb, type ProsvetDb } from './storage/db';
 import {
+  deleteAchievement,
   deleteCustomTask,
   listCustomTasks,
   loadAppData,
+  putAchievement,
   putCustomTask,
   saveGame,
   setKv,
@@ -43,11 +46,12 @@ import { CustomTaskScreen, type CustomTaskInput } from './ui/CustomTaskScreen';
 import { FeatherScreen, type ShownFeather } from './ui/FeatherScreen';
 import { minutesText } from './ui/format';
 import { JournalEntryScreen } from './ui/JournalEntryScreen';
+import { JournalScreen } from './ui/JournalScreen';
 import { LoftScreen } from './ui/LoftScreen';
 import { MainScreen } from './ui/MainScreen';
 import { askNotificationPermission, signalTimerEnd } from './ui/notify';
 import { RewardScreen, type ShownReward } from './ui/RewardScreen';
-import { go, goHome, useRoute } from './ui/router';
+import { go, goHome, journalRoute, useRoute } from './ui/router';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { TimerScreen } from './ui/TimerScreen';
 
@@ -79,6 +83,22 @@ export function App() {
     );
   }
   return <Game db={state.db} initial={state.data} initialCustom={state.custom} persistence={persistence} />;
+}
+
+/**
+ * Новая запись Летописи — это мгновенное задание «Записать одно достижение» (опыт, золото, карта добычи, серия),
+ * откуда бы её ни сделали: с доски, с главного экрана или из списка. Берётся из стартовых заданий напрямую,
+ * чтобы запись засчитывалась, даже если пользователь скрыла это задание с доски.
+ */
+const JOURNAL_TASK = DEFAULT_TASKS.find((t) => t.kind === 'instant' && t.instant === 'journal')!;
+
+/** Задание, во время которого полезно открыть Летопись: ветка Летописи или метка journal. */
+const opensJournal = (t: TaskTemplate | undefined, branch: Branch) => branch === 'chronicle' || !!t?.tags?.includes('journal');
+
+/** «Запись в Летопись: „Ускорила сборку…“» — для экрана награды. */
+function entryRewardTitle(title: string): string {
+  const short = title.length > 80 ? `${title.slice(0, 79).trimEnd()}…` : title;
+  return `Запись в Летопись: «${short}»`;
 }
 
 /** Новые и изменённые голуби поверх списка; свежие сверху. */
@@ -114,7 +134,11 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   });
   const [settings, setSettings] = useState<Settings>(initial.settings);
   const [custom, setCustom] = useState<TaskTemplate[]>(initialCustom);
-  const [reward, setReward] = useState<ShownReward | null>(null);
+  /** Экраны наград — по очереди (например, вышло время таймера, пока писалась запись в журнал). */
+  const [rewards, setRewards] = useState<(ShownReward & { seq: number })[]>([]);
+  const rewardSeq = useRef(0);
+  /** Записи Летописи, свежие сверху. */
+  const [entries, setEntries] = useState<Achievement[]>(initial.achievements);
   const [pigeons, setPigeons] = useState<Pigeon[]>(initial.pigeons);
   const [loft, setLoft] = useState<LoftState>(initial.loft);
   /** Экраны вернувшихся перьев — по очереди. */
@@ -152,6 +176,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       loftRef.current = extras.loft;
       setLoft(extras.loft);
     }
+    const entry = extras.achievement;
+    if (entry) setEntries((list) => [entry, ...list.filter((a) => a.id !== entry.id)]);
     saveGame(db, next, extras).catch((e: unknown) => setSaveError(String(e)));
   }
 
@@ -171,12 +197,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     if (done.planted) setFresh(done.planted.id);
     const r = done.report;
     const phrase = takePhrase(r.comeback ? 'comeback' : 'finish');
-    setReward({
+    const shown: ShownReward = {
       ...done,
       phrase,
       cardPhrase: r.loot?.kind === 'phrase' ? (r.comeback ? takePhrase('finish') : phrase) : undefined,
       streakPhrase: r.streakMilestones.length > 0 ? takePhrase('streak') : undefined,
-    });
+    };
+    const seq = ++rewardSeq.current;
+    setRewards((q) => [...q, { ...shown, seq }]);
   }
 
   /** Открытие приложения и возвращение в него: таймер, серия, доска, голуби, которые вернулись сами. */
@@ -230,7 +258,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     if (t.kind === 'timed') {
       startTimed({ templateId: t.id, title: t.title, branch: t.branch, minutes: t.minutes });
     } else {
-      go(`journal/${encodeURIComponent(t.id)}`);
+      go('journal/new');
     }
   }
 
@@ -253,12 +281,29 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     if (confirm('Отменить задание? Награды не будет, но и ничего не потеряешь.')) commit(cancelTask(gameRef.current));
   }
 
-  function saveJournal(task: TaskTemplate, title: string) {
+  // Летопись
+
+  /** Новая запись засчитывается как мгновенное задание и сохраняется вместе с наградой. */
+  function addEntry(fields: EntryFields) {
     const at = Date.now();
-    const entry: Achievement = { id: crypto.randomUUID(), createdAt: at, updatedAt: at, title, status: 'draft' };
-    const r = completeInstantTask(gameRef.current, task, templatesRef.current, at, Math.random);
+    const entry = createEntry(fields, crypto.randomUUID(), at);
+    const r = completeInstantTask(gameRef.current, JOURNAL_TASK, templatesRef.current, at, Math.random);
     commit(r.state, { achievement: entry });
-    showReward(r.done);
+    showReward({ ...r.done, title: entryRewardTitle(entry.title) });
+    goHome();
+  }
+
+  /** Правка записи — не задание: награды нет (дополнить черновик можно таймерным заданием с доски). */
+  function editEntry(old: Achievement, fields: EntryFields) {
+    const entry = updateEntry(old, fields, Date.now());
+    setEntries((list) => list.map((a) => (a.id === entry.id ? entry : a)));
+    putAchievement(db, entry).catch((e: unknown) => setSaveError(String(e)));
+    goHome();
+  }
+
+  function removeEntry(id: string) {
+    setEntries((list) => list.filter((a) => a.id !== id));
+    deleteAchievement(db, id).catch((e: unknown) => setSaveError(String(e)));
     goHome();
   }
 
@@ -349,6 +394,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     setGame(loaded);
     setPigeons(data.pigeons);
     setLoft(data.loft);
+    setEntries(data.achievements);
     setSettings(data.settings);
     setCustom(nextCustom);
     templatesRef.current = mergeTemplates(DEFAULT_TASKS, nextCustom, data.settings.hiddenTaskIds);
@@ -356,12 +402,17 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   }
 
   let screen;
-  const journalId = route.startsWith('journal/') ? decodeURIComponent(route.slice('journal/'.length)) : null;
-  const journalTask = journalId ? templates.find((t) => t.id === journalId && t.kind === 'instant') : undefined;
+  const journal = journalRoute(route);
+  const editing = journal?.view === 'edit' ? entries.find((a) => a.id === journal.id) : undefined;
+  // Пока пишется запись, награды и перья ждут: иначе экран награды закрыл бы форму вместе с набранным текстом.
+  const writing = journal?.view === 'new' || editing !== undefined;
+  const reward = writing ? undefined : rewards[0];
+  const feather = writing ? undefined : feathers[0];
+  const knownSkills = useMemo(() => allSkills(entries), [entries]);
 
   const flying = pigeons.filter((p) => p.status === 'flying');
   const feathersList = useMemo(() => feathersOf(pigeons), [pigeons]);
-  const onMain = !reward && !feathers[0] && !game.timer && !['loft', 'settings', 'custom'].includes(route) && !journalTask;
+  const onMain = !reward && !feather && !game.timer && !journal && !['loft', 'settings', 'custom'].includes(route);
 
   // Анимация роста показывается один раз: через несколько секунд на главном экране растение считается обычным.
   useEffect(() => {
@@ -375,15 +426,32 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
 
   if (reward) {
     const huntTask = reward.branch === 'hunt' && reward.minutes !== undefined;
+    const close = () => setRewards((q) => q.slice(1));
     screen = (
       <RewardScreen
+        key={reward.seq}
         reward={reward}
-        onClose={() => setReward(null)}
-        onLoft={huntTask ? () => { setReward(null); go('loft'); } : undefined}
+        onClose={close}
+        onLoft={huntTask ? () => { close(); go('loft'); } : undefined}
       />
     );
-  } else if (feathers[0]) {
-    screen = <FeatherScreen feather={feathers[0]} onClose={() => setFeathers((q) => q.slice(1))} />;
+  } else if (feather) {
+    screen = <FeatherScreen feather={feather} onClose={() => setFeathers((q) => q.slice(1))} />;
+  } else if (journal) {
+    // Летопись открывается и во время таймера — например, чтобы дополнить черновик за 10 минут задания.
+    screen =
+      journal.view === 'new' || editing ? (
+        <JournalEntryScreen
+          key={editing?.id ?? 'new'}
+          entry={editing}
+          knownSkills={knownSkills}
+          rewardWaiting={rewards.length > 0 || feathers.length > 0}
+          onSave={(fields) => (editing ? editEntry(editing, fields) : addEntry(fields))}
+          onDelete={editing ? () => removeEntry(editing.id) : undefined}
+        />
+      ) : (
+        <JournalScreen entries={entries} drafts={journal.view === 'list' && journal.drafts} />
+      );
   } else if (route === 'loft') {
     screen = (
       <LoftScreen
@@ -409,8 +477,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       />
     );
   } else if (game.timer) {
+    const timerTask = templates.find((t) => t.id === game.timer!.templateId);
     screen = (
       <TimerScreen
+        onJournal={
+          opensJournal(timerTask, game.timer.branch)
+            ? () => go(timerTask?.tags?.includes('drafts') ? 'journal/drafts' : 'journal')
+            : undefined
+        }
         timer={game.timer}
         now={now}
         phrase={startPhrase}
@@ -422,8 +496,6 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     );
   } else if (route === 'custom') {
     screen = <CustomTaskScreen onStart={(input) => void startCustom(input)} />;
-  } else if (journalTask) {
-    screen = <JournalEntryScreen task={journalTask} onSave={(title) => saveJournal(journalTask, title)} />;
   } else {
     screen = (
       <MainScreen
@@ -447,6 +519,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         cloakStage={cloakView(feathersList.length).stage}
         fresh={fresh}
         onPlant={plant}
+        journal={{ total: entries.length, drafts: entries.filter((a) => a.status === 'draft').length }}
       />
     );
   }

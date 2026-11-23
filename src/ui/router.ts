@@ -1,4 +1,4 @@
-// Экраны по адресу после #: #/settings, #/custom, #/journal/<id>, #/loft. Главный экран — без #.
+// Экраны по адресу после #: #/settings, #/custom, #/loft, #/journal (Летопись). Главный экран — без #.
 // Переход вперёд добавляет запись в историю, поэтому системная кнопка «Назад» на Android возвращает на главный.
 
 import { useEffect, useState } from 'preact/hooks';
@@ -23,6 +23,20 @@ export function useRoute(): string {
     };
   }, []);
   return route;
+}
+
+/**
+ * Экраны Летописи: #/journal — список, #/journal/drafts — список черновиков,
+ * #/journal/new — новая запись, #/journal/edit/<id> — правка записи.
+ */
+export type JournalRoute = { view: 'list'; drafts: boolean } | { view: 'new' } | { view: 'edit'; id: string };
+
+export function journalRoute(route: string): JournalRoute | null {
+  if (route === 'journal') return { view: 'list', drafts: false };
+  if (route === 'journal/drafts') return { view: 'list', drafts: true };
+  if (route === 'journal/new') return { view: 'new' };
+  if (route.startsWith('journal/edit/')) return { view: 'edit', id: decodeURIComponent(route.slice('journal/edit/'.length)) };
+  return null;
 }
 
 export function go(path: string): void {

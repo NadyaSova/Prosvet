@@ -1,6 +1,7 @@
 // Чтение и запись данных приложения.
 
 import type { GameState, RunningTask } from '../logic/game';
+import { sortEntries } from '../logic/journal';
 import { createLoft } from '../logic/pigeons';
 import { valleyFromXp } from '../logic/valley';
 import type { Rng } from '../logic/rng';
@@ -8,6 +9,7 @@ import type { Achievement, BoardState, LoftState, Pigeon, PlayerState, Settings,
 import type { KvKey, KvMap, PhraseHistory, ProsvetDb } from './db';
 import {
   createSettings,
+  normalizeAchievements,
   normalizeBoard,
   normalizeLoft,
   normalizePhrases,
@@ -36,6 +38,8 @@ export interface AppData {
   loft: LoftState;
   pigeons: Pigeon[];
   valley: ValleyState;
+  /** Записи Летописи, свежие сверху (по дате создания). */
+  achievements: Achievement[];
 }
 
 /**
@@ -43,7 +47,7 @@ export interface AppData {
  * Долины нет (база или копия старше шага 6) — она вырастает по уже накопленному опыту веток.
  */
 export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.random): Promise<AppData> {
-  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley] = await Promise.all([
+  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley, rawAchievements] = await Promise.all([
     getKv(db, 'player'),
     getKv(db, 'settings'),
     getKv(db, 'board'),
@@ -52,6 +56,7 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
     getKv(db, 'loft'),
     db.getAll('pigeons'),
     getKv(db, 'valley'),
+    db.getAll('achievements') as Promise<unknown[]>,
   ]);
   const player = normalizePlayer(rawPlayer);
   const storedLoft = normalizeLoft(rawLoft);
@@ -67,6 +72,7 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
     loft,
     pigeons: sortPigeons(normalizePigeons(rawPigeons)),
     valley,
+    achievements: sortEntries(normalizeAchievements(rawAchievements)),
   };
   if (rawPlayer === undefined) await setKv(db, 'player', data.player);
   if (rawSettings === undefined) await setKv(db, 'settings', data.settings);
