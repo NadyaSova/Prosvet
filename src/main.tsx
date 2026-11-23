@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './app';
 import { ConfirmHost } from './ui/confirm';
+import './fonts.css';
 import './styles.css';
 
 // Service worker: офлайн-работа и установка на телефон.

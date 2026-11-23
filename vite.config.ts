@@ -28,7 +28,8 @@ export default defineConfig({
         background_color: '#F4E7D4',
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // woff2 — шрифты (src/fonts.css): без них офлайн текст был бы системным шрифтом.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2}'],
         // Нажатие на уведомление о конце таймера открывает приложение.
         importScripts: ['sw-notification.js'],
       },
