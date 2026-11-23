@@ -165,16 +165,89 @@ function Bush({ size, rng, blossoms }: { size: PlantSize; rng: Rng; blossoms: st
   );
 }
 
-function FruitTree({ h, rng, fruit, colors }: { h: number; rng: Rng; fruit: string; colors: string[] }) {
-  const r = h * 0.3;
-  const cy = -h + r;
+/** Рябина: стройная, крона вытянута вверх и светлая, ягоды — оранжево-красными гроздьями. */
+function Rowan({ h, rng }: { h: number; rng: Rng }) {
+  const colors = pickFrom(
+    [
+      ['#93ba68', '#80a95a', '#a2c678'],
+      ['#9cbf6c', '#88ae5e', '#aacb7c'],
+    ],
+    rng,
+  );
+  const w = Math.max(1.4, h * 0.06);
+  const lean = (rng() - 0.5) * h * 0.06;
+  const berry = Math.max(0.65, h * 0.026);
+  // Гроздь — щиток из ягод, свисает с края кроны.
+  const cluster = (cx: number, cy: number, key: number) => (
+    <g key={key}>
+      {[
+        [0, 0],
+        [-1.1, 0.5],
+        [1.1, 0.5],
+        [-0.55, 1.3],
+        [0.55, 1.3],
+        [0, 2.1],
+      ].map(([dx, dy], i) => (
+        <circle key={i} cx={cx + dx! * berry * 1.5} cy={cy + dy! * berry * 1.4} r={berry} fill={i % 2 ? '#c2421f' : '#e65a2a'} />
+      ))}
+    </g>
+  );
   return (
     <>
-      <RoundCrown h={h} rng={rng} colors={colors} trunkW={Math.max(1.8, h * 0.09)} />
-      {Array.from({ length: 6 }, (_, i) => {
-        const a = rng() * Math.PI * 2;
-        const d = rng() * r * 0.9;
-        return <circle key={i} cx={Math.cos(a) * d} cy={cy + Math.sin(a) * d * 0.8 + r * 0.2} r={Math.max(0.9, h * 0.035)} fill={fruit} />;
+      <rect x={-w / 2} y={-h * 0.52} width={w} height={h * 0.52} fill={TRUNK} />
+      <ellipse cx={lean - h * 0.13} cy={-h * 0.58} rx={h * vary(rng, 0.12)} ry={h * 0.2} fill={colors[1]} />
+      <ellipse cx={lean + h * 0.13} cy={-h * 0.6} rx={h * vary(rng, 0.12)} ry={h * 0.21} fill={colors[2]} />
+      <ellipse cx={lean} cy={-h * 0.7} rx={h * vary(rng, 0.17, 0.08)} ry={h * 0.29} fill={colors[0]} />
+      {cluster(lean - h * 0.15, -h * 0.5, 0)}
+      {cluster(lean + h * 0.14, -h * 0.56, 1)}
+      {cluster(lean + h * 0.02, -h * 0.8, 2)}
+      {h > 20 && cluster(lean - h * 0.06, -h * 0.64, 3)}
+    </>
+  );
+}
+
+/** Яблоня: низкая и раскидистая, кривой ствол, тёмная плоская крона, крупные яблоки с бликом. */
+function AppleTree({ h, rng }: { h: number; rng: Rng }) {
+  const colors = pickFrom(
+    [
+      ['#5f9450', '#4f8344', '#6ea25b'],
+      ['#669a55', '#568a48', '#76a860'],
+    ],
+    rng,
+  );
+  const w = Math.max(2, h * 0.11);
+  const rx = h * vary(rng, 0.44, 0.06);
+  const cy = -h * 0.62;
+  const fruit = Math.max(1.2, h * 0.05);
+  const apples = [
+    [-0.55, 0.35],
+    [-0.2, 0.55],
+    [0.25, 0.45],
+    [0.6, 0.2],
+    [0.05, -0.15],
+    [-0.4, -0.3],
+  ];
+  return (
+    <>
+      <path
+        d={`M0 0 Q${-w * 0.6} ${-h * 0.2} ${w * 0.2} ${-h * 0.42} M${w * 0.1} ${-h * 0.32} L${h * 0.16} ${-h * 0.5} M${-w * 0.1} ${-h * 0.3} L${-h * 0.15} ${-h * 0.48}`}
+        stroke={TRUNK}
+        stroke-width={w}
+        stroke-linecap="round"
+        fill="none"
+      />
+      <circle cx={-rx * 0.45} cy={cy - h * 0.14} r={h * 0.2} fill={colors[1]} />
+      <circle cx={rx * 0.4} cy={cy - h * 0.16} r={h * vary(rng, 0.19)} fill={colors[2]} />
+      <ellipse cx={0} cy={cy} rx={rx} ry={h * 0.24} fill={colors[0]} />
+      {apples.map(([ax, ay], i) => {
+        const x = ax! * rx * 0.85 + (rng() - 0.5) * fruit;
+        const y = cy + ay! * h * 0.24;
+        return (
+          <g key={i}>
+            <circle cx={x} cy={y} r={fruit} fill={i === 3 ? '#e9a23b' : '#d8403a'} />
+            <circle cx={x - fruit * 0.35} cy={y - fruit * 0.35} r={fruit * 0.3} fill="#ffffff" opacity="0.55" />
+          </g>
+        );
       })}
     </>
   );
@@ -220,9 +293,9 @@ export function PlantArt({ kind, size, seed }: { kind: PlantKind; size: PlantSiz
     case 'lilac':
       return <Bush size="large" rng={rng} blossoms={['#b58bd1', '#9b72c0', '#c9a0dc']} />;
     case 'rowan':
-      return <FruitTree h={h} rng={rng} fruit="#d2553a" colors={['#84ad62', '#729c55', '#93ba70']} />;
+      return <Rowan h={h} rng={rng} />;
     case 'apple':
-      return <FruitTree h={h * 0.95} rng={rng} fruit="#d9534f" colors={['#7fae6e', '#6c9c5e', '#8dba6f']} />;
+      return <AppleTree h={h * 0.85} rng={rng} />;
     case 'sunflower':
       return <Sunflower size={size} rng={rng} />;
   }
