@@ -58,3 +58,37 @@ export interface PlayerState {
   /** Выпавший декор (семена, редкости), который ещё не посажен в долину. */
   inventory: string[];
 }
+
+/** Запись Летописи — журнала достижений. SPEC.md §10.2. */
+export interface Achievement {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+  /** Коротко: что сделала. */
+  title: string;
+  /** Проект, задача, ситуация. */
+  context?: string;
+  /** Что конкретно сделала и как. */
+  action?: string;
+  /** Результат, по возможности с цифрами. */
+  result?: string;
+  skills?: string[];
+  status: 'draft' | 'complete';
+}
+
+/** Доска заданий. */
+export interface BoardState {
+  /** Шаблоны заданий на доске. */
+  taskIds: string[];
+  /** Перетягивания доски за день. */
+  rerolls: { day: Day; count: number } | null;
+}
+
+export interface Settings {
+  /** Когда приложение открыли впервые. */
+  createdAt: number;
+  /** Когда последний раз сохраняли резервную копию. */
+  lastBackupAt: number | null;
+  /** Стартовые задания, которые пользователь скрыла. */
+  hiddenTaskIds: string[];
+}

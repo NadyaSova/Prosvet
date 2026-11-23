@@ -78,6 +78,11 @@ export const BALANCE = {
     /** Бесплатных перетягиваний доски в день. */
     freeRerollsPerDay: 1,
   },
+
+  backup: {
+    /** Напоминать о резервной копии, если её не делали столько дней. */
+    reminderDays: 14,
+  },
 } as const;
 
 export type LootKind = (typeof BALANCE.loot.table)[number]['kind'];
