@@ -6,6 +6,7 @@
 // Отлив — широкая зона по всей шее, крыло лежит вдоль бока, на нём две тёмные полосы.
 
 import type { PigeonColor, PigeonLook, PigeonSize } from '../model/types';
+import { PALETTE } from './palette';
 
 interface Palette {
   body: string;
@@ -33,7 +34,7 @@ export const FEATHER_COLORS: Record<PigeonColor | 'gold', { fill: string; vein: 
   white: { fill: '#f6f2ea', vein: '#bfb5a4' },
   rose: { fill: '#d4a9ad', vein: '#9b7176' },
   lilac: { fill: '#ad9bc8', vein: '#76659b' },
-  gold: { fill: '#e2b04a', vein: '#a87a22' },
+  gold: { fill: PALETTE.goldBright, vein: PALETTE.goldDeep },
 };
 
 export const SIZE_SCALE: Record<PigeonSize, number> = { small: 0.78, medium: 0.9, large: 1 };

@@ -4,8 +4,9 @@
 
 import { createRng, pickFrom, type Rng } from '../../logic/rng';
 import type { PlantKind, PlantSize } from '../../model/types';
+import { PALETTE } from '../palette';
 
-const TRUNK = '#6b4a35';
+const TRUNK = PALETTE.bark;
 
 /** Высота дерева по размеру (в единицах долины, на переднем плане). */
 export const TREE_HEIGHT: Record<PlantSize, number> = { small: 16, medium: 29, large: 42 };
@@ -20,7 +21,7 @@ export function vary(rng: Rng, base: number, spread = 0.12): number {
 }
 
 function Pine({ h, rng }: { h: number; rng: Rng }) {
-  const color = pickFrom(['#3f6b4a', '#45734f', '#3a6345', '#4e7a57'], rng);
+  const color = pickFrom([PALETTE.shadowGreen, '#45734f', '#3a6345', '#4e7a57'], rng);
   const tiers = h > 30 ? 3 : 2;
   const trunk = h * 0.16;
   const crown = h - trunk * 0.6;
@@ -242,7 +243,7 @@ export function Willow({ h, rng, form: given }: { h: number; rng: Rng; form?: Wi
   );
 }
 
-const PETALS = ['#f2a7b5', '#fff3b0', '#c9a0dc', '#f6c177', '#ffffff'];
+const PETALS = [PALETTE.petalPink, PALETTE.glow, PALETTE.petalLilac, PALETTE.sun, '#ffffff'];
 
 function Flowers({ size, rng }: { size: PlantSize; rng: Rng }) {
   const n = { small: 3, medium: 5, large: 7 }[size];
@@ -253,7 +254,7 @@ function Flowers({ size, rng }: { size: PlantSize; rng: Rng }) {
         const stem = vary(rng, 5, 0.3);
         return (
           <g key={i}>
-            <line x1={x} y1={0} x2={x + (rng() - 0.5) * 1.5} y2={-stem} stroke="#5a8758" stroke-width="0.7" />
+            <line x1={x} y1={0} x2={x + (rng() - 0.5) * 1.5} y2={-stem} stroke={PALETTE.hillNear} stroke-width="0.7" />
             <circle cx={x} cy={-stem} r={vary(rng, 1.5, 0.2)} fill={pickFrom(PETALS, rng)} />
           </g>
         );
@@ -272,7 +273,7 @@ function Bush({ size, rng, blossoms }: { size: PlantSize; rng: Rng; blossoms: st
     rng,
   );
   const dots = blossoms ? (size === 'large' ? 9 : 6) : size === 'large' ? 6 : 0;
-  const dotColors = blossoms ?? ['#f2a7b5', '#ffffff', '#fff3b0'];
+  const dotColors = blossoms ?? [PALETTE.petalPink, '#ffffff', PALETTE.glow];
   return (
     <>
       <circle cx={-r * 0.75} cy={-r * 0.55} r={r * 0.7} fill={colors[1]} />
@@ -381,7 +382,7 @@ const SMALL_APPLES = [
 function AppleTree({ h, rng }: { h: number; rng: Rng }) {
   const colors = pickFrom(
     [
-      ['#5f9450', '#4f8344', '#6ea25b'],
+      [PALETTE.leaf, PALETTE.leafDark, PALETTE.leafLight],
       ['#669a55', '#568a48', '#76a860'],
     ],
     rng,
@@ -422,7 +423,7 @@ function AppleTree({ h, rng }: { h: number; rng: Rng }) {
         const y = ay! * h + (rng() - 0.5) * fruit;
         return (
           <g key={i}>
-            <circle cx={x} cy={y} r={fruit} fill={i === 3 ? '#e9a23b' : '#d8403a'} />
+            <circle cx={x} cy={y} r={fruit} fill={i === 3 ? '#e9a23b' : PALETTE.apple} />
             <circle cx={x - fruit * 0.35} cy={y - fruit * 0.35} r={fruit * 0.3} fill="#ffffff" opacity="0.55" />
           </g>
         );
@@ -440,7 +441,7 @@ function Sunflower({ size, rng }: { size: PlantSize; rng: Rng }) {
         const h = vary(rng, 14, 0.15);
         return (
           <g key={i}>
-            <line x1={x} y1={0} x2={x} y2={-h} stroke="#5a8758" stroke-width="0.9" />
+            <line x1={x} y1={0} x2={x} y2={-h} stroke={PALETTE.hillNear} stroke-width="0.9" />
             <ellipse cx={x + 1.6} cy={-h * 0.45} rx={1.8} ry={0.8} fill="#6c9c5e" transform={`rotate(-25 ${x + 1.6} ${-h * 0.45})`} />
             <circle cx={x} cy={-h} r={2.6} fill="#f2c14e" />
             <circle cx={x} cy={-h} r={1.2} fill="#7a4e2d" />
@@ -469,7 +470,7 @@ export function PlantArt({ kind, size, seed }: { kind: PlantKind; size: PlantSiz
     case 'bush':
       return <Bush size={size} rng={rng} blossoms={null} />;
     case 'lilac':
-      return <Bush size="large" rng={rng} blossoms={['#b58bd1', '#9b72c0', '#c9a0dc']} />;
+      return <Bush size="large" rng={rng} blossoms={['#b58bd1', '#9b72c0', PALETTE.petalLilac]} />;
     case 'rowan':
       return <Rowan h={h} rng={rng} />;
     case 'apple':

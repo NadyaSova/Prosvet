@@ -6,6 +6,7 @@ import { useId } from 'preact/hooks';
 import type { Feather } from '../logic/pigeons';
 import { createRng, shuffled } from '../logic/rng';
 import { FeatherShape } from './pigeon-art';
+import { PALETTE } from './palette';
 
 interface CloakShape {
   /** Полуширина подола. */
@@ -33,7 +34,7 @@ export const HEROINE = {
   ribbon: '#b9473d',
   cloak: '#cdbfa8',
   cloakLine: '#a8977c',
-  collar: '#e2b04a',
+  collar: PALETTE.goldBright,
 } as const;
 
 const CX = 100;
@@ -116,7 +117,7 @@ export function CloakArt({ feathers, stage, class: className }: { feathers: read
       </defs>
 
       {/* земля */}
-      <ellipse cx={CX} cy="226" rx={shape.w + (train ? 26 : 18)} ry="7" fill="#94b98f" opacity="0.5" />
+      <ellipse cx={CX} cy="226" rx={shape.w + (train ? 26 : 18)} ry="7" fill={PALETTE.hillMid} opacity="0.5" />
       {/* платье и ноги видны под короткой накидкой */}
       <path d={`M${CX - 20} 96 L${CX - 26} 220 L${CX + 26} 220 L${CX + 20} 96 Z`} fill="#6f8f6a" />
       <ellipse cx={CX - 10} cy="223" rx="7" ry="4" fill="#6b4a36" />

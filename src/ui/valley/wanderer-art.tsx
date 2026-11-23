@@ -7,6 +7,7 @@ import type { Feather } from '../../logic/pigeons';
 import { createRng, shuffled } from '../../logic/rng';
 import { hashSeed, HEROINE } from '../cloak-art';
 import { FeatherShape } from '../pigeon-art';
+import { PALETTE } from '../palette';
 
 /** Полуширина плаща у земли по стадии. */
 const SPREAD = [12, 14, 16, 18, 19, 20, 21];
@@ -70,7 +71,7 @@ export function WandererArt({ feathers, stage, x, y }: { feathers: readonly Feat
           <stop offset="1" stop-color="#fff" stop-opacity="0" />
         </linearGradient>
       </defs>
-      <ellipse cx="0" cy="1.5" rx={w + (train ? 10 : 4)} ry="3" fill="#3f6b4a" opacity="0.28" />
+      <ellipse cx="0" cy="1.5" rx={w + (train ? 10 : 4)} ry="3" fill={PALETTE.shadowGreen} opacity="0.28" />
       <path d={path} fill={HEROINE.cloak} />
       <g clip-path="url(#wanderer-clip)">
         {drawOrder.map(({ f, x: fx, y: fy, rotate }, i) => (

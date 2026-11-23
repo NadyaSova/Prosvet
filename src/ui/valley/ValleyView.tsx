@@ -27,6 +27,7 @@ import { CampfireArt } from './campfire-art';
 import { DecorArt } from './decor-art';
 import { PlantArt, sways } from './plant-art';
 import { WandererArt } from './wanderer-art';
+import { PALETTE } from '../palette';
 
 const { width: W, height: H } = WORLD;
 /** Верх неба обрезан: в кадре от этой высоты. Пропорции кадра — в .valley (styles.css). */
@@ -176,7 +177,7 @@ export function ValleyScene({
       </defs>
       <rect x="0" y="0" width={W} height={H} fill="var(--color-sky)" />
       <circle cx="292" cy="50" r="22" fill="var(--color-sun)" />
-      <g fill="#fffaf2" opacity="0.7" aria-hidden="true">
+      <g fill={PALETTE.paper} opacity="0.7" aria-hidden="true">
         <ellipse cx="470" cy="58" rx="26" ry="7" />
         <ellipse cx="488" cy="53" rx="14" ry="7" />
         <ellipse cx="690" cy="72" rx="30" ry="8" />
@@ -266,8 +267,8 @@ export function ValleyScene({
               >
                 {/* Зона нажатия больше видимого кружка. */}
                 <circle r={11 * k} fill="transparent" />
-                <circle class="pick-spot__ring" r={4.5 * k} fill="#fffaf2" fill-opacity="0.55" stroke="#fffaf2" stroke-width="1.2" />
-                <circle r={1.4 * k} fill="#5a3d2b" opacity="0.6" />
+                <circle class="pick-spot__ring" r={4.5 * k} fill={PALETTE.paper} fill-opacity="0.55" stroke={PALETTE.paper} stroke-width="1.2" />
+                <circle r={1.4 * k} fill={PALETTE.barkDark} opacity="0.6" />
               </g>
             );
           })}

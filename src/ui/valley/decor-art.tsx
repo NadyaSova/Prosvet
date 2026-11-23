@@ -3,6 +3,7 @@
 import { createRng } from '../../logic/rng';
 import type { SceneDecor } from '../../logic/valley';
 import { depthScale, riverX } from '../../logic/valley-district';
+import { PALETTE } from '../palette';
 
 /** Рисунок оленя: копыта в (0, 0), смотрит вправо. Благородный олень с ветвистыми рогами, голова поднята. */
 export function DeerArt() {
@@ -79,7 +80,7 @@ function Fireflies({ d }: { d: SceneDecor }) {
         const y = d.y - 6 - rng() * 22;
         return (
           <g key={i} class="firefly" style={{ animationDelay: `${-rng() * 4}s` }}>
-            <circle cx={x} cy={y} r="2.4" fill="#fff3b0" opacity="0.35" />
+            <circle cx={x} cy={y} r="2.4" fill={PALETTE.glow} opacity="0.35" />
             <circle cx={x} cy={y} r="0.9" fill="#fff8d0" />
           </g>
         );
@@ -88,7 +89,7 @@ function Fireflies({ d }: { d: SceneDecor }) {
   );
 }
 
-const RAINBOW = ['#f2a7b5', '#f6c177', '#fff3b0', '#bcd1b3', '#9cc9db', '#c9a0dc'];
+const RAINBOW = [PALETTE.petalPink, PALETTE.sun, PALETTE.glow, PALETTE.hillFar, PALETTE.river, PALETTE.petalLilac];
 
 /** Радуга; вторая — внешняя дуга, двойная радуга. */
 export function Rainbow({ d }: { d: SceneDecor }) {
