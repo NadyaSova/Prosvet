@@ -66,6 +66,8 @@
   --shadow-pin: 0 1px 1.5px rgba(40, 20, 5, 0.35);
   --shadow-dialog: 0 12px 36px rgba(40, 20, 5, 0.32);
   --shadow-soft: 0 1px 3px rgba(63, 58, 52, 0.12);
+  --shadow-sheet: 0 1px 2px rgba(60, 35, 15, 0.14), 0 3px 8px rgba(60, 35, 15, 0.08); /* лист бумаги на экране */
+  --shadow-tag: 0 2px 2px rgba(60, 35, 15, 0.26); /* ярлычок в лавке (для drop-shadow) */
 
   /* Размеры текста (Ubuntu Sans). */
   --text-xs: 12px; /* подписи, чипы */
@@ -193,10 +195,12 @@ h2 {
   gap: 14px;
 }
 
+/* Блок экрана — лист бумаги: как записки на главном, только крупнее и без наклона. Решение пользователя (23.11.2026). */
 .card {
   padding: 16px;
-  border-radius: var(--radius-lg);
-  background: var(--color-card);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-sheet);
 }
 
 .card h2 {
@@ -349,6 +353,7 @@ h2 {
   padding-right: 4px;
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--color-text);
   font: inherit;
   text-align: left;
@@ -1896,21 +1901,31 @@ textarea:focus {
   margin: 0 0 12px;
 }
 
+/* Запись Летописи — листок: бумага, слева отчерчено поле цветом Летописи, листки чуть наклонены. */
 .entry {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   width: 100%;
-  padding: 12px 16px;
+  padding: 12px 16px 12px 30px;
   border: none;
-  border-left: 6px solid var(--branch-chronicle);
-  border-radius: var(--radius-lg);
-  background: var(--color-card-strong);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, transparent 18px, color-mix(in srgb, var(--branch-chronicle) 55%, transparent) 18px 19.5px, transparent 19.5px),
+    var(--color-paper);
+  box-shadow: var(--shadow-paper);
   color: var(--color-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.journal .entry:nth-of-type(odd) { transform: rotate(-0.4deg); }
+.journal .entry:nth-of-type(even) { transform: rotate(0.3deg); }
+
+.entry:active {
+  filter: brightness(0.97);
 }
 
 .entry__title {
@@ -2009,17 +2024,57 @@ textarea:focus {
   margin: -6px 0 6px;
 }
 
-.good,
-.prize {
+/* Разделы лавки лежат прямо на фоне, без листа: заголовок, подсказка и ярлычки. */
+.shop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shop-section h2 {
+  margin: 6px 0 -6px;
+}
+
+.shop-section > .muted {
+  margin: 0;
+}
+
+/* Ярлычок (товар или приз): бумажный, со срезанными углами слева, дыркой и петлёй нитки.
+   Тень — у обёртки .tag: clip-path обрезал бы тень самого ярлычка. */
+.tag {
+  position: relative;
+  filter: drop-shadow(var(--shadow-tag));
+}
+
+.shop-section .tag:nth-of-type(3n + 1) { transform: rotate(-0.5deg); }
+.shop-section .tag:nth-of-type(3n + 2) { transform: rotate(0.4deg); }
+.shop-section .tag:nth-of-type(3n + 3) { transform: rotate(-0.2deg); }
+
+.tag__paper {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 0;
+  padding: 10px 12px 10px 32px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--color-paper);
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+  -webkit-mask: radial-gradient(circle at 13px 50%, transparent 4px, #000 4.5px);
+  mask: radial-gradient(circle at 13px 50%, transparent 4px, #000 4.5px);
 }
 
-.good + .good,
-.prize + .prize {
-  border-top: 1px solid var(--color-line);
+/* Петля нитки: каплей сходится в дырке. Рисунок SVG; цвет — --color-log (#8a5a3b), в data-URL переменную не подставить. */
+.tag::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: -7px;
+  top: 50%;
+  width: 26px;
+  height: 22px;
+  margin-top: -11px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 22'%3E%3Cpath d='M22 11C14 3 2 2 2 11s12 8 20 0' fill='none' stroke='%238a5a3b' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat;
+  pointer-events: none;
 }
 
 /* Рамка картинки: небо и трава, как в долине. */
@@ -2101,7 +2156,8 @@ textarea:focus {
   padding: 10px 14px;
   border: 2px dashed var(--color-gold);
   border-radius: var(--radius-md);
-  background: var(--color-card-strong);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-paper);
   color: var(--color-text);
   font: inherit;
   text-align: left;

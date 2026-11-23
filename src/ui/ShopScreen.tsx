@@ -121,7 +121,7 @@ export function ShopScreen({ tab, player, valley, shop, onBuyGood, onBuyPrize }:
             </div>
           )}
           {SECTIONS.map((s) => (
-            <section class="card goods" key={s.kind}>
+            <section class="shop-section goods" key={s.kind}>
               <h2>{s.title}</h2>
               <p class="muted small goods__hint">{s.hint}</p>
               {GOODS.filter((g) => g.kind === s.kind).map((g) => {
@@ -129,21 +129,23 @@ export function ShopScreen({ tab, player, valley, shop, onBuyGood, onBuyPrize }:
                 const label = goodLabel(g);
                 const why = statusText(status, g, player.gold);
                 return (
-                  <div class="good" key={g.id}>
-                    <GoodArt good={g} />
-                    <div class="good__body">
-                      <div class="good__name">{label.name}</div>
-                      <div class="muted small">{why ?? label.note}</div>
+                  <div class="tag good" key={g.id}>
+                    <div class="tag__paper">
+                      <GoodArt good={g} />
+                      <div class="good__body">
+                        <div class="good__name">{label.name}</div>
+                        <div class="muted small">{why ?? label.note}</div>
+                      </div>
+                      <button
+                        type="button"
+                        class="button good__buy"
+                        disabled={status !== 'ok'}
+                        aria-label={`Купить: ${label.name}, ${g.price} золота`}
+                        onClick={() => buy(g)}
+                      >
+                        <span class="wallet__gold" aria-hidden="true" /> {g.price}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      class="button good__buy"
-                      disabled={status !== 'ok'}
-                      aria-label={`Купить: ${label.name}, ${g.price} золота`}
-                      onClick={() => buy(g)}
-                    >
-                      <span class="wallet__gold" aria-hidden="true" /> {g.price}
-                    </button>
                   </div>
                 );
               })}
@@ -152,7 +154,7 @@ export function ShopScreen({ tab, player, valley, shop, onBuyGood, onBuyPrize }:
         </>
       ) : (
         <>
-          <section class="card prizes">
+          <section class="shop-section prizes">
             <h2>Призы</h2>
             {shop.prizes.length === 0 ? (
               <p class="muted small">
@@ -163,23 +165,25 @@ export function ShopScreen({ tab, player, valley, shop, onBuyGood, onBuyPrize }:
               shop.prizes.map((p) => {
                 const short = p.price - player.stars;
                 return (
-                  <div class="prize" key={p.id}>
-                    <span class="prize__icon" aria-hidden="true">
-                      {p.icon ?? '★'}
-                    </span>
-                    <div class="prize__body">
-                      <div class="prize__title">{p.title}</div>
-                      <div class="muted small">
-                        {p.price} ★{short > 0 && ` · не хватает ${starsText(short)}`}
-                        {' · '}
-                        <button type="button" class="link-button prize__edit" onClick={() => go(`shop/prize/${encodeURIComponent(p.id)}`)}>
-                          изменить
-                        </button>
+                  <div class="tag prize" key={p.id}>
+                    <div class="tag__paper">
+                      <span class="prize__icon" aria-hidden="true">
+                        {p.icon ?? '★'}
+                      </span>
+                      <div class="prize__body">
+                        <div class="prize__title">{p.title}</div>
+                        <div class="muted small">
+                          {p.price} ★{short > 0 && ` · не хватает ${starsText(short)}`}
+                          {' · '}
+                          <button type="button" class="link-button prize__edit" onClick={() => go(`shop/prize/${encodeURIComponent(p.id)}`)}>
+                            изменить
+                          </button>
+                        </div>
                       </div>
+                      <button type="button" class="button prize__buy" disabled={short > 0} onClick={() => buyPrize(p.id, p.title, p.price)}>
+                        Купить
+                      </button>
                     </div>
-                    <button type="button" class="button prize__buy" disabled={short > 0} onClick={() => buyPrize(p.id, p.title, p.price)}>
-                      Купить
-                    </button>
                   </div>
                 );
               })
@@ -195,7 +199,7 @@ export function ShopScreen({ tab, player, valley, shop, onBuyGood, onBuyPrize }:
             <p class="muted small prizes__hint">Свой купон — разовый: вписываешь, на что он, ставишь цену и сразу покупаешь.</p>
           </section>
 
-          <section class="card coupons">
+          <section class="shop-section coupons">
             <h2>Купоны</h2>
             {history.waiting.length === 0 && history.given.length === 0 && (
               <p class="muted small">Купленные купоны появятся здесь. Купон можно открыть во весь экран и показать мужу.</p>
