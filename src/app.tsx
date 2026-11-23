@@ -51,6 +51,7 @@ import { minutesText } from './ui/format';
 import { JournalEntryScreen } from './ui/JournalEntryScreen';
 import { JournalScreen } from './ui/JournalScreen';
 import { LoftScreen } from './ui/LoftScreen';
+import { HeroScreen } from './ui/HeroScreen';
 import { MainScreen } from './ui/MainScreen';
 import { askNotificationPermission, signalTimerEnd } from './ui/notify';
 import { RewardScreen, type ShownReward } from './ui/RewardScreen';
@@ -476,7 +477,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const valleyView = valleyRoute(route);
   const shopView = shopRoute(route);
   const onMain =
-    !reward && !feather && !game.timer && !journal && !valleyView && !shopView && !['loft', 'settings', 'custom'].includes(route);
+    !reward && !feather && !game.timer && !journal && !valleyView && !shopView && !['loft', 'hero', 'settings', 'custom'].includes(route);
 
   // Анимация роста показывается один раз: через несколько секунд на главном экране или на экране «Долина»
   // растение считается обычным.
@@ -529,6 +530,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         onLateInvite={lateInvite}
       />
     );
+  } else if (route === 'hero') {
+    screen = <HeroScreen player={game.player} feathers={feathersList} />;
   } else if (valleyView) {
     screen = (
       <ValleyScreen
@@ -632,7 +635,6 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         cloakStage={cloakView(feathersList.length).stage}
         fresh={fresh}
         onPlant={(item) => plant(item)}
-        journal={{ total: entries.length, drafts: entries.filter((a) => a.status === 'draft').length }}
         coupons={shop.coupons.filter((c) => c.status === 'bought').length}
       />
     );

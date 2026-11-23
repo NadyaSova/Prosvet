@@ -8,6 +8,7 @@ import { PIGEON_COLORS, PIGEON_POSES, PIGEON_SIZES, type PigeonColor, type Pigeo
 import { CloakArt } from '../ui/cloak-art';
 import { PIGEON_COLOR_NAMES, PIGEON_SIZE_NAMES } from '../ui/labels';
 import { FeatherArt, MessageScrollArt, PIGEON_PALETTE, PigeonArt, SIZE_SCALE } from '../ui/pigeon-art';
+import { SectionIconsSection } from './gallery-sections';
 
 const POSE_NAMES: Record<PigeonLook['pose'], string> = {
   sit: 'сидит',
@@ -123,6 +124,8 @@ function Gallery() {
         Страница только для разработки. Правки рисунков в <code>src/ui/pigeon-art.tsx</code> и <code>src/ui/cloak-art.tsx</code>{' '}
         видны здесь сразу, без перезагрузки.
       </p>
+
+      <SectionIconsSection />
 
       <section class="card">
         <h2>Выбранный голубь, как в приложении (ширина телефона)</h2>

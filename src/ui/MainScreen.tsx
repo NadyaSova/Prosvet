@@ -1,5 +1,6 @@
 // Главный экран: долина с костром и странницей, семена для посадки, героиня, серия, вопрос голубя,
-// доска заданий, «Не хочу ничего», своё задание, Летопись с быстрой записью, вход в голубятню и в лавку, ветки.
+// доска заданий, «Не хочу ничего», своё задание, разделы: Летопись, голубятня, лавка.
+// Нажатие на карточку героини открывает экран героини с ветками.
 
 import { useState } from 'preact/hooks';
 import type { GameState, StreakNews } from '../logic/game';
@@ -9,11 +10,12 @@ import { levelInfo, titleFor, totalXp } from '../logic/progression';
 import { viewStreak } from '../logic/streak';
 import { dayOf } from '../logic/time';
 import { isDistrictOpen } from '../logic/valley';
-import { BRANCHES, type Pigeon, type TaskTemplate } from '../model/types';
-import { BranchChip, Progress, TaskCard } from './common';
+import type { Pigeon, TaskTemplate } from '../model/types';
+import { Progress, TaskCard } from './common';
 import { daysText, fireText, plural } from './format';
 import { PigeonArt } from './pigeon-art';
 import { go } from './router';
+import { SectionTiles } from './SectionTiles';
 import { PlantRow } from './valley/PlantRow';
 import { ValleyView } from './valley/ValleyView';
 
@@ -38,8 +40,6 @@ interface Props {
   /** Только что выросшее в долине — для анимации. */
   fresh: string | null;
   onPlant: (item: string) => void;
-  /** Записи Летописи: всего и черновиков. */
-  journal: { total: number; drafts: number };
   /** Сколько купонов куплено и ещё не выдано. */
   coupons: number;
 }
@@ -68,7 +68,6 @@ export function MainScreen({
   cloakStage,
   fresh,
   onPlant,
-  journal,
   coupons,
 }: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
@@ -116,26 +115,29 @@ export function MainScreen({
         {isDistrictOpen(game.valley) && <p class="muted small valley-card__open">Долина открыта: хмари больше нет.</p>}
       </section>
 
-      <section class="card hero">
-        <div class="hero__row">
-          <div>
-            <div class="hero__title">{titleFor(level.level)}</div>
-            <div class="muted small">Уровень {level.level}</div>
-          </div>
-          <div class="wallet">
+      <button type="button" class="card hero hero--link" onClick={() => go('hero')}>
+        <span class="hero__row">
+          <span>
+            <span class="hero__title">{titleFor(level.level)}</span>
+            <span class="muted small">Уровень {level.level}</span>
+          </span>
+          <span class="wallet">
             <span class="wallet__item" title="Золото">
               <span class="wallet__gold" aria-hidden="true" /> {player.gold}
             </span>
             <span class="wallet__item" title="Звёзды">
               <span class="wallet__star" aria-hidden="true">★</span> {player.stars}
             </span>
-          </div>
-        </div>
+            <svg class="hero__chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+        </span>
         <Progress value={level.xpIntoLevel} max={level.xpForNext} />
-        <div class="muted small">
+        <span class="muted small">
           {level.xpIntoLevel} из {level.xpForNext} опыта до следующего уровня
-        </div>
-      </section>
+        </span>
+      </button>
 
       <section class="card streak">
         <div>
@@ -211,50 +213,7 @@ export function MainScreen({
         </button>
       </section>
 
-      <section class="card chronicle-card">
-        <button type="button" class="chronicle-card__open" onClick={() => go('journal')}>
-          <span class="chronicle-card__title">Летопись</span>
-          <span class="muted small">
-            {journal.total > 0
-              ? `${journal.total} ${plural(journal.total, ['запись', 'записи', 'записей'])}` +
-                (journal.drafts > 0 ? ` · черновиков: ${journal.drafts}` : '')
-              : 'Журнал достижений для резюме и собеседований'}
-          </span>
-        </button>
-        <button type="button" class="button chronicle-card__quick" onClick={() => go('journal/new')}>
-          Записать
-        </button>
-      </section>
-
-      <button type="button" class="card loft-entry" onClick={() => go('loft')}>
-        <span class="loft-entry__title">Голубятня</span>
-        <span class="muted small">
-          {pigeonsInFlight > 0 ? `В пути: ${pigeonsInFlight}` : 'Отправила отклик? Здесь ждут голуби'}
-        </span>
-      </button>
-
-      <button type="button" class="card shop-entry" onClick={() => go('shop')}>
-        <span class="shop-entry__title">Лавка</span>
-        <span class="muted small">
-          {coupons > 0
-            ? `Купонов ждут выдачи: ${coupons}`
-            : 'Саженцы и вещи для лагеря за золото, призы за звёзды'}
-        </span>
-      </button>
-
-      <section class="card branches">
-        <h2>Ветки</h2>
-        {BRANCHES.map((b) => {
-          const info = levelInfo(player.xp[b]);
-          return (
-            <div class="branch-row" key={b}>
-              <BranchChip branch={b} />
-              <span class="small">ур. {info.level}</span>
-              <Progress value={info.xpIntoLevel} max={info.xpForNext} />
-            </div>
-          );
-        })}
-      </section>
+      <SectionTiles pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
     </main>
   );
 }
