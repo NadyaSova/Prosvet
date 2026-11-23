@@ -1,6 +1,7 @@
 // Главный экран сверху вниз: шапка с огоньком серии, долина с костром и странницей, семена для посадки,
 // фраза, заметки (костёр, вопрос голубя), героиня, разделы (Летопись, голубятня, лавка),
-// доска заданий строками с кнопкой ▶, «Не хочу ничего» и «Своё задание».
+// доска заданий с записками, «Не хочу ничего» и «Своё задание».
+// Нажатие на записку снимает её с доски (#/note/<id>, TaskNote): там «Начать».
 // Нажатие на огонёк показывает подробности серии, на карточку героини — экран героини с ветками.
 
 import { useState } from 'preact/hooks';
@@ -15,7 +16,8 @@ import type { Pigeon, TaskTemplate } from '../model/types';
 import { Progress, TaskCard } from './common';
 import { daysText, fireText, plural } from './format';
 import { PigeonArt } from './pigeon-art';
-import { go } from './router';
+import { go, noteRoute, useRoute } from './router';
+import { TaskNote } from './TaskNote';
 import { SectionTiles } from './SectionTiles';
 import { StreakBadge, StreakDetails } from './StreakBadge';
 import { PlantRow } from './valley/PlantRow';
@@ -81,21 +83,24 @@ export function MainScreen({
   const byId = new Map(templates.map((t) => [t.id, t]));
   const board = game.board.taskIds.map((id) => byId.get(id)).filter((t) => t !== undefined);
   const canReroll = rerollAvailable(game.board, now);
+  const noteId = noteRoute(useRoute());
+  const note = noteId === null ? undefined : byId.get(noteId);
+  const openNote = (t: TaskTemplate) => go(`note/${encodeURIComponent(t.id)}`);
 
   return (
     <main class="screen home">
       <header class="home__top">
-        <span class="home__name">Просвет</span>
-        <div class="home__end">
+        <div class="home__start">
+          <span class="home__name">Просвет</span>
           <StreakBadge view={streak} open={streakOpen} onToggle={() => setStreakOpen(!streakOpen)} />
-          <button type="button" class="icon-button" aria-label="Настройки" onClick={() => go('settings')}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M4 7h16M4 17h16" />
-              <circle cx="9" cy="7" r="2.4" fill="var(--color-card-strong)" />
-              <circle cx="15" cy="17" r="2.4" fill="var(--color-card-strong)" />
-            </svg>
-          </button>
         </div>
+        <button type="button" class="icon-button" aria-label="Настройки" onClick={() => go('settings')}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 7h16M4 17h16" />
+            <circle cx="9" cy="7" r="2.4" fill="var(--color-sky)" />
+            <circle cx="15" cy="17" r="2.4" fill="var(--color-sky)" />
+          </svg>
+        </button>
       </header>
 
       {streakOpen && <StreakDetails view={streak} fireText={fireText(streak, today, player.streak.lastActiveDay !== null)} />}
@@ -190,16 +195,20 @@ export function MainScreen({
           </button>
         </div>
         {board.length === 0 && <p class="muted">Все задания скрыты. Включи хотя бы несколько в настройках.</p>}
-        {board.map((t) => (
-          <TaskCard key={t.id} task={t} onStart={() => onStart(t)} />
-        ))}
+        {board.length > 0 && (
+          <div class="board__plank">
+            {board.map((t) => (
+              <TaskCard key={t.id} task={t} onOpen={() => openNote(t)} />
+            ))}
+          </div>
+        )}
       </section>
 
       <section class="home__more">
         {tiny && (
           <div class="tiny">
             <div class="tiny__label">Совсем немного — и уже засчитано:</div>
-            <TaskCard task={tiny} onStart={() => onStart(tiny)}>
+            <TaskCard task={tiny} onOpen={() => openNote(tiny)}>
               <button type="button" class="link-button task__other" onClick={() => setTiny(pickTiny(tiny.id) ?? null)}>
                 Другое
               </button>
@@ -217,6 +226,8 @@ export function MainScreen({
           </button>
         </div>
       </section>
+
+      {note && <TaskNote task={note} valley={game.valley} onStart={onStart} />}
     </main>
   );
 }

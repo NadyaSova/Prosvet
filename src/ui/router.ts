@@ -1,4 +1,5 @@
-// Экраны по адресу после #: #/settings, #/custom, #/loft, #/hero (героиня и ветки), #/journal (Летопись), #/valley (долина крупно), #/shop (лавка).
+// Экраны по адресу после #: #/settings, #/custom, #/loft, #/hero (героиня и ветки), #/journal (Летопись), #/valley (долина крупно), #/shop (лавка),
+// #/note/<id> (записка, снятая с доски, поверх главного экрана).
 // Главный экран — без #.
 // Переход вперёд добавляет запись в историю, поэтому системная кнопка «Назад» на Android возвращает на главный.
 
@@ -77,6 +78,28 @@ export function go(path: string): void {
 export function replaceRoute(path: string): void {
   history.replaceState(history.state, '', `#/${path}`);
   dispatchEvent(new Event(EVENT));
+}
+
+/** Записка, снятая с доски: #/note/<id задания>. Под ней — главный экран. */
+export function noteRoute(route: string): string | null {
+  return route.startsWith('note/') ? decodeURIComponent(route.slice('note/'.length)) : null;
+}
+
+/**
+ * На главный экран, и уже там — fn. Шаг назад по истории идёт не сразу, поэтому fn ждёт его:
+ * иначе переход, который сделает fn (например, в Летопись), отменился бы этим шагом назад.
+ */
+export function goHomeThen(fn: () => void): void {
+  if (!current()) {
+    fn();
+  } else if ((history.state as { prosvet?: boolean } | null)?.prosvet) {
+    addEventListener('popstate', () => fn(), { once: true });
+    history.back();
+  } else {
+    history.replaceState(null, '', location.pathname + location.search);
+    dispatchEvent(new Event(EVENT));
+    fn();
+  }
 }
 
 /** На главный экран. Если пришли сюда переходом внутри приложения — шаг назад по истории. */

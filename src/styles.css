@@ -19,7 +19,7 @@
   /* Ветки (SPEC.md §6): по цвету растения в долине. */
   --branch-chronicle: #8c6a3f;
   --branch-image: #5f8ea6;
-  --branch-speech: #6f9a5b;
+  --branch-speech: #8c6fa8; /* лиловый: зелёный был слишком похож на Охоту */
   --branch-scouting: #b9707f;
   --branch-hunt: #3f6e55;
 
@@ -40,7 +40,9 @@ body {
 }
 
 body {
-  background: var(--color-sky);
+  background-color: var(--color-sky);
+  /* Едва заметное зерно бумаги: шум рисует сам браузер, без картинок и внешних запросов. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.42  0 0 0 0 0.32  0 0 0 0 0.2  0.35 0 0 0 -0.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   color: var(--color-text);
   font-family: var(--font-body);
   font-size: 17px;
@@ -234,8 +236,12 @@ h2 {
 }
 
 /* Карточка героини на главном — кнопка на экран героини. */
+/* Без заливки: героиня — просто текст с полосой опыта на фоне страницы. */
 .hero--link {
   width: 100%;
+  padding-left: 4px;
+  padding-right: 4px;
+  background: none;
   border: none;
   color: var(--color-text);
   font: inherit;
@@ -297,42 +303,49 @@ h2 {
   color: var(--color-gold);
 }
 
-.home__end {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Настройки в шапке — без кружка, как огонёк серии. */
+.home__top .icon-button {
+  background: none;
+  color: var(--color-text-muted);
 }
 
-/* Серия в шапке: огонёк и число, рядом полено с запасом. */
+.home__start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Серия в шапке, сразу за названием: огонёк и число, рядом полено с запасом. Без фона. */
 .streak-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   min-height: 44px;
-  padding: 0 14px 0 10px;
+  padding: 0 6px;
   border: none;
-  border-radius: 999px;
-  background: var(--color-card);
+  border-radius: 12px;
+  background: none;
   color: var(--color-text);
   font: inherit;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 
 .streak-badge__flame {
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
 }
 
 .streak-badge__log {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   margin-left: 8px;
 }
 
 .streak-badge__logs {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--color-text-muted);
 }
 
@@ -415,7 +428,8 @@ h2 {
   right: 8px;
   width: 36px;
   height: 36px;
-  background: rgba(255, 250, 242, 0.85);
+  background: rgba(255, 250, 242, 0.4);
+  color: rgba(63, 58, 52, 0.75);
 }
 
 .valley-card__expand svg {
@@ -689,16 +703,60 @@ h2 {
   justify-content: space-between;
 }
 
-/* Задание одной строкой: слева название, ветка и время; справа кнопка ▶. */
-.task {
+/* Деревянная доска, на ней задания-записки. */
+.board__plank {
+  --wood: #a87a52;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 10px 10px 14px;
-  border-radius: 16px;
-  background: var(--color-card-strong);
-  border-left: 5px solid var(--task-color, var(--color-hill-near));
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 12px 16px;
+  border-radius: 14px;
+  /* Сверху вниз: стыки досок, частые тонкие волокна, широкие полосы, цвет дерева. */
+  background:
+    repeating-linear-gradient(180deg, transparent 0 78px, rgba(70, 40, 15, 0.35) 78px 80px, rgba(255, 230, 200, 0.12) 80px 81px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='240'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.003 0.5' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.28  0 0 0 0 0.15  0 0 0 0 0.05  2.2 0 0 0 -0.95'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='240'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.11' numOctaves='4' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3  0 0 0 0 0.16  0 0 0 0 0.05  1.6 0 0 0 -0.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E"),
+    var(--wood);
+  /* Выпуклая: светлый верхний край, тёмный нижний, тень под доской. */
+  box-shadow:
+    inset 0 2px 0 rgba(255, 228, 195, 0.35),
+    inset 0 -3px 0 rgba(60, 35, 15, 0.35),
+    inset 2px 0 0 rgba(255, 228, 195, 0.12),
+    inset -2px 0 0 rgba(60, 35, 15, 0.18),
+    0 5px 12px rgba(80, 50, 20, 0.3),
+    0 1px 2px rgba(80, 50, 20, 0.3);
 }
+
+/* Задание — бумажная записка, приколотая кнопкой цвета ветки: название, под ним ветка и время.
+   Нажатие на записку снимает её с доски. */
+.task {
+  position: relative;
+  padding: 14px 14px 12px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--task-color, var(--color-hill-near)) 10%, #fbf3e2);
+  box-shadow: 0 2px 4px rgba(60, 35, 15, 0.3);
+}
+
+/* Кнопка-булавка вверху записки — матовая и чуть выпуклая: мягкий свет сверху слева, край темнее. */
+.task::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28) 0, rgba(255, 255, 255, 0) 55%),
+    radial-gradient(circle at 40% 35%, transparent 0 50%, rgba(40, 20, 5, 0.25) 100%),
+    var(--task-color, var(--color-hill-near));
+  box-shadow: 0 1px 1.5px rgba(40, 20, 5, 0.35);
+}
+
+/* Записки на доске чуть наклонены, каждая по-своему. */
+.board__plank .task:nth-child(3n + 1) { transform: rotate(-0.8deg); }
+.board__plank .task:nth-child(3n + 2) { transform: rotate(0.6deg); }
+.board__plank .task:nth-child(3n + 3) { transform: rotate(-0.3deg); }
 
 .task--chronicle { --task-color: var(--branch-chronicle); }
 .task--image { --task-color: var(--branch-image); }
@@ -706,9 +764,28 @@ h2 {
 .task--scouting { --task-color: var(--branch-scouting); }
 .task--hunt { --task-color: var(--branch-hunt); }
 
-.task__body {
-  flex: 1;
-  min-width: 0;
+/* Кнопка — название; её область растянута на всю записку. */
+.task__open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task__open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.task:has(.task__open:active) {
+  filter: brightness(0.97);
 }
 
 .task__title {
@@ -725,33 +802,109 @@ h2 {
   font-weight: 600;
 }
 
+/* «Другое» лежит поверх растянутой кнопки записки и нажимается отдельно. */
 .task__other {
+  position: relative;
+  z-index: 1;
   min-height: 36px;
   padding: 4px 0 0;
 }
 
-.play-button {
-  flex: none;
-  display: inline-flex;
+/* Записка, снятая с доски: крупно посреди экрана на затемнённом фоне. */
+.note-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  padding: 0;
-  border: none;
+  padding: 24px 20px;
+  background: rgba(50, 32, 15, 0.45);
+  animation: note-fade 0.2s ease-out;
+}
+
+.note {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 22px 14px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--task-color) 10%, #fbf3e2);
+  box-shadow: 0 12px 30px rgba(40, 20, 5, 0.35);
+  transform: rotate(-1deg);
+  animation: note-lift 0.25s ease-out;
+}
+
+/* Та же кнопка, что держала записку на доске, — теперь просто вверху листка. */
+.note::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
   border-radius: 50%;
-  background: var(--color-hill-near);
-  color: #fff;
-  cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28) 0, rgba(255, 255, 255, 0) 55%),
+    radial-gradient(circle at 40% 35%, transparent 0 50%, rgba(40, 20, 5, 0.25) 100%),
+    var(--task-color);
+  box-shadow: 0 1px 1.5px rgba(40, 20, 5, 0.35);
 }
 
-.play-button svg {
-  width: 24px;
-  height: 24px;
+.note__title {
+  font-size: 22px;
 }
 
-.play-button:active {
-  transform: scale(0.94);
+.note__grow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Круглое окошко в долину: небо и трава, на траве — растение, которое вырастет. */
+.note__window {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ecdcc0 0 80%, var(--color-hill-mid) 80%);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--task-color) 35%, transparent);
+}
+
+.note__plant {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 2px;
+}
+
+.note__start {
+  margin-top: 6px;
+}
+
+@keyframes note-fade {
+  from { opacity: 0; }
+}
+
+@keyframes note-lift {
+  from { transform: rotate(-3deg) translateY(30px) scale(0.92); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-layer,
+  .note {
+    animation: none;
+  }
+}
+
+body.no-scroll {
+  overflow: hidden;
 }
 
 .home__more {
@@ -1829,7 +1982,8 @@ textarea:focus {
   gap: 8px;
   padding: 10px 6px;
   border-radius: var(--radius);
-  background: var(--color-card);
+  /* Подкраска цветом раздела вместо белого. */
+  background: color-mix(in srgb, var(--tile) 12%, var(--color-sky));
   box-shadow: inset 0 0 0 2px var(--tile);
 }
 

@@ -184,8 +184,8 @@ export function ValleyScene({
         <ellipse cx="880" cy="50" rx="22" ry="6" />
       </g>
       <g fill="none" stroke="#7a6e62" stroke-width="1.2">
-        <path d="M250 36 q5 -5 10 0 q5 -5 10 0" />
-        <path d="M60 46 q4 -4 8 0 q4 -4 8 0" />
+        <path d="M182 34 q6 -6 12 0 q6 -6 12 0" />
+        <path d="M64 58 q3.5 -3.5 7 0 q3.5 -3.5 7 0" />
         <path d="M540 40 q4 -4 8 0 q4 -4 8 0" />
         <path d="M780 30 q5 -5 10 0 q5 -5 10 0" />
       </g>
