@@ -11,6 +11,7 @@ import { PIGEON_COLOR_NAMES, PIGEON_SIZE_NAMES } from '../ui/labels';
 import { FeatherArt, MessageScrollArt, PIGEON_PALETTE, PigeonArt, SIZE_SCALE } from '../ui/pigeon-art';
 import { GoodArt } from '../ui/shop-art';
 import { PlantArt } from '../ui/valley/plant-art';
+import { DeerSection } from './gallery-deer';
 import { SectionIconsSection } from './gallery-sections';
 import { WillowSection } from './gallery-willow';
 
@@ -227,6 +228,8 @@ function Gallery() {
         <code>src/ui/cloak-art.tsx</code>{' '}
         видны здесь сразу, без перезагрузки.
       </p>
+
+      <DeerSection />
 
       <WillowSection />
 
