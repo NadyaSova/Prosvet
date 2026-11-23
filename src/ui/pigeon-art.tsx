@@ -212,6 +212,34 @@ export function PigeonArt({ look, class: className }: { look: PigeonLook; class?
   );
 }
 
+/**
+ * Свёрнутое послание с бантом — висит над выбранным голубем на жёрдочке: этот голубь понесёт отклик.
+ * Свиток лежит на боку: левый торец спрятан за свитком, правый виден с завитком.
+ */
+export function MessageScrollArt({ class: className }: { class?: string }) {
+  const paper = '#f6e7c4';
+  const shade = '#e7d1a2';
+  const line = '#a8875a';
+  const ribbon = '#c8584b';
+  const ribbonDark = '#9e3f35';
+  return (
+    <svg class={className} viewBox="0 0 40 26" aria-hidden="true">
+      <ellipse cx="6.5" cy="12" rx="3.2" ry="6.4" fill={shade} stroke={line} stroke-width="1" />
+      <path d="M6.5 5.6 H33.5 V18.4 H6.5 Z" fill={paper} />
+      <path d="M6.5 15.4 H33.5 V18.4 H6.5 Z" fill={shade} />
+      <path d="M6.5 5.6 H33.5 M6.5 18.4 H33.5" stroke={line} stroke-width="1" />
+      <ellipse cx="33.5" cy="12" rx="3.2" ry="6.4" fill={paper} stroke={line} stroke-width="1" />
+      <path d="M33.5 9 C35 9 35.3 11 34.4 12.4 C33.6 13.6 32.4 13 32.5 11.8" stroke={line} stroke-width="0.8" fill="none" stroke-linecap="round" />
+      {/* лента вокруг свитка и бант */}
+      <path d="M18.6 5.1 H21.4 V18.9 H18.6 Z" fill={ribbon} />
+      <path d="M20 13 L17.2 22.8 M20 13 L23 22.4" stroke={ribbon} stroke-width="1.8" stroke-linecap="round" />
+      <ellipse cx="16.4" cy="10.6" rx="3.4" ry="2" transform="rotate(-24 16.4 10.6)" fill={ribbon} stroke={ribbonDark} stroke-width="0.7" />
+      <ellipse cx="23.6" cy="10.6" rx="3.4" ry="2" transform="rotate(24 23.6 10.6)" fill={ribbon} stroke={ribbonDark} stroke-width="0.7" />
+      <circle cx="20" cy="12" r="1.7" fill={ribbonDark} />
+    </svg>
+  );
+}
+
 /** Перо в своих координатах: остриё вверху в (0, 0), длина 20, смотрит вниз. */
 export function FeatherShape({ color, size, x = 0, y = 0, rotate = 0, scale = 1 }: {
   color: PigeonColor | 'gold';

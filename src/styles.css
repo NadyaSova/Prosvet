@@ -1105,7 +1105,8 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 2px;
-  padding-bottom: 6px;
+  /* Сверху — место для свитка над выбранным голубем. */
+  padding: 8px 0 6px;
 }
 
 /* Деревянная жёрдочка под лапами. */
@@ -1130,15 +1131,49 @@ textarea:focus {
   cursor: pointer;
 }
 
-.perch__pigeon svg {
+/* Рисунок шире своей ячейки: по бокам у голубя пустые поля рамки, так он крупнее и не заходит к соседу. */
+.perch__art {
+  position: relative;
   display: block;
-  width: 100%;
+  width: 125%;
+  margin-left: -12.5%;
   height: auto;
 }
 
-.perch__pigeon--picked {
-  background: rgba(246, 193, 119, 0.35);
-  box-shadow: inset 0 0 0 2px var(--color-sun);
+/* Выбранный голубь: тёплый свет под лапками на жёрдочке и мягкий ореол за телом. */
+.perch__pigeon--picked::before {
+  content: '';
+  position: absolute;
+  inset: -6px -10% -4px;
+  background:
+    radial-gradient(ellipse 48% 20% at 50% 90%, rgba(246, 193, 119, 0.95), rgba(246, 193, 119, 0)),
+    radial-gradient(ellipse 52% 42% at 50% 58%, rgba(255, 226, 160, 0.55), rgba(255, 226, 160, 0));
+  pointer-events: none;
+}
+
+/* Свиток-послание над выбранным голубем: он понесёт отклик. */
+.perch__scroll {
+  position: absolute;
+  /* Высота свитка и голубя растут с шириной ячейки одинаково, поэтому постоянный отступ сверху
+     держит свиток над головой самого высокого голубя (большой, оглядывается) при любой ширине экрана. */
+  top: -2px;
+  left: 30%;
+  width: 40%;
+  height: auto;
+  filter: drop-shadow(0 0 2px rgba(246, 193, 119, 0.95));
+  animation: perch-scroll-bob 2.4s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes perch-scroll-bob {
+  from { transform: translateY(0); }
+  to { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .perch__scroll {
+    animation: none;
+  }
 }
 
 .loft__send {

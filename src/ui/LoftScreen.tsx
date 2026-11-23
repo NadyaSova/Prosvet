@@ -8,7 +8,7 @@ import { CloakArt } from './cloak-art';
 import { BackBar } from './common';
 import { dateText, daysText, feathersText, plural } from './format';
 import { PIGEON_COLOR_NAMES, PIGEON_SIZE_NAMES } from './labels';
-import { FeatherArt, PigeonArt } from './pigeon-art';
+import { FeatherArt, MessageScrollArt, PigeonArt } from './pigeon-art';
 
 interface Props {
   pigeons: readonly Pigeon[];
@@ -93,7 +93,8 @@ export function LoftScreen({ pigeons, loft, now, onSend, onAnswer, onLateInvite 
               aria-pressed={picked === i}
               onClick={() => setPicked(picked === i ? null : i)}
             >
-              <PigeonArt look={look} />
+              <PigeonArt class="perch__art" look={look} />
+              {picked === i && <MessageScrollArt class="perch__scroll" />}
             </button>
           ))}
         </div>

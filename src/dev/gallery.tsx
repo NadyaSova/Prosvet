@@ -7,7 +7,7 @@ import type { Feather } from '../logic/pigeons';
 import { PIGEON_COLORS, PIGEON_POSES, PIGEON_SIZES, type PigeonColor, type PigeonLook } from '../model/types';
 import { CloakArt } from '../ui/cloak-art';
 import { PIGEON_COLOR_NAMES, PIGEON_SIZE_NAMES } from '../ui/labels';
-import { FeatherArt, PIGEON_PALETTE, PigeonArt, SIZE_SCALE } from '../ui/pigeon-art';
+import { FeatherArt, MessageScrollArt, PIGEON_PALETTE, PigeonArt, SIZE_SCALE } from '../ui/pigeon-art';
 
 const POSE_NAMES: Record<PigeonLook['pose'], string> = {
   sit: 'сидит',
@@ -84,6 +84,37 @@ const CLOAK_STAGES = [
   { stage: 6, feathers: 105, label: '100: Повелительница ветров' },
 ];
 
+const PERCH_SAMPLE: PigeonLook[] = [
+  { pose: 'sit', size: 'large', color: 'slate' },
+  { pose: 'preen', size: 'medium', color: 'white' },
+  { pose: 'look', size: 'small', color: 'rose' },
+  { pose: 'sit', size: 'medium', color: 'lilac' },
+  { pose: 'preen', size: 'large', color: 'rose' },
+];
+
+/** Самые высокие голуби — большие в каждой позе: свиток не должен закрывать никого из них. */
+const TALL_SAMPLE: PigeonLook[] = [
+  { pose: 'sit', size: 'large', color: 'lilac' },
+  { pose: 'preen', size: 'large', color: 'slate' },
+  { pose: 'look', size: 'large', color: 'white' },
+  { pose: 'sit', size: 'small', color: 'rose' },
+  { pose: 'look', size: 'medium', color: 'slate' },
+];
+
+/** Жёрдочка с теми же стилями, что в голубятне. frame — прежнее выделение рамкой, для сравнения. */
+function Perch({ picked, frame = false, looks = PERCH_SAMPLE }: { picked: number; frame?: boolean; looks?: PigeonLook[] }) {
+  return (
+    <div class={`perch ${frame ? 'gallery__perch--frame' : ''}`}>
+      {looks.map((look, i) => (
+        <div class={`perch__pigeon ${i === picked ? 'perch__pigeon--picked' : ''}`} key={i}>
+          <PigeonArt class="perch__art" look={look} />
+          {i === picked && !frame && <MessageScrollArt class="perch__scroll" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Gallery() {
   return (
     <main class="gallery">
@@ -94,7 +125,38 @@ function Gallery() {
       </p>
 
       <section class="card">
-        <h2>Было и стало</h2>
+        <h2>Выбранный голубь, как в приложении (ширина телефона)</h2>
+        <div class="gallery__perches">
+          <figure>
+            <Perch picked={1} frame />
+            <figcaption class="muted small">было: рамка</figcaption>
+          </figure>
+          {PERCH_SAMPLE.map((look, i) => (
+            <figure key={i}>
+              <Perch picked={i} />
+              <figcaption class="muted small">
+                стало: свиток и свет — {POSE_NAMES[look.pose]}, {PIGEON_SIZE_NAMES[look.size]}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <h3 class="gallery__row-title">Самые высокие голуби: большие, выбран каждый</h3>
+        <div class="gallery__perches">
+          {[0, 1, 2].map((i) => (
+            <figure key={i}>
+              <Perch looks={TALL_SAMPLE} picked={i} />
+              <figcaption class="muted small">{POSE_NAMES[TALL_SAMPLE[i]!.pose]}, большой</figcaption>
+            </figure>
+          ))}
+        </div>
+        <h3 class="gallery__row-title">Свиток крупно</h3>
+        <div class="gallery__scroll">
+          <MessageScrollArt />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Голуби: было и стало</h2>
         <div class="gallery__compare">
           {PIGEON_POSES.map((pose) =>
             PIGEON_COLORS.map((color: PigeonColor) => {
@@ -137,25 +199,6 @@ function Gallery() {
       </section>
 
       <section class="card">
-        <h2>Жёрдочка, как в приложении</h2>
-        <div class="perch">
-          {(
-            [
-              { pose: 'sit', size: 'large', color: 'slate' },
-              { pose: 'preen', size: 'medium', color: 'white' },
-              { pose: 'look', size: 'small', color: 'rose' },
-              { pose: 'sit', size: 'medium', color: 'lilac' },
-              { pose: 'preen', size: 'large', color: 'rose' },
-            ] as PigeonLook[]
-          ).map((look, i) => (
-            <div class="perch__pigeon" key={i}>
-              <PigeonArt look={look} />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section class="card">
         <h2>Перья</h2>
         <div class="gallery__feathers">
           {(['slate', 'white', 'rose', 'lilac', 'gold'] as const).map((color) =>
@@ -179,7 +222,9 @@ function Gallery() {
   );
 }
 
-const style = document.createElement('style');
+// Один элемент стилей на страницу: при правке файла Vite перезапускает модуль без перезагрузки,
+// и новый <style> добавлялся бы к старым — устаревшие правила продолжали бы действовать.
+const style = document.getElementById('gallery-style') ?? Object.assign(document.createElement('style'), { id: 'gallery-style' });
 style.textContent = `
   .gallery { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
   .gallery figure { margin: 0; text-align: center; }
@@ -190,7 +235,13 @@ style.textContent = `
   .gallery__row-title { margin: 8px 0 4px; font-size: 16px; }
   .gallery__feathers { display: grid; grid-template-columns: repeat(15, minmax(28px, 1fr)); gap: 6px; }
   .gallery__cloaks { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-  .gallery .perch { max-width: 480px; }
+  .gallery__perches { display: flex; flex-wrap: wrap; gap: 24px; }
+  .gallery__perches figure { width: 340px; }
+  .gallery .perch__art { width: 125%; margin-left: -12.5%; }
+  .gallery .perch__scroll { width: 40%; }
+  .gallery__perch--frame .perch__pigeon--picked { background: rgba(246, 193, 119, 0.35); box-shadow: inset 0 0 0 2px var(--color-sun); border-radius: 14px; }
+  .gallery__perch--frame .perch__pigeon--picked::before { display: none; }
+  .gallery__scroll { width: 200px; }
 `;
 document.head.append(style);
 
