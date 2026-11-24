@@ -29,6 +29,7 @@ import { buyCoupon, buyGood, removePrize, savePrize, setCouponGiven, type Good, 
 import { cloakView, dueQuestion, feathersOf, markAsked } from './logic/pigeons';
 import { viewStreak } from './logic/streak';
 import { mergeTemplates } from './logic/tasks';
+import { createRng, randomSeed } from './logic/rng';
 import { dayOf } from './logic/time';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
 import type { Achievement, Branch, LoftState, Pigeon, Settings, ShopState, TaskTemplate } from './model/types';
@@ -131,6 +132,30 @@ function useNow(interval: number): number {
   return now;
 }
 
+/**
+ * Как пересчитать засчитанный таймер с поправленным временем (docs/phase2-plan.md §3): то же действие
+ * на состоянии до завершения, с тем же сидом генератора — карта добычи и место растения те же, если они остаются.
+ */
+interface Redo {
+  before: GameState;
+  /** Состояние после завершения. Править можно, пока игра с тех пор не менялась. */
+  after: GameState;
+  seed: number;
+  now: number;
+  /** Засчитано при открытии приложения (onOpen), а не по концу таймера. */
+  open: boolean;
+}
+
+type QueuedReward = ShownReward & { seq: number; redo?: Redo };
+
+/** Завершение таймера: по концу времени или «закончила раньше» — или при открытии приложения. */
+function settleTimed(redo: Omit<Redo, 'after'>, templates: readonly TaskTemplate[], minutes?: number) {
+  const rng = createRng(redo.seed);
+  if (!redo.open) return finishTimedTask(redo.before, templates, redo.now, rng, minutes);
+  const r = onOpen(redo.before, templates, redo.now, rng, minutes);
+  return r.done ? { state: r.state, done: r.done } : null;
+}
+
 interface GameProps {
   db: ProsvetDb;
   initial: AppData;
@@ -148,7 +173,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const [settings, setSettings] = useState<Settings>(initial.settings);
   const [custom, setCustom] = useState<TaskTemplate[]>(initialCustom);
   /** Экраны наград — по очереди (например, вышло время таймера, пока писалась запись в журнал). */
-  const [rewards, setRewards] = useState<(ShownReward & { seq: number })[]>([]);
+  const [rewards, setRewards] = useState<QueuedReward[]>([]);
   const rewardSeq = useRef(0);
   /** Записи Летописи, свежие сверху. */
   const [entries, setEntries] = useState<Achievement[]>(initial.achievements);
@@ -213,7 +238,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     return r.phrase;
   }
 
-  function showReward(done: CompletedTask) {
+  function showReward(done: CompletedTask, redo?: Redo) {
     if (done.planted) setFresh(done.planted.id);
     const r = done.report;
     const phrase = takePhrase(r.comeback ? 'comeback' : 'finish');
@@ -224,16 +249,48 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       streakPhrase: r.streakMilestones.length > 0 ? takePhrase('streak') : undefined,
     };
     const seq = ++rewardSeq.current;
-    setRewards((q) => [...q, { ...shown, seq }]);
+    setRewards((q) => [...q, { ...shown, seq, redo }]);
+  }
+
+  /** Завершает идущий таймер (сейчас) и показывает награду, которую можно будет поправить. */
+  function finishTimer(): CompletedTask | null {
+    const redo = { before: gameRef.current, seed: randomSeed(), now: Date.now(), open: false };
+    const r = settleTimed(redo, templatesRef.current);
+    if (!r) return null;
+    commit(r.state);
+    showReward(r.done, { ...redo, after: r.state });
+    return r.done;
+  }
+
+  /** «Поправить время» на экране награды: пересчитать задание с другими минутами. */
+  function correctTime(item: QueuedReward, minutes: number) {
+    const redo = item.redo;
+    if (!redo || gameRef.current !== redo.after) return;
+    const r = settleTimed(redo, templatesRef.current, minutes);
+    if (!r) return;
+    commit(r.state);
+    if (r.done.planted) setFresh(r.done.planted.id);
+    const loot = r.done.report.loot;
+    const shown: QueuedReward = {
+      ...item,
+      ...r.done,
+      cardPhrase: loot?.kind === 'phrase' ? (item.cardPhrase ?? (r.done.report.comeback ? takePhrase('finish') : item.phrase)) : undefined,
+      streakPhrase: r.done.report.streakMilestones.length > 0 ? (item.streakPhrase ?? takePhrase('streak')) : undefined,
+      redo: { ...redo, after: r.state },
+    };
+    setRewards((q) => q.map((x) => (x.seq === item.seq ? shown : x)));
   }
 
   /** Открытие приложения и возвращение в него: таймер, серия, доска, голуби, которые вернулись сами. */
   function refresh() {
     const now = Date.now();
-    const r = onOpen(gameRef.current, templatesRef.current, now, Math.random);
+    const before = gameRef.current;
+    const seed = randomSeed();
+    const r = onOpen(before, templatesRef.current, now, createRng(seed));
     const back = returnOverduePigeons(r.state, pigeonsRef.current, now);
     if (back.state !== gameRef.current) commit(back.state, { pigeons: back.changed });
-    if (r.done) showReward(r.done);
+    // Если заодно вернулись голуби, пересчитать награду таймера отдельно от них нельзя — тогда без правки.
+    if (r.done) showReward(r.done, back.changed.length === 0 ? { before, after: back.state, seed, now, open: true } : undefined);
     back.feathers.forEach(showFeather);
     if (r.news.logsBurned > 0 || r.news.broken) setNews(r.news);
   }
@@ -257,11 +314,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     const id = setTimeout(() => {
       const current = gameRef.current.timer;
       if (!current || !isFinished(current, Date.now())) return;
-      const r = finishTimedTask(gameRef.current, templatesRef.current, Date.now(), Math.random);
-      if (!r) return;
-      commit(r.state);
-      showReward(r.done);
-      void signalTimerEnd(r.done.title);
+      const done = finishTimer();
+      if (done) void signalTimerEnd(done.title);
     }, Math.max(0, end - Date.now()) + 50);
     return () => clearTimeout(id);
   }, [game.timer]);
@@ -302,10 +356,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       // Пока окно было открыто, таймер мог дойти до конца сам.
       if (!yes || !gameRef.current.timer) return;
     }
-    const r = finishTimedTask(gameRef.current, templatesRef.current, Date.now(), Math.random);
-    if (!r) return;
-    commit(r.state);
-    showReward(r.done);
+    finishTimer();
   }
 
   async function cancel() {
@@ -531,6 +582,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         reward={reward}
         onClose={close}
         onLoft={callTask ? () => { close(); go('loft'); } : undefined}
+        onCorrect={reward.redo?.after === game ? (minutes) => correctTime(reward, minutes) : undefined}
       />
     );
   } else if (feather) {

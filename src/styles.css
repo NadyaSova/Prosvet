@@ -1461,6 +1461,31 @@ body.no-scroll {
   max-width: 26ch;
 }
 
+/* Правка времени: ссылка под названием, по нажатию — лист со счётчиком минут. */
+.reward__fix {
+  margin-top: calc(-1 * var(--space-3));
+}
+
+.reward__correct {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.reward__correct p {
+  margin: 0;
+}
+
+.reward__correct-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  width: 100%;
+}
+
 .reward__gains {
   display: flex;
   gap: var(--space-5);

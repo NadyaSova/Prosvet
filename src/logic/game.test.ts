@@ -158,6 +158,49 @@ describe('таймерное задание', () => {
   });
 });
 
+describe('правка времени при остановке', () => {
+  /** Задание на 30 минут вне доски, запущенное в NOW. */
+  const started = () => startTimedTask(newGame(), { templateId: 'once', title: 'Отклик', branch: 'call', minutes: 30 }, NOW);
+
+  it('время вышло, засчитать меньше — награда за минуты, без карты добычи', () => {
+    const g = started();
+    const full = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9))!;
+    const fixed = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9), 10)!;
+    expect(fixed.done.minutes).toBe(10);
+    expect(fixed.done.full).toBe(false);
+    expect(fixed.done.report.loot).toBeNull();
+    expect(fixed.state.player.xp.call).toBeLessThan(full.state.player.xp.call);
+    expect(fixed.state.timer).toBeNull();
+  });
+
+  it('засчитать больше запланированного — полная награда за все минуты, та же карта добычи', () => {
+    const g = started();
+    const full = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9))!;
+    const more = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9), 45)!;
+    expect(more.done.minutes).toBe(45);
+    expect(more.done.plannedMinutes).toBe(30);
+    expect(more.done.full).toBe(true);
+    expect(more.done.report.loot).toEqual(full.done.report.loot);
+    expect(more.state.player.xp.call).toBeGreaterThan(full.state.player.xp.call);
+  });
+
+  it('закончила раньше, засчитать всё время — с картой добычи', () => {
+    const r = finishTimedTask(started(), DEFAULT_TASKS, NOW + 12 * MIN, createRng(9), 30)!;
+    expect(r.done.full).toBe(true);
+    expect(r.done.report.loot).not.toBeNull();
+  });
+
+  it('время вышло, пока приложение было закрыто: после правки день — по-прежнему когда время вышло', () => {
+    const evening = new Date(2026, 10, 23, 23, 0).getTime();
+    const g = startTimedTask(newGame(), { templateId: 'once', title: 'Вечернее', branch: 'call', minutes: 30 }, evening);
+    const morning = new Date(2026, 10, 24, 8, 0).getTime();
+    const r = onOpen(g, DEFAULT_TASKS, morning, createRng(9), 10);
+    expect(r.done?.minutes).toBe(10);
+    expect(r.done?.whileAway).toBe(true);
+    expect(r.state.player.streak.lastActiveDay).toBe(dayOf(evening));
+  });
+});
+
 describe('открытие приложения', () => {
   it('время вышло, пока приложение было закрыто, — награда при открытии, день — когда время вышло', () => {
     // Таймер запущен поздно вечером, закончился до полуночи, приложение открыли утром.

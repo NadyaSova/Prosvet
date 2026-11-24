@@ -5,6 +5,7 @@ import { BALANCE } from '../config/balance';
 import type { CompletedTask } from '../logic/game';
 import type { LootCard as Loot } from '../logic/loot';
 import { titleFor } from '../logic/progression';
+import { CORRECTION_MAX, CORRECTION_MIN, nudgeMinutes } from '../logic/timer';
 import { daysText, minutesText, plural } from './format';
 import { BRANCH_NAMES, itemName, plantName } from './labels';
 
@@ -71,7 +72,95 @@ function LootFace({ loot, converted, phrase }: { loot: Loot; converted: boolean;
   }
 }
 
-export function RewardScreen({ reward, onClose, onLoft }: { reward: ShownReward; onClose: () => void; onLoft?: () => void }) {
+/** «Засчитано», «Засчитано 12 минут из 30», «Засчитано 45 минут» — и что время вышло без тебя. */
+function kickerOf(reward: ShownReward): string {
+  const { minutes, plannedMinutes } = reward;
+  let text = 'Засчитано';
+  if (minutes !== undefined && minutes !== plannedMinutes) {
+    text += ` ${minutesText(minutes)}${minutes < (plannedMinutes ?? 0) ? ` из ${plannedMinutes}` : ''}`;
+  }
+  return reward.whileAway ? `Время вышло, пока тебя не было. ${text}` : text;
+}
+
+/** Правка времени (docs/phase2-plan.md §3): сколько засчитать, в обе стороны. */
+function TimeCorrection({ reward, onCorrect }: { reward: ShownReward; onCorrect: (minutes: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [minutes, setMinutes] = useState(reward.minutes ?? 0);
+  const planned = reward.plannedMinutes ?? 0;
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        class="link-button reward__fix"
+        onClick={() => {
+          setMinutes(reward.minutes ?? 0);
+          setOpen(true);
+        }}
+      >
+        Поправить время
+      </button>
+    );
+  }
+  return (
+    <div class="card reward__correct">
+      <span class="field__label">Сколько засчитать</span>
+      <div class="stepper">
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Меньше"
+          disabled={minutes <= CORRECTION_MIN}
+          onClick={() => setMinutes(nudgeMinutes(minutes, -1))}
+        >
+          −
+        </button>
+        <span class="stepper__value" aria-live="polite">
+          {minutesText(minutes)}
+        </span>
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Больше"
+          disabled={minutes >= CORRECTION_MAX}
+          onClick={() => setMinutes(nudgeMinutes(minutes, 1))}
+        >
+          +
+        </button>
+      </div>
+      <p class="muted small">
+        Задание было на {minutesText(planned)}.{' '}
+        {minutes >= planned ? 'Засчитается полностью, с картой добычи.' : 'Меньше — без карты добычи.'}
+      </p>
+      <div class="reward__correct-buttons">
+        <button type="button" class="button button--secondary" onClick={() => setOpen(false)}>
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="button"
+          disabled={minutes === reward.minutes}
+          onClick={() => {
+            onCorrect(minutes);
+            setOpen(false);
+          }}
+        >
+          Засчитать
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface Props {
+  reward: ShownReward;
+  onClose: () => void;
+  onLoft?: () => void;
+  /** Правка времени таймерного задания; нет — править нельзя. */
+  onCorrect?: (minutes: number) => void;
+}
+
+export function RewardScreen({ reward, onClose, onLoft, onCorrect }: Props) {
   const [flipped, setFlipped] = useState(false);
   const r = reward.report;
   const baseGold = r.gold - r.lootGold;
@@ -79,16 +168,11 @@ export function RewardScreen({ reward, onClose, onLoft }: { reward: ShownReward;
   const milestoneStars = r.streakMilestones.length * BALANCE.streak.starsPerMilestone;
   const levelStars = r.stars - lootStars - milestoneStars - r.taskStars;
 
-  let kicker = 'Засчитано';
-  if (reward.whileAway) kicker = 'Время вышло, пока тебя не было. Засчитано';
-  else if (!reward.full && reward.minutes !== undefined) {
-    kicker = `Засчитано ${minutesText(reward.minutes)} из ${reward.plannedMinutes}`;
-  }
-
   return (
     <main class="screen reward">
-      <p class="reward__kicker">{kicker}</p>
+      <p class="reward__kicker">{kickerOf(reward)}</p>
       <h1 class="reward__title">{reward.title}</h1>
+      {onCorrect && reward.minutes !== undefined && <TimeCorrection reward={reward} onCorrect={onCorrect} />}
 
       <div class="reward__gains">
         <div>

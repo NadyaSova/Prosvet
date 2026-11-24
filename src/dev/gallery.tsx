@@ -13,6 +13,7 @@ import { GoodArt } from '../ui/shop-art';
 import { PlantArt } from '../ui/valley/plant-art';
 import { BranchesSection } from './gallery-branches';
 import { DeerSection } from './gallery-deer';
+import { RewardSection } from './gallery-reward';
 import { SectionIconsSection } from './gallery-sections';
 import { WillowSection } from './gallery-willow';
 
@@ -230,6 +231,8 @@ function Gallery() {
         видны здесь сразу, без перезагрузки.
       </p>
 
+      <RewardSection />
+
       <BranchesSection />
 
       <DeerSection />
@@ -365,6 +368,10 @@ style.textContent = `
   .gallery__ink { color: var(--branch-ink); background: var(--color-paper); padding: 4px 8px; border-radius: 4px; font-weight: 550; display: inline-flex; align-items: center; gap: 6px; }
   .gallery__pin { width: 10px; height: 10px; border-radius: 50%; background: var(--branch); }
   .gallery__grid--three { grid-template-columns: repeat(3, 1fr); }
+  .gallery__phones { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .gallery__phone { width: 380px; }
+  .gallery__phone .screen { min-height: 780px; border: 1px solid var(--color-field-border); border-radius: 12px; }
+  .gallery__phone .loot svg { width: auto; }
 `;
 document.head.append(style);
 

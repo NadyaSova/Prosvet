@@ -70,13 +70,43 @@ export function resumeTimer<T extends TimerState>(t: T, now: number): T {
   return { ...t, pausedAt: null, pausedMs: t.pausedMs + Math.max(0, now - t.pausedAt) };
 }
 
+/** Запланированные минуты таймера. */
+export function plannedMinutes(t: TimerState): number {
+  return Math.round(t.durationMs / MS_PER_MINUTE);
+}
+
+/** Пределы правки времени. */
+export const CORRECTION_MIN = BALANCE.timer.minPartialMinutes;
+export const CORRECTION_MAX = BALANCE.timer.maxCorrectedMinutes;
+
+/**
+ * Правка времени при остановке (docs/phase2-plan.md §3), в обе стороны: засчитываются вписанные минуты.
+ * Запланированное время и больше — как полный таймер, с картой добычи; меньше — как «закончила раньше».
+ */
+export function correctSettlement(t: TimerState, minutes: number): TimerSettlement {
+  const m = Math.min(CORRECTION_MAX, Math.max(CORRECTION_MIN, Math.round(minutes)));
+  return { minutes: m, full: m >= plannedMinutes(t) };
+}
+
+/**
+ * Кнопки «−» и «+» в правке времени: шаг BALANCE.timer.correctionStep с выравниванием на кратное шагу
+ * (23 → 25 или 20); на шаге и ниже «−» убавляет по минуте. Не выходит за пределы правки.
+ */
+export function nudgeMinutes(minutes: number, dir: 1 | -1): number {
+  const step = BALANCE.timer.correctionStep;
+  let next: number;
+  if (dir > 0) next = minutes < step ? step : Math.floor(minutes / step) * step + step;
+  else if (minutes <= step) next = minutes - 1;
+  else next = Math.ceil(minutes / step) * step - step;
+  return Math.min(CORRECTION_MAX, Math.max(CORRECTION_MIN, next));
+}
+
 /**
  * Итог таймера: дошёл до конца — все минуты; закончила раньше — целые отработанные минуты.
  * null — отработано меньше минимума, засчитывать нечего (как отмена).
  */
 export function settleTimer(t: TimerState, now: number): TimerSettlement | null {
-  const fullMinutes = Math.round(t.durationMs / MS_PER_MINUTE);
-  if (isFinished(t, now)) return { minutes: fullMinutes, full: true };
+  if (isFinished(t, now)) return { minutes: plannedMinutes(t), full: true };
   const minutes = Math.floor(elapsedMs(t, now) / MS_PER_MINUTE);
   if (minutes < BALANCE.timer.minPartialMinutes) return null;
   return { minutes, full: false };

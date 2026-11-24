@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CORRECTION_MAX,
+  CORRECTION_MIN,
   canPause,
+  correctSettlement,
   elapsedMs,
+  nudgeMinutes,
   endsAt,
   isFinished,
   pauseTimer,
@@ -79,5 +83,34 @@ describe('«закончила раньше»', () => {
     t = pauseTimer(t, T0 + 10 * MIN);
     t = resumeTimer(t, T0 + 40 * MIN);
     expect(settleTimer(t, T0 + 45 * MIN)).toEqual({ minutes: 15, full: false });
+  });
+});
+
+describe('правка времени', () => {
+  const t = startTimer('x', 30, T0);
+
+  it('меньше запланированного — как «закончила раньше», столько же и больше — полное', () => {
+    expect(correctSettlement(t, 10)).toEqual({ minutes: 10, full: false });
+    expect(correctSettlement(t, 30)).toEqual({ minutes: 30, full: true });
+    expect(correctSettlement(t, 45)).toEqual({ minutes: 45, full: true });
+  });
+
+  it('не выходит за пределы', () => {
+    expect(correctSettlement(t, 0)).toEqual({ minutes: CORRECTION_MIN, full: false });
+    expect(correctSettlement(t, 10_000).minutes).toBe(CORRECTION_MAX);
+    expect(correctSettlement(t, 12.6).minutes).toBe(13);
+  });
+
+  it('«−» и «+» — шагом 5 с выравниванием, внизу — по минуте', () => {
+    expect(nudgeMinutes(23, 1)).toBe(25);
+    expect(nudgeMinutes(25, 1)).toBe(30);
+    expect(nudgeMinutes(23, -1)).toBe(20);
+    expect(nudgeMinutes(25, -1)).toBe(20);
+    expect(nudgeMinutes(7, -1)).toBe(5);
+    expect(nudgeMinutes(5, -1)).toBe(4);
+    expect(nudgeMinutes(2, -1)).toBe(1);
+    expect(nudgeMinutes(1, -1)).toBe(CORRECTION_MIN);
+    expect(nudgeMinutes(3, 1)).toBe(5);
+    expect(nudgeMinutes(CORRECTION_MAX, 1)).toBe(CORRECTION_MAX);
   });
 });

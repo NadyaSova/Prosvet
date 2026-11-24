@@ -18,7 +18,17 @@ import { answerPigeon, feathersOf, isOverdue, lateInvite, launchPigeon, returnSi
 import { applyCompletion, applyFeather, refreshStreak, type Completion, type FeatherReport, type RewardReport } from './rewards';
 import type { Rng } from './rng';
 import { dayOf } from './time';
-import { endsAt, isFinished, pauseTimer, resumeTimer, settleTimer, startTimer, type TimerState } from './timer';
+import {
+  correctSettlement,
+  endsAt,
+  isFinished,
+  pauseTimer,
+  plannedMinutes,
+  resumeTimer,
+  settleTimer,
+  startTimer,
+  type TimerState,
+} from './timer';
 import { isDistrictOpen, plantForCompletion, plantItem } from './valley';
 
 /** Идущее таймерное задание. Название и ветка хранятся в нём, чтобы разовые задания не нужно было сохранять. */
@@ -151,6 +161,8 @@ function withPlant(
  * Завершает таймерное задание: время вышло — полная награда с картой добычи;
  * «закончила раньше» — награда за отработанные минуты, без карты.
  * Если время вышло раньше now (приложение было закрыто), задание засчитывается в день, когда время вышло.
+ * minutes — время, поправленное пользователем (docs/phase2-plan.md §3): засчитывается оно, а не измеренное.
+ * Чтобы поправить уже засчитанное, интерфейс повторяет вызов на состоянии до завершения с тем же сидом генератора.
  * null — таймера нет или отработано меньше минимума (засчитывать нечего).
  */
 export function finishTimedTask(
@@ -158,12 +170,14 @@ export function finishTimedTask(
   templates: readonly TaskTemplate[],
   now: number,
   rng: Rng,
+  minutes?: number,
 ): { state: GameState; done: CompletedTask } | null {
   const t = state.timer;
   if (!t) return null;
-  const settled = settleTimer(t, now);
-  if (!settled) return null;
-  const at = settled.full ? Math.min(now, endsAt(t) ?? now) : now;
+  const measured = settleTimer(t, now);
+  if (!measured) return null;
+  const settled = minutes === undefined ? measured : correctSettlement(t, minutes);
+  const at = isFinished(t, now) ? Math.min(now, endsAt(t) ?? now) : now;
   const completion: Completion = {
     kind: 'timed',
     branch: t.branch,
@@ -180,7 +194,7 @@ export function finishTimedTask(
       branch: t.branch,
       report,
       minutes: settled.minutes,
-      plannedMinutes: Math.round(t.durationMs / 60_000),
+      plannedMinutes: plannedMinutes(t),
       full: settled.full,
       whileAway: false,
       planted: grown.planted,
@@ -248,17 +262,19 @@ export function completeDoneTask(
 /**
  * При открытии приложения и при возвращении в него: засчитывает таймер, если время вышло,
  * проверяет серию (сгоревшие поленья, прерванная серия) и приводит доску в порядок.
+ * minutes — поправленное время таймера (см. finishTimedTask).
  */
 export function onOpen(
   state: GameState,
   templates: readonly TaskTemplate[],
   now: number,
   rng: Rng,
+  minutes?: number,
 ): { state: GameState; done: CompletedTask | null; news: StreakNews } {
   let next = state;
   let done: CompletedTask | null = null;
   if (next.timer && isFinished(next.timer, now)) {
-    const r = finishTimedTask(next, templates, now, rng)!;
+    const r = finishTimedTask(next, templates, now, rng, minutes)!;
     next = r.state;
     done = { ...r.done, whileAway: true };
   }
