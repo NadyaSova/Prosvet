@@ -39,6 +39,20 @@ export const BALANCE = {
      * «Написать» — ×1,5 (docs/phase2-plan.md §4.5).
      */
     rewardFactor: { 'threads-write': 1.5 } as Readonly<Record<string, number>>,
+    /**
+     * Бонус за ответ на вопрос при остановке таймера (docs/phase2-plan.md §4): опыт — ветке задания.
+     * На множитель задания не умножается. [ПРЕДЛОЖЕНО]
+     * sent — «Написать»: отправила; finding — записала находку после чтения сообществ;
+     * found — нашлась подходящая вакансия; verdict — решила по вакансии «откликаться» или «нет» («подумать» — без бонуса).
+     */
+    stopBonus: {
+      sent: { xp: 10, gold: 5 },
+      finding: { xp: 8, gold: 4 },
+      found: { xp: 5, gold: 3 },
+      verdict: { xp: 5, gold: 3 },
+    },
+    /** Находка — не длиннее стольких знаков. */
+    findingMaxLength: 300,
   },
 
   pigeons: {

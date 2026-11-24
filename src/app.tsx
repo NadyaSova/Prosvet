@@ -22,6 +22,7 @@ import {
   type GameState,
   type ReturnedFeather,
   type StreakNews,
+  type TimerFix,
 } from './logic/game';
 import { allSkills, createEntry, updateEntry, type EntryFields } from './logic/journal';
 import { pickPhrase } from './logic/phrases';
@@ -32,7 +33,7 @@ import { mergeTemplates } from './logic/tasks';
 import { createRng, randomSeed } from './logic/rng';
 import { dayOf } from './logic/time';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
-import type { Achievement, Branch, LoftState, Pigeon, Settings, ShopState, TaskTemplate } from './model/types';
+import type { Achievement, Branch, Finding, LoftState, Pigeon, Settings, ShopState, StopAnswer, TaskTemplate } from './model/types';
 import { requestPersistence, type Persistence } from './storage/browser';
 import { openProsvetDb, type ProsvetDb } from './storage/db';
 import {
@@ -133,8 +134,9 @@ function useNow(interval: number): number {
 }
 
 /**
- * Как пересчитать засчитанный таймер с поправленным временем (docs/phase2-plan.md §3): то же действие
- * на состоянии до завершения, с тем же сидом генератора — карта добычи и место растения те же, если они остаются.
+ * Как пересчитать засчитанный таймер с поправленным временем или с ответом на вопрос при остановке
+ * (docs/phase2-plan.md §3, §4): то же действие на состоянии до завершения, с тем же сидом генератора —
+ * карта добычи и место растения те же, если они остаются.
  */
 interface Redo {
   before: GameState;
@@ -146,13 +148,22 @@ interface Redo {
   open: boolean;
 }
 
-type QueuedReward = ShownReward & { seq: number; redo?: Redo };
+type QueuedReward = ShownReward & {
+  seq: number;
+  redo?: Redo;
+  /** Что уже поправлено: минуты и ответ на вопрос. */
+  fix?: TimerFix;
+  /** Id находки, записанной с этого экрана: при пересчёте она перезаписывается, а не дублируется. */
+  findingId?: string;
+  /** Куда улетел голубь, отправленный с этого экрана. */
+  sentTo?: string;
+};
 
 /** Завершение таймера: по концу времени или «закончила раньше» — или при открытии приложения. */
-function settleTimed(redo: Omit<Redo, 'after'>, templates: readonly TaskTemplate[], minutes?: number) {
+function settleTimed(redo: Omit<Redo, 'after'>, templates: readonly TaskTemplate[], fix: TimerFix = {}) {
   const rng = createRng(redo.seed);
-  if (!redo.open) return finishTimedTask(redo.before, templates, redo.now, rng, minutes);
-  const r = onOpen(redo.before, templates, redo.now, rng, minutes);
+  if (!redo.open) return finishTimedTask(redo.before, templates, redo.now, rng, fix);
+  const r = onOpen(redo.before, templates, redo.now, rng, fix);
   return r.done ? { state: r.state, done: r.done } : null;
 }
 
@@ -262,18 +273,27 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     return r.done;
   }
 
-  /** «Поправить время» на экране награды: пересчитать задание с другими минутами. */
-  function correctTime(item: QueuedReward, minutes: number) {
+  /**
+   * «Поправить время» или ответ на вопрос при остановке: пересчитать задание с новыми минутами или ответом.
+   * Находка пишется вместе с наградой за неё.
+   */
+  function redoReward(item: QueuedReward, fix: TimerFix) {
     const redo = item.redo;
     if (!redo || gameRef.current !== redo.after) return;
-    const r = settleTimed(redo, templatesRef.current, minutes);
+    const r = settleTimed(redo, templatesRef.current, fix);
     if (!r) return;
-    commit(r.state);
+    const a = r.done.answer;
+    const finding: Finding | undefined =
+      a?.ask === 'finding' ? { id: item.findingId ?? crypto.randomUUID(), createdAt: redo.now, text: a.text } : undefined;
+    commit(r.state, finding ? { finding } : {});
     if (r.done.planted) setFresh(r.done.planted.id);
     const loot = r.done.report.loot;
     const shown: QueuedReward = {
       ...item,
       ...r.done,
+      answer: r.done.answer,
+      fix,
+      findingId: finding?.id ?? item.findingId,
       cardPhrase: loot?.kind === 'phrase' ? (item.cardPhrase ?? (r.done.report.comeback ? takePhrase('finish') : item.phrase)) : undefined,
       streakPhrase: r.done.report.streakMilestones.length > 0 ? (item.streakPhrase ?? takePhrase('streak')) : undefined,
       redo: { ...redo, after: r.state },
@@ -574,15 +594,30 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const question = asking ? { pigeon: asking, day: dueQuestion(asking, now)! } : null;
 
   if (reward) {
-    const callTask = reward.branch === 'call' && reward.minutes !== undefined;
+    // Своё задание Зова — ссылка в голубятню; у Отклика вместо неё вопрос «Отправила?».
+    const callTask = reward.branch === 'call' && reward.minutes !== undefined && reward.ask !== 'pigeon';
     const close = () => setRewards((q) => q.slice(1));
+    const canRedo = reward.redo?.after === game;
     screen = (
       <RewardScreen
         key={reward.seq}
         reward={reward}
         onClose={close}
         onLoft={callTask ? () => { close(); go('loft'); } : undefined}
-        onCorrect={reward.redo?.after === game ? (minutes) => correctTime(reward, minutes) : undefined}
+        onCorrect={canRedo ? (minutes) => redoReward(reward, { ...reward.fix, minutes }) : undefined}
+        onAnswer={canRedo ? (answer: StopAnswer) => redoReward(reward, { ...reward.fix, answer }) : undefined}
+        pigeon={
+          reward.ask === 'pigeon'
+            ? {
+                loft,
+                sentTo: reward.sentTo,
+                onSend: (perchIndex, company) => {
+                  launch(perchIndex, company);
+                  setRewards((q) => q.map((x) => (x.seq === reward.seq ? { ...x, sentTo: company } : x)));
+                },
+              }
+            : undefined
+        }
       />
     );
   } else if (feather) {

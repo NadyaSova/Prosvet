@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../logic/rng';
 import { emptyValley, plantForCompletion } from '../logic/valley';
 import { createPlayer } from '../model/player';
-import type { Achievement, Boss, Pigeon, TaskTemplate } from '../model/types';
+import type { Achievement, Boss, Finding, Pigeon, TaskTemplate } from '../model/types';
 import {
   BackupError,
   backupFileName,
@@ -18,6 +18,7 @@ import { openProsvetDb, SCHEMA_VERSION } from './db';
 import {
   normalizeBoss,
   normalizeBosses,
+  normalizeFinding,
   normalizeLoft,
   normalizePigeon,
   normalizePlayer,
@@ -30,6 +31,7 @@ import {
   listAchievements,
   listBosses,
   listCustomTasks,
+  listFindings,
   listPigeons,
   loadAppData,
   putAchievement,
@@ -513,6 +515,63 @@ describe('боссы', () => {
   it('секундомер остаётся только у запущенного последним', () => {
     const list = normalizeBosses([boss, { ...boss, id: 'b2', stopwatch: { startedAt: NOW + 2 * DAY_MS } }]);
     expect(list.filter((b) => b.stopwatch).map((b) => b.id)).toEqual(['b2']);
+  });
+});
+
+describe('находки', () => {
+  const finding: Finding = { id: 'f1', createdAt: NOW, text: 'Митап по Rust в Хайфе' };
+  const emptyGame = () => ({ player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null, valley: emptyValley() });
+
+  it('находка и бонус за неё пишутся вместе; повторная запись того же id не дублирует', async () => {
+    const db = await freshDb();
+    const data = await loadAppData(db, NOW);
+    await saveGame(db, { ...data, player: { ...data.player, gold: 4 } }, { finding });
+    await saveGame(db, { ...data, player: { ...data.player, gold: 4 } }, { finding });
+    expect((await loadAppData(db, NOW)).player.gold).toBe(4);
+    expect(await listFindings(db)).toEqual([finding]);
+  });
+
+  it('база версии 3 обновляется до версии 4: боссы на месте, находок нет', async () => {
+    const name = `test-upgrade-${dbCounter++}`;
+    const v3 = await openDB(name, 3, {
+      upgrade(db) {
+        db.createObjectStore('kv');
+        db.createObjectStore('tasks', { keyPath: 'id' });
+        db.createObjectStore('achievements', { keyPath: 'id' }).createIndex('byUpdatedAt', 'updatedAt');
+        db.createObjectStore('pigeons', { keyPath: 'id' });
+        db.createObjectStore('bosses', { keyPath: 'id' });
+      },
+    });
+    await v3.put('bosses', { id: 'b', title: 'Б', kind: 'endless', branch: 'scouting', status: 'active', place: { seed: 1 }, sessions: [], createdAt: NOW });
+    v3.close();
+    const db = await openProsvetDb(name);
+    expect((await loadAppData(db, NOW)).bosses.map((b) => b.id)).toEqual(['b']);
+    expect(await listFindings(db)).toEqual([]);
+  });
+
+  it('копия с находками — туда и обратно; копия версии 3 загружается без находок', async () => {
+    const source = await freshDb();
+    await loadAppData(source, NOW);
+    await saveGame(source, emptyGame(), { finding });
+    const text = serializeSnapshot(await exportSnapshot(source, NOW));
+    const target = await freshDb();
+    await saveGame(target, emptyGame(), { finding: { ...finding, id: 'лишняя' } });
+    await importSnapshot(target, parseSnapshot(text));
+    expect(await listFindings(target)).toEqual([finding]);
+
+    const v3 = parseSnapshot(
+      JSON.stringify({ app: 'prosvet', schemaVersion: 3, data: { kv: {}, tasks: [], achievements: [], pigeons: [], bosses: [] } }),
+    );
+    expect(v3.data.findings).toEqual([]);
+    expect(() =>
+      parseSnapshot(JSON.stringify({ app: 'prosvet', schemaVersion: 4, data: { kv: {}, tasks: [], achievements: [], pigeons: [], bosses: [] } })),
+    ).toThrow(BackupError);
+  });
+
+  it('испорченные находки отбрасываются, пробелы убираются', () => {
+    expect(normalizeFinding({ id: 'x', text: '  ' })).toBeNull();
+    expect(normalizeFinding({ text: 'без id' })).toBeNull();
+    expect(normalizeFinding({ id: 'x', text: '  Канал  о  найме ' })).toEqual({ id: 'x', createdAt: 0, text: 'Канал о найме' });
   });
 });
 

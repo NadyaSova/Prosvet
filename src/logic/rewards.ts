@@ -8,14 +8,16 @@ import { thresholdsCrossed } from './pigeons';
 import { levelInfo, totalXp } from './progression';
 import type { Rng } from './rng';
 import { addLog, recordActivity, resolveStreak } from './streak';
+import type { StopBonus } from './stop-questions';
 import { dayOf } from './time';
 
 /**
  * factor — множитель опыта и золота за минуты (BALANCE.tasks.rewardFactor); нет — 1.
  * stars — звёзды за само задание (особый элемент бесконечного босса, docs/phase2-plan.md §5.3).
+ * bonus — за ответ на вопрос при остановке (logic/stop-questions.ts); на factor не умножается.
  */
 export type Completion =
-  | { kind: 'timed'; branch: Branch; minutes: number; full: boolean; factor?: number; stars?: number }
+  | { kind: 'timed'; branch: Branch; minutes: number; full: boolean; factor?: number; stars?: number; bonus?: StopBonus | null }
   | { kind: 'instant'; branch: Branch; instant: InstantKind };
 
 export interface RewardReport {
@@ -37,6 +39,8 @@ export interface RewardReport {
   stars: number;
   /** Из них — звёзды за само задание (мероприятие, особый элемент бесконечного босса). */
   taskStars: number;
+  /** Бонус за ответ на вопрос при остановке; уже входит в xp и gold. null — бонуса нет. */
+  bonus: StopBonus | null;
   streakMilestones: number[];
   logsBurned: number;
   comeback: boolean;
@@ -47,8 +51,8 @@ function baseReward(c: Completion): { xp: number; gold: number; stars: number } 
     const round = c.full ? Math.round : Math.floor;
     const factor = c.factor ?? 1;
     return {
-      xp: round(c.minutes * BALANCE.xp.perTimedMinute * factor),
-      gold: round(c.minutes * BALANCE.gold.perTimedMinute * factor),
+      xp: round(c.minutes * BALANCE.xp.perTimedMinute * factor) + (c.bonus?.xp ?? 0),
+      gold: round(c.minutes * BALANCE.gold.perTimedMinute * factor) + (c.bonus?.gold ?? 0),
       stars: c.stars ?? 0,
     };
   }
@@ -135,6 +139,7 @@ export function applyCompletion(
       newBranchLevel: newBranchLevel > oldBranchLevel ? newBranchLevel : null,
       stars,
       taskStars,
+      bonus: c.kind === 'timed' ? (c.bonus ?? null) : null,
       streakMilestones: activity.milestones,
       logsBurned: activity.logsBurned,
       comeback: activity.comeback,

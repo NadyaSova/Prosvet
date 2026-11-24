@@ -1202,7 +1202,8 @@ h2 {
 
 /* Кнопка-булавка вверху записки — матовая и чуть выпуклая: мягкий свет сверху слева, край темнее. */
 .task::before,
-.note::before {
+.note::before,
+.reward-note::before {
   content: '';
   position: absolute;
   left: 50%;
@@ -1213,7 +1214,8 @@ h2 {
   box-shadow: var(--shadow-pin);
 }
 
-.task::before {
+.task::before,
+.reward-note::before {
   top: -5px;
   width: 14px;
   height: 14px;
@@ -1352,7 +1354,9 @@ h2 {
 
 @media (prefers-reduced-motion: reduce) {
   .note-layer,
-  .note {
+  .note,
+  .reward-note,
+  .tick__mark {
     animation: none;
   }
 }
@@ -1461,10 +1465,7 @@ body.no-scroll {
   max-width: 26ch;
 }
 
-/* Правка времени: ссылка под названием, по нажатию — лист со счётчиком минут. */
-.reward__fix {
-  margin-top: calc(-1 * var(--space-3));
-}
+/* Правка времени: ссылка «поправить время» в строке прибавки, по нажатию — лист со счётчиком минут на месте строки. */
 
 .reward__correct {
   width: 100%;
@@ -1483,6 +1484,201 @@ body.no-scroll {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
+  width: 100%;
+}
+
+/* Вопрос при остановке таймера — записка, как задание на доске: бумага, подкрашенная цветом ветки,
+   булавка (общее правило .task::before, .note::before), лёгкий наклон. Стоит последней перед «Дальше».
+   После ответа сворачивается в одну строку с итогом и «изменить». */
+.reward-note {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 340px;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--branch) 10%, var(--color-paper));
+  box-shadow: var(--shadow-paper);
+  text-align: left;
+  transform: rotate(-0.6deg);
+  animation: note-fade 0.25s ease-out;
+}
+
+/* Пока в записке пишут, она ровная: на наклонённом листке браузер рисует курсор размытым, и его не видно. */
+.reward-note:focus-within {
+  transform: none;
+}
+
+.reward-note p {
+  margin: 0;
+}
+
+.reward-note__question {
+  font-weight: 550;
+}
+
+.reward-note__hint {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.reward-note__summary {
+  line-height: 1.5;
+}
+
+/* «· изменить» не отрывается от строки по одному слову. */
+.reward-note__edit {
+  white-space: nowrap;
+}
+
+/* Ссылка на записке — тёмным цветом ветки: зелёный на малиновой бумаге Нитей был ниже 4.5 : 1. */
+.reward-note .link-button.reward__link {
+  color: var(--branch-ink);
+}
+
+/* Внутри записки всё «написано на бумаге»: галочки, линия для письма, текст чернилами.
+   Дощечка на экране одна — «Дальше» (решение пользователя, 24.11.2026). */
+
+/* Ответы — строки анкеты с квадратиком: каждый ответ — строка 44 px, друг под другом. */
+.reward-note__ticks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Ответ уже не поменять (награду пересчитать нельзя): галочка только показывает выбранное. */
+.tick:disabled {
+  cursor: default;
+}
+
+/* Квадратик нарисован чернилами. */
+.tick__box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--color-text);
+  border-radius: 3px;
+}
+
+/* Галочка — цветом ветки, чуть выходит за квадратик, как от руки. */
+.tick__box svg {
+  width: 24px;
+  height: 24px;
+  margin: -4px -2px 0 2px;
+  overflow: visible;
+}
+
+.tick__mark {
+  fill: none;
+  stroke: var(--branch-ink, var(--color-accent));
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 30;
+  animation: tick-draw 0.25s ease-out;
+}
+
+@keyframes tick-draw {
+  from { stroke-dashoffset: 30; }
+}
+
+@media (hover: hover) {
+  .tick:hover:not(:disabled) .tick__box {
+    background: color-mix(in srgb, var(--branch, var(--color-accent)) 15%, transparent);
+  }
+}
+
+/* Поле — линия для письма: только нижняя черта чернилами, без рамки и белого фона. */
+.ink-input {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) 2px var(--space-1);
+  border: none;
+  border-bottom: 1.5px solid var(--color-text);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  /* Курсор — цветом ветки: на подкрашенной бумаге тонкий тёмный курсор почти не виден. */
+  caret-color: var(--branch-ink, var(--color-accent));
+  font: inherit;
+}
+
+.ink-input::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Фокус — черта темнеет цветом ветки и становится толще, вместо кольца вокруг. */
+.ink-input:focus {
+  outline: none;
+  border-bottom: 2.5px solid var(--branch-ink, var(--color-accent));
+}
+
+/* Кнопки на записке — текст чернилами: «Отмена» слева, серая; главное действие справа, цветом ветки. */
+.ink-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ink-actions__main {
+  margin-left: auto;
+}
+
+.ink-button {
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  border: none;
+  background: none;
+  color: var(--branch-ink, var(--color-accent));
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.ink-button--quiet {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.ink-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .ink-button:hover:not(:disabled) {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.reward-note__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reward__perch {
   width: 100%;
 }
 
@@ -2239,9 +2435,11 @@ textarea:focus {
   font-size: var(--icon-md);
 }
 
-/* «изменить» стоит внутри строки текста — остаётся текстовой ссылкой, без дерева. */
+/* «изменить», «поправить время» стоят внутри строки текста — остаются текстовой ссылкой, без дерева. */
 .link-button.prize__edit,
-.link-button.prize__edit:active {
+.link-button.prize__edit:active,
+.link-button.reward__link,
+.link-button.reward__link:active {
   min-height: 0;
   padding: 0;
   background: none;
@@ -2338,6 +2536,17 @@ textarea:focus {
   content: '';
   position: absolute;
   inset: -2px 0;
+}
+
+/* Ссылка в строке текста: нажимать можно и над и под строкой — до 44 px. */
+.reward__link {
+  position: relative;
+}
+
+.reward__link::before {
+  content: '';
+  position: absolute;
+  inset: -12px -4px;
 }
 
 .valley-card__expand::before {

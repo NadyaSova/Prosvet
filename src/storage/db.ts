@@ -6,6 +6,7 @@ import type {
   Achievement,
   BoardState,
   Boss,
+  Finding,
   LoftState,
   Pigeon,
   PlayerState,
@@ -21,7 +22,7 @@ export const DB_NAME = 'prosvet';
  * Версия схемы. Повышается, когда меняются хранилища или формат записей.
  * Та же версия пишется в резервную копию, чтобы старые копии можно было обновить при загрузке.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Одиночные записи в хранилище kv: ключ → тип значения. */
 export interface KvMap {
@@ -55,9 +56,11 @@ export interface ProsvetSchema extends DBSchema {
   pigeons: { key: string; value: Pigeon };
   /** Боссы — во всех состояниях: в работе, побеждённые, отпущенные, в архиве. Появились в версии 3. */
   bosses: { key: string; value: Boss };
+  /** Находки после чтения сообществ. Появились в версии 4. */
+  findings: { key: string; value: Finding };
 }
 
-export const STORE_NAMES = ['kv', 'tasks', 'achievements', 'pigeons', 'bosses'] as const;
+export const STORE_NAMES = ['kv', 'tasks', 'achievements', 'pigeons', 'bosses', 'findings'] as const;
 export type StoreName = (typeof STORE_NAMES)[number];
 
 export type ProsvetDb = IDBPDatabase<ProsvetSchema>;
@@ -77,6 +80,9 @@ export function openProsvetDb(name = DB_NAME): Promise<ProsvetDb> {
       }
       if (oldVersion < 3) {
         db.createObjectStore('bosses', { keyPath: 'id' });
+      }
+      if (oldVersion < 4) {
+        db.createObjectStore('findings', { keyPath: 'id' });
       }
     },
     // Открылась новая версия приложения в другой вкладке — закрываем старое соединение, чтобы не мешать обновлению.

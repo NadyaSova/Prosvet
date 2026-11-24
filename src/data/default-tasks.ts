@@ -3,7 +3,7 @@
 // Метка journal — на экране таймера есть кнопка «Открыть Летопись»; drafts — Летопись открывается на черновиках.
 // Id заданий, которые остались по смыслу прежними, не менялись: по ним хранятся скрытые задания и доска
 // (поэтому у Подготовки id начинаются с speech-, а у отклика — с hunt-).
-// Вопросы при остановке («Отправила?», находка, итог разбора) — шаг 4 фазы 2, здесь их нет.
+// ask — вопрос на экране награды, когда таймер остановлен (шаг 4 фазы 2; бонусы — BALANCE.tasks.stopBonus).
 
 import type { TaskTemplate } from '../model/types';
 
@@ -19,21 +19,21 @@ export const DEFAULT_TASKS: TaskTemplate[] = [
     title: 'Раскопки: пройти по задачам, коммитам или переписке за период или проект и выписать достижения' },
 
   // Разведка — §4.2
-  { id: 'scouting-communities', branch: 'scouting', kind: 'timed', minutes: 15, onBoard: true,
+  { id: 'scouting-communities', branch: 'scouting', kind: 'timed', minutes: 15, onBoard: true, ask: 'finding',
     title: 'Почитать сообщества: группы, каналы, ленту LinkedIn' },
 
   // Охота — §4.3
-  { id: 'hunt-browse', branch: 'hunt', kind: 'timed', minutes: 20, onBoard: true,
+  { id: 'hunt-browse', branch: 'hunt', kind: 'timed', minutes: 20, onBoard: true, ask: 'found',
     title: 'Поиск вакансий: пройти один источник и разложить на «интересно» и «мимо»' },
-  { id: 'hunt-review', branch: 'hunt', kind: 'timed', minutes: 15, onBoard: true,
+  { id: 'hunt-review', branch: 'hunt', kind: 'timed', minutes: 15, onBoard: true, ask: 'verdict',
     title: 'Разобрать одну вакансию: требования, офис и дорога, язык, занятость, вилка, свежесть, кто разместил. Откликаться, нет или подумать?' },
 
-  // Зов — §4.4. Отметка отправленного отклика и ответов на него — в голубятне (ui/LoftScreen.tsx).
-  { id: 'hunt-apply-session', branch: 'call', kind: 'timed', minutes: 30, onBoard: true,
+  // Зов — §4.4. «Отправила?» при остановке отправляет голубя; отправить его можно и из голубятни (ui/LoftScreen.tsx).
+  { id: 'hunt-apply-session', branch: 'call', kind: 'timed', minutes: 30, onBoard: true, ask: 'pigeon',
     title: 'Отклик: резюме под вакансию через Claude, сопроводительное письмо, отправить' },
 
   // Нити — §4.5. Награда «Написать» — ×1,5 (BALANCE.tasks.rewardFactor).
-  { id: 'threads-write', branch: 'threads', kind: 'timed', minutes: 20, onBoard: true,
+  { id: 'threads-write', branch: 'threads', kind: 'timed', minutes: 20, onBoard: true, ask: 'sent',
     title: 'Написать: знакомому, в сообщество или комментарий под постом' },
   // Мероприятие на доску не попадает: отмечается в любой день на экране «Своё задание», «Уже сделала».
   { id: 'threads-event', branch: 'threads', kind: 'instant', instant: 'event', onBoard: false,

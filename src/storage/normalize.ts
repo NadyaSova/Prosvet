@@ -6,6 +6,7 @@ import { BALANCE } from '../config/balance';
 import type { RunningTask } from '../logic/game';
 import { ENTRY_PARTS, normalizeSkills } from '../logic/journal';
 import { lookKey } from '../logic/pigeons';
+import { cleanFinding } from '../logic/stop-questions';
 import { CAPACITY } from '../logic/valley';
 import { createPlayer } from '../model/player';
 import {
@@ -21,6 +22,7 @@ import {
   type GardenKind,
   type LandmarkKind,
   type Coupon,
+  type Finding,
   type TaskTemplate,
   type Prize,
   type ShopState,
@@ -330,6 +332,18 @@ export function normalizeBosses(raw: readonly unknown[]): Boss[] {
   const running = list.filter((b) => b.stopwatch).sort((a, b) => b.stopwatch!.startedAt - a.stopwatch!.startedAt);
   for (const b of running.slice(1)) delete b.stopwatch;
   return list;
+}
+
+/** Находка из базы или копии. null — без id или с пустым текстом. */
+export function normalizeFinding(raw: unknown): Finding | null {
+  if (!isObject(raw) || typeof raw.id !== 'string' || typeof raw.text !== 'string') return null;
+  const text = cleanFinding(raw.text);
+  if (!text) return null;
+  return { id: raw.id, createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : 0, text };
+}
+
+export function normalizeFindings(raw: readonly unknown[]): Finding[] {
+  return raw.map(normalizeFinding).filter((f) => f !== null);
 }
 
 /** Значок приза — короткая строка (эмодзи); остальное отбрасываем. */

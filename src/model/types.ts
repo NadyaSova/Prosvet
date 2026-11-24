@@ -21,6 +21,24 @@ export type TaskMinutes = (typeof TASK_MINUTES)[number];
  */
 export type InstantKind = 'application' | 'journal' | 'event';
 
+/**
+ * Вопрос на экране награды, когда таймер остановлен (docs/phase2-plan.md §4):
+ * pigeon — «Отправила отклик?» → голубь улетает (Отклик); sent — «Отправила?» → бонус (Написать);
+ * finding — необязательная строка-находка → бонус (Чтение сообществ); found — «Нашлась подходящая?» → бонус
+ * (Поиск вакансий); verdict — «Откликаться, нет или подумать?» (Разбор вакансии).
+ */
+export type StopQuestion = 'pigeon' | 'sent' | 'finding' | 'found' | 'verdict';
+
+/** Итог разбора вакансии: откликаться, нет, подумать. */
+export type Verdict = 'apply' | 'skip' | 'think';
+
+/** Ответ на вопрос при остановке. Голубь (pigeon) отправляется отдельным действием, в ответах его нет. */
+export type StopAnswer =
+  | { ask: 'sent'; yes: boolean }
+  | { ask: 'found'; yes: boolean }
+  | { ask: 'finding'; text: string }
+  | { ask: 'verdict'; verdict: Verdict };
+
 interface TaskTemplateBase {
   id: string;
   branch: Branch;
@@ -31,6 +49,8 @@ interface TaskTemplateBase {
   onBoard: boolean;
   /** Пользователь скрыла задание. */
   hidden?: boolean;
+  /** Вопрос при остановке таймера. */
+  ask?: StopQuestion;
 }
 
 export type TaskTemplate = TaskTemplateBase &
@@ -168,6 +188,16 @@ export interface ValleyState {
   decor: ValleyDecor[];
   /** Купленные вещи лагеря; каждая — не больше одной. */
   camp: CampKind[];
+}
+
+/**
+ * Находка — строка, записанная после чтения сообществ (docs/phase2-plan.md §4.2): мероприятие, компания,
+ * человек, роль, ресурс. Экрана в приложении нет — читать их будет документ «Находки» на Google Drive (§7).
+ */
+export interface Finding {
+  id: string;
+  createdAt: number;
+  text: string;
 }
 
 /** Внешний приз — шаблон, который пользователь заводит сама. SPEC.md §9.5. */

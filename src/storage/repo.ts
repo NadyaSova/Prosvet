@@ -9,6 +9,7 @@ import type {
   Achievement,
   BoardState,
   Boss,
+  Finding,
   LoftState,
   Pigeon,
   PlayerState,
@@ -23,6 +24,7 @@ import {
   normalizeAchievements,
   normalizeBoard,
   normalizeBosses,
+  normalizeFindings,
   normalizeLoft,
   normalizePhrases,
   normalizePigeons,
@@ -113,14 +115,17 @@ export interface SaveExtras {
   shop?: ShopState;
   /** Новые и изменённые боссы: подход и награда за него пишутся вместе. */
   bosses?: readonly Boss[];
+  /** Находка после чтения сообществ: бонус за неё и она сама пишутся вместе. */
+  finding?: Finding;
 }
 
 /**
- * Сохраняет игру одной транзакцией: игрока, доску, таймер и долину, а если переданы — запись журнала, голубей, жёрдочку, лавку и боссов.
+ * Сохраняет игру одной транзакцией: игрока, доску, таймер и долину, а если переданы — запись журнала, голубей,
+ * жёрдочку, лавку, боссов и находку.
  * Так награда и то, за что она дана, не могут разойтись: либо записалось всё, либо ничего.
  */
 export async function saveGame(db: ProsvetDb, game: GameState, extras: SaveExtras = {}): Promise<void> {
-  const tx = db.transaction(['kv', 'achievements', 'pigeons', 'bosses'], 'readwrite');
+  const tx = db.transaction(['kv', 'achievements', 'pigeons', 'bosses', 'findings'], 'readwrite');
   const kv = tx.objectStore('kv');
   const writes: Promise<unknown>[] = [
     kv.put(game.player, 'player'),
@@ -133,7 +138,13 @@ export async function saveGame(db: ProsvetDb, game: GameState, extras: SaveExtra
   if (extras.shop) writes.push(kv.put(extras.shop, 'shop'));
   for (const p of extras.pigeons ?? []) writes.push(tx.objectStore('pigeons').put(p));
   for (const b of extras.bosses ?? []) writes.push(tx.objectStore('bosses').put(b));
+  if (extras.finding) writes.push(tx.objectStore('findings').put(extras.finding));
   await Promise.all([...writes, tx.done]);
+}
+
+/** Находки по порядку записи. В приложении их не показывают — они для документа «Находки» (docs/phase2-plan.md §7). */
+export async function listFindings(db: ProsvetDb): Promise<Finding[]> {
+  return normalizeFindings(await db.getAll('findings')).sort((a, b) => a.createdAt - b.createdAt);
 }
 
 /** Боссы по порядку создания. */

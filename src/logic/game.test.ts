@@ -165,7 +165,7 @@ describe('правка времени при остановке', () => {
   it('время вышло, засчитать меньше — награда за минуты, без карты добычи', () => {
     const g = started();
     const full = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9))!;
-    const fixed = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9), 10)!;
+    const fixed = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9), { minutes: 10 })!;
     expect(fixed.done.minutes).toBe(10);
     expect(fixed.done.full).toBe(false);
     expect(fixed.done.report.loot).toBeNull();
@@ -176,7 +176,7 @@ describe('правка времени при остановке', () => {
   it('засчитать больше запланированного — полная награда за все минуты, та же карта добычи', () => {
     const g = started();
     const full = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9))!;
-    const more = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9), 45)!;
+    const more = finishTimedTask(g, DEFAULT_TASKS, NOW + 30 * MIN, createRng(9), { minutes: 45 })!;
     expect(more.done.minutes).toBe(45);
     expect(more.done.plannedMinutes).toBe(30);
     expect(more.done.full).toBe(true);
@@ -185,7 +185,7 @@ describe('правка времени при остановке', () => {
   });
 
   it('закончила раньше, засчитать всё время — с картой добычи', () => {
-    const r = finishTimedTask(started(), DEFAULT_TASKS, NOW + 12 * MIN, createRng(9), 30)!;
+    const r = finishTimedTask(started(), DEFAULT_TASKS, NOW + 12 * MIN, createRng(9), { minutes: 30 })!;
     expect(r.done.full).toBe(true);
     expect(r.done.report.loot).not.toBeNull();
   });
@@ -194,7 +194,7 @@ describe('правка времени при остановке', () => {
     const evening = new Date(2026, 10, 23, 23, 0).getTime();
     const g = startTimedTask(newGame(), { templateId: 'once', title: 'Вечернее', branch: 'call', minutes: 30 }, evening);
     const morning = new Date(2026, 10, 24, 8, 0).getTime();
-    const r = onOpen(g, DEFAULT_TASKS, morning, createRng(9), 10);
+    const r = onOpen(g, DEFAULT_TASKS, morning, createRng(9), { minutes: 10 });
     expect(r.done?.minutes).toBe(10);
     expect(r.done?.whileAway).toBe(true);
     expect(r.state.player.streak.lastActiveDay).toBe(dayOf(evening));
@@ -285,5 +285,87 @@ describe('«Написать» — награда ×1,5', () => {
     const r = finishTimedTask(g, DEFAULT_TASKS, NOW + 7 * MIN + 30_000, PHRASE)!;
     expect(r.done.report.xp).toBe(10); // 7 × 1,5 = 10,5 → вниз
     expect(r.done.report.gold).toBe(5); // 7 × 0,5 × 1,5 = 5,25 → вниз
+  });
+});
+
+describe('вопросы при остановке', () => {
+  /** Задание из стартового набора, запущенное в NOW. */
+  function startedTask(id: string): GameState {
+    const t = get(id);
+    if (t.kind !== 'timed') throw new Error('нужно таймерное');
+    return startTimedTask(newGame(), { templateId: t.id, title: t.title, branch: t.branch, minutes: t.minutes }, NOW);
+  }
+  const finish = (id: string, fix = {}, after?: number) => {
+    const g = startedTask(id);
+    return finishTimedTask(g, DEFAULT_TASKS, NOW + (after ?? g.timer!.durationMs), createRng(9), fix)!;
+  };
+
+  it('у заданий из §4 — свои вопросы', () => {
+    expect(finish('hunt-apply-session').done.ask).toBe('pigeon');
+    expect(finish('threads-write').done.ask).toBe('sent');
+    expect(finish('scouting-communities').done.ask).toBe('finding');
+    expect(finish('hunt-browse').done.ask).toBe('found');
+    expect(finish('hunt-review').done.ask).toBe('verdict');
+    expect(finish('craft-study').done.ask).toBeUndefined();
+  });
+
+  it('«Написать» отправила — бонус сверх ×1,5; не отправила — награда за время', () => {
+    const plain = finish('threads-write');
+    const sent = finish('threads-write', { answer: { ask: 'sent', yes: true } });
+    const notSent = finish('threads-write', { answer: { ask: 'sent', yes: false } });
+    const bonus = BALANCE.tasks.stopBonus.sent;
+    expect(sent.done.report.bonus).toEqual(bonus);
+    expect(sent.done.report.xp).toBe(plain.done.report.xp + bonus.xp);
+    expect(sent.state.player.gold).toBe(plain.state.player.gold + bonus.gold);
+    expect(sent.state.player.xp.threads).toBe(30 + bonus.xp);
+    expect(sent.done.answer).toEqual({ ask: 'sent', yes: true });
+    expect(notSent.done.report.bonus).toBeNull();
+    expect(notSent.state.player).toEqual(plain.state.player);
+  });
+
+  it('та же карта добычи и то же растение с ответом и без', () => {
+    const plain = finish('hunt-browse');
+    const found = finish('hunt-browse', { answer: { ask: 'found', yes: true } });
+    expect(found.done.report.loot).toEqual(plain.done.report.loot);
+    expect(found.done.planted).toEqual(plain.done.planted);
+  });
+
+  it('находка: бонус за непустую строку', () => {
+    expect(finish('scouting-communities', { answer: { ask: 'finding', text: 'Митап по Rust в Хайфе' } }).done.report.bonus).toEqual(
+      BALANCE.tasks.stopBonus.finding,
+    );
+    expect(finish('scouting-communities', { answer: { ask: 'finding', text: '   ' } }).done.report.bonus).toBeNull();
+  });
+
+  it('разбор вакансии: «нет» награждается так же, как «откликаться», «подумать» — без бонуса', () => {
+    const apply = finish('hunt-review', { answer: { ask: 'verdict', verdict: 'apply' } });
+    const skip = finish('hunt-review', { answer: { ask: 'verdict', verdict: 'skip' } });
+    const think = finish('hunt-review', { answer: { ask: 'verdict', verdict: 'think' } });
+    expect(skip.state.player).toEqual(apply.state.player);
+    expect(apply.done.report.bonus).toEqual(BALANCE.tasks.stopBonus.verdict);
+    expect(think.done.report.bonus).toBeNull();
+  });
+
+  it('ответ не к вопросу этого задания — без бонуса', () => {
+    const r = finish('hunt-review', { answer: { ask: 'sent', yes: true } });
+    expect(r.done.report.bonus).toBeNull();
+    expect(r.done.answer).toBeUndefined();
+  });
+
+  it('досрочная остановка — бонус тоже, вместе с правкой времени', () => {
+    const early = finish('hunt-browse', { answer: { ask: 'found', yes: true } }, 7 * MIN + 30_000);
+    expect(early.done.full).toBe(false);
+    expect(early.done.report.xp).toBe(7 + BALANCE.tasks.stopBonus.found.xp);
+    const fixed = finish('hunt-browse', { minutes: 25, answer: { ask: 'found', yes: true } }, 7 * MIN);
+    expect(fixed.done.full).toBe(true);
+    expect(fixed.done.report.xp).toBe(25 + BALANCE.tasks.stopBonus.found.xp);
+  });
+
+  it('время вышло при закрытом приложении — ответ учитывается при пересчёте', () => {
+    const g = startedTask('threads-write');
+    const later = NOW + 3 * 60 * MIN;
+    const r = onOpen(g, DEFAULT_TASKS, later, createRng(9), { answer: { ask: 'sent', yes: true } });
+    expect(r.done?.whileAway).toBe(true);
+    expect(r.done?.report.bonus).toEqual(BALANCE.tasks.stopBonus.sent);
   });
 });

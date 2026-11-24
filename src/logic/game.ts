@@ -9,6 +9,8 @@ import type {
   LoftState,
   Pigeon,
   PlayerState,
+  StopAnswer,
+  StopQuestion,
   TaskTemplate,
   ValleyDecor,
   ValleyPlant,
@@ -36,6 +38,7 @@ import {
   type VictoryReport,
 } from './rewards';
 import type { Rng } from './rng';
+import { stopBonus } from './stop-questions';
 import { dayOf } from './time';
 import {
   correctSettlement,
@@ -79,6 +82,20 @@ export interface CompletedTask {
   planted: ValleyPlant | null;
   /** Это растение заполнило район: тумана больше нет. */
   districtOpened: boolean;
+  /** Таймерное задание: из какого шаблона и какой у него вопрос при остановке. */
+  templateId?: string;
+  ask?: StopQuestion;
+  /** Ответ на вопрос, с которым посчитана награда. */
+  answer?: StopAnswer;
+}
+
+/**
+ * Что пользователь поправила на экране награды (docs/phase2-plan.md §3, §4): засчитанные минуты
+ * и ответ на вопрос при остановке.
+ */
+export interface TimerFix {
+  minutes?: number;
+  answer?: StopAnswer;
 }
 
 export interface StreakNews {
@@ -182,7 +199,8 @@ function withPlant(
  * Завершает таймерное задание: время вышло — полная награда с картой добычи;
  * «закончила раньше» — награда за отработанные минуты, без карты.
  * Если время вышло раньше now (приложение было закрыто), задание засчитывается в день, когда время вышло.
- * minutes — время, поправленное пользователем (docs/phase2-plan.md §3): засчитывается оно, а не измеренное.
+ * fix.minutes — время, поправленное пользователем (docs/phase2-plan.md §3): засчитывается оно, а не измеренное.
+ * fix.answer — ответ на вопрос при остановке (§4): бонус сверх награды за время, если ответ к вопросу этого задания.
  * Чтобы поправить уже засчитанное, интерфейс повторяет вызов на состоянии до завершения с тем же сидом генератора.
  * null — таймера нет или отработано меньше минимума (засчитывать нечего).
  */
@@ -191,20 +209,22 @@ export function finishTimedTask(
   templates: readonly TaskTemplate[],
   now: number,
   rng: Rng,
-  minutes?: number,
+  fix: TimerFix = {},
 ): { state: GameState; done: CompletedTask } | null {
   const t = state.timer;
   if (!t) return null;
   const measured = settleTimer(t, now);
   if (!measured) return null;
-  const settled = minutes === undefined ? measured : correctSettlement(t, minutes);
+  const settled = fix.minutes === undefined ? measured : correctSettlement(t, fix.minutes);
   const at = isFinished(t, now) ? Math.min(now, endsAt(t) ?? now) : now;
+  const ask = templates.find((x) => x.id === t.templateId)?.ask;
   const completion: Completion = {
     kind: 'timed',
     branch: t.branch,
     minutes: settled.minutes,
     full: settled.full,
     factor: rewardFactor(t.templateId),
+    bonus: stopBonus(ask, fix.answer),
   };
   const { state: player, report } = applyCompletion(state.player, completion, at, rng);
   const grown = withPlant(afterCompletion(state, player, t.templateId, templates, now, rng), completion, at, rng);
@@ -220,6 +240,9 @@ export function finishTimedTask(
       whileAway: false,
       planted: grown.planted,
       districtOpened: grown.districtOpened,
+      templateId: t.templateId,
+      ...(ask && { ask }),
+      ...(ask && fix.answer?.ask === ask && { answer: fix.answer }),
     },
   };
 }
@@ -283,19 +306,19 @@ export function completeDoneTask(
 /**
  * При открытии приложения и при возвращении в него: засчитывает таймер, если время вышло,
  * проверяет серию (сгоревшие поленья, прерванная серия) и приводит доску в порядок.
- * minutes — поправленное время таймера (см. finishTimedTask).
+ * fix — поправленное время таймера и ответ на вопрос при остановке (см. finishTimedTask).
  */
 export function onOpen(
   state: GameState,
   templates: readonly TaskTemplate[],
   now: number,
   rng: Rng,
-  minutes?: number,
+  fix: TimerFix = {},
 ): { state: GameState; done: CompletedTask | null; news: StreakNews } {
   let next = state;
   let done: CompletedTask | null = null;
   if (next.timer && isFinished(next.timer, now)) {
-    const r = finishTimedTask(next, templates, now, rng, minutes)!;
+    const r = finishTimedTask(next, templates, now, rng, fix)!;
     next = r.state;
     done = { ...r.done, whileAway: true };
   }
