@@ -120,10 +120,10 @@ const MILL_CAPS = ['#7d5638', '#66707a', '#8f4f3c'];
 const MILL_TURN_SECONDS = 20;
 
 /**
- * Движение в рисунках (крылья мельницы, вода акведука) — если в настройках телефона не включено «уменьшить движение».
- * Анимация SVG, а не CSS: её не выключить правилом в styles.css.
+ * Движение в рисунках (крылья мельницы, вода акведука, рыбки и бабочки мест в garden-art.tsx) — если в настройках
+ * телефона не включено «уменьшить движение». Анимация SVG, а не CSS: её не выключить правилом в styles.css.
  */
-function moves(): boolean {
+export function moves(): boolean {
   return typeof matchMedia === 'undefined' || !matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
