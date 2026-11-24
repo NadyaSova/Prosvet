@@ -815,24 +815,168 @@ function StoneCircle({ rng }: { rng: Rng }) {
   );
 }
 
-// ---------- Заглушка для ещё не нарисованных ----------
+// ---------- 10. Водопад с радугой ----------
 
-/** Пирамидка камней — пока рисунка сооружения нет. */
-function Cairn() {
-  const s = STONES[1]!;
+const ROCKS = [
+  { body: '#9c968c', light: '#b6b0a6', dark: '#7e786f' }, // серый
+  { body: '#a8977f', light: '#c1b19a', dark: '#887862' }, // тёплый
+  { body: '#8e958b', light: '#a8aea4', dark: '#727970' }, // зеленоватый, во мху
+];
+/** Цвета радуги — те же, что у радуги из карты добычи (decor-art.tsx). */
+const RAINBOW_COLORS = [PALETTE.petalPink, PALETTE.sun, PALETTE.glow, PALETTE.hillFar, PALETTE.river, PALETTE.petalLilac];
+const FOAM = '#f1f8fa';
+
+function Waterfall({ rng }: { rng: Rng }) {
+  const r = pickFrom(ROCKS, rng);
+  const flip = pickFrom([1, -1], rng);
+  const double = rng() < 0.35; // иногда радуга двойная
+  const run = moves();
+  const fall = 'M-5 -62 Q-6 -30 -8 -7 L14 -7 Q12 -30 11 -62 Z';
+  const streaks = [-3, 1, 5, 9];
   return (
-    <g>
-      <Shadow rx={14} />
-      <ellipse cx="0" cy="-5" rx="13" ry="5.5" fill={s.body} />
-      <ellipse cx="1" cy="-14" rx="9.5" ry="4.5" fill={s.light} />
-      <ellipse cx="-0.5" cy="-21.5" rx="6.5" ry="3.5" fill={s.body} />
-      <ellipse cx="0.5" cy="-27" rx="3.8" ry="2.5" fill={s.light} />
+    <g transform={`scale(${flip} 1)`}>
+      <Shadow rx={54} />
+      {/* скала */}
+      <path d="M-53 0 L-50 -38 Q-47 -53 -34 -57 L-16 -61 Q-9 -64 -5 -62 L11 -62 Q22 -66 33 -60 L45 -50 Q52 -40 52 -20 L54 0 Z" fill={r.body} />
+      <path d="M11 -62 Q22 -66 33 -60 L45 -50 Q52 -40 52 -20 L54 0 H22 Q26 -30 18 -50 Z" fill={r.dark} opacity="0.45" />
+      <path d="M-46 -40 Q-36 -42 -26 -38 M-48 -22 Q-38 -25 -24 -21 M26 -44 Q36 -46 44 -42 M30 -24 Q40 -27 50 -24 M-40 -52 Q-30 -55 -20 -52" stroke={r.light} stroke-width="1.2" fill="none" stroke-linecap="round" />
+      <ellipse cx="-34" cy="-30" rx="5" ry="1.6" fill={PALETTE.leafDark} opacity="0.55" />
+      <ellipse cx="38" cy="-36" rx="4" ry="1.3" fill={PALETTE.leafDark} opacity="0.5" />
+      {/* трава и деревья наверху */}
+      <path d="M-50 -38 Q-47 -53 -34 -57 L-16 -61 Q-9 -64 -5 -62 M11 -62 Q22 -66 33 -60 L45 -50" stroke={PALETTE.hillNear} stroke-width="3" fill="none" stroke-linecap="round" />
+      <g transform="translate(-30 -57)">
+        <rect x="-1" y="-5" width="2" height="5" fill={PALETTE.bark} />
+        <polygon points="0,-20 -6,-9 6,-9" fill={PALETTE.shadowGreen} />
+        <polygon points="0,-15 -7.5,-3.5 7.5,-3.5" fill={PALETTE.shadowGreen} />
+      </g>
+      <g transform="translate(-20 -60)">
+        <rect x="-0.8" y="-4" width="1.6" height="4" fill={PALETTE.bark} />
+        <polygon points="0,-14 -4.5,-6.5 4.5,-6.5" fill="#45734f" />
+        <polygon points="0,-10 -5.5,-2.5 5.5,-2.5" fill="#45734f" />
+      </g>
+      <circle cx="28" cy="-66" r="5" fill={PALETTE.leaf} />
+      <circle cx="33" cy="-64" r="4" fill={PALETTE.leafDark} />
+
+      {/* струя */}
+      <path d={fall} fill={PALETTE.river} />
+      <ellipse cx="3" cy="-62" rx="8.5" ry="1.8" fill="#bfe0ec" />
+      <g stroke={FOAM} fill="none" stroke-linecap="round" stroke-width="0.8" opacity="0.85">
+        {streaks.map((x, i) => (
+          <path key={x} d={`M${x} -61 Q${x - 0.5} -30 ${x - 1.5 + i * 0.6} -8`} stroke-dasharray={run ? '7 6' : undefined}>
+            {run && <animate attributeName="stroke-dashoffset" from="13" to="0" dur={`${0.7 + i * 0.12}s`} repeatCount="indefinite" />}
+          </path>
+        ))}
+      </g>
+
+      {/* пруд, пена и брызги */}
+      <ellipse cx="3" cy="-3.5" rx="36" ry="4.5" fill={PALETTE.river} />
+      <path d="M-26 -3 h7 M22 -2.5 h8 M-12 -1 h6" stroke="#e3f1f6" stroke-width="0.7" stroke-linecap="round" />
+      <ellipse cx="3" cy="-6.5" rx="13" ry="2.6" fill={FOAM} opacity="0.85" />
+      {[[-5, -10, 5], [3, -12, 6], [11, -10, 5]].map(([x, y, rad], i) => (
+        <circle key={i} cx={x} cy={y} r={rad} fill={FOAM} opacity="0.45">
+          {run && <animate attributeName="opacity" values="0.45;0.2;0.45" dur={`${2.4 + i * 0.5}s`} repeatCount="indefinite" />}
+        </circle>
+      ))}
+      {run &&
+        [0, 0.8].map((begin) => (
+          <ellipse key={begin} cx="3" cy="-4" rx="8" ry="1.2" fill="none" stroke={FOAM} stroke-width="0.5">
+            <animate attributeName="rx" values="8;24" dur="1.6s" begin={`${begin}s`} repeatCount="indefinite" />
+            <animate attributeName="ry" values="1.2;3.8" dur="1.6s" begin={`${begin}s`} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.9;0" dur="1.6s" begin={`${begin}s`} repeatCount="indefinite" />
+          </ellipse>
+        ))}
+      {/* валуны у воды */}
+      <path d="M-24 -2 Q-25 -9 -17 -10 Q-11 -10 -10 -4 Q-14 -1 -24 -2 Z" fill={r.light} />
+      <path d="M17 -2 Q16 -8 22 -9 Q28 -9 29 -3 Q24 0 17 -2 Z" fill={r.body} />
+
+      {/* радуга над брызгами */}
+      <g fill="none" stroke-width="2.4" opacity="0.55">
+        {RAINBOW_COLORS.map((c, i) => {
+          const rad = 30 - i * 2.3;
+          return <path key={c} d={`M${3 - rad} -6 A${rad} ${rad} 0 0 1 ${3 + rad} -6`} stroke={c} />;
+        })}
+      </g>
+      {double && (
+        <g fill="none" stroke-width="1.6" opacity="0.25">
+          {RAINBOW_COLORS.map((c, i) => {
+            const rad = 34 + i * 1.6; // во второй дуге цвета в обратном порядке
+            return <path key={c} d={`M${3 - rad} -6 A${rad} ${rad} 0 0 1 ${3 + rad} -6`} stroke={c} />;
+          })}
+        </g>
+      )}
+      {/* папоротник у подножия */}
+      <path d="M-40 0 q-2 -6 -7 -8 M-40 0 q1 -7 -2 -11 M-40 0 q3 -6 7 -7 M44 0 q-2 -5 -6 -7 M44 0 q2 -6 6 -7" stroke={PALETTE.leaf} stroke-width="1.4" fill="none" stroke-linecap="round" />
     </g>
   );
 }
 
-/** Сооружения, у которых уже есть рисунок. Остальные пока рисуются пирамидкой камней. */
-export const DRAWN_LANDMARKS: readonly LandmarkKind[] = ['bridge', 'windmill', 'observatory', 'greenhouse', 'rotunda', 'treehouse', 'aqueduct', 'pagoda', 'stones'];
+// ---------- 11. Причал с воздушным шаром ----------
+
+/** Купол шара: основной цвет и цвет полос. */
+const BALLOONS = [
+  [PALETTE.fire, '#f4e3c3'],
+  ['#9867ad', '#f2d48a'],
+  ['#4f8a8b', PALETTE.petalPink],
+];
+
+/** Купол шара — «долька» от верха к низу; вложенные дольки разной ширины дают полосы. */
+function gore(w: number): string {
+  return `M14 -100 C${14 - w} -97 ${14 - w} -67 14 -58 C${14 + w} -67 ${14 + w} -97 14 -100 Z`;
+}
+
+function BalloonPier({ rng }: { rng: Rng }) {
+  const [main, stripe] = pickFrom(BALLOONS, rng);
+  const flag = pickFrom([PALETTE.fire, PALETTE.callInk, PALETTE.gold], rng);
+  const run = moves();
+  const wicker = '#b98a55';
+  const posts = [-40, -28, -14, -2];
+  const ropeA = 'M10.5 -43 Q-10 -33 -35 -46';
+  const ropeB = 'M10.5 -41.5 Q-10 -32 -35 -46';
+  return (
+    <g>
+      <Shadow rx={46} />
+      {/* настил на сваях с раскосами */}
+      <g stroke={PALETTE.bark} stroke-linecap="round">
+        {posts.map((x) => (
+          <path key={x} d={`M${x} 0 V-18`} stroke-width="2.2" />
+        ))}
+        <path d="M-40 -2 L-28 -15 M-28 -2 L-40 -15 M-14 -2 L-2 -15 M-2 -2 L-14 -15" stroke-width="0.9" />
+      </g>
+      <rect x="-44" y="-20" width="47" height="3" fill={PALETTE.barkDark} />
+      <path d="M-40 -19 h5 M-30 -19 h6 M-19 -19 h5 M-9 -19 h6" stroke={PALETTE.bark} stroke-width="0.6" />
+      <path d="M-43 -20 V-26 M-25 -20 V-26 M-10 -20 V-26 M-43.5 -26 H-9" stroke={PALETTE.bark} stroke-width="1" stroke-linecap="round" />
+      {/* лестница вниз */}
+      <path d="M2 -17 L16 0" stroke={PALETTE.barkDark} stroke-width="1.6" />
+      <path d={[0, 1, 2, 3, 4].map((k) => `M${3.5 + k * 2.8} ${-15 + k * 3.4} h4.5`).join(' ')} stroke={PALETTE.bark} stroke-width="1.2" />
+      {/* мачта с флажком */}
+      <path d="M-36 -20 V-52" stroke={PALETTE.barkDark} stroke-width="1.4" />
+      <circle cx="-36" cy="-46" r="1.2" fill={PALETTE.barkDark} />
+      <path d="M-36 -52 L-28 -50 L-36 -47.5 Z" fill={flag} />
+
+      {/* привязь от мачты к корзине */}
+      <path d={ropeA} stroke="#8a6a44" stroke-width="0.7" fill="none">
+        {run && <animate attributeName="d" values={`${ropeA};${ropeB};${ropeA}`} dur="5s" repeatCount="indefinite" />}
+      </path>
+
+      {/* шар с корзиной — чуть покачивается вверх-вниз */}
+      <g>
+        {run && <animateTransform attributeName="transform" type="translate" values="0 0;0 1.5;0 0" dur="5s" repeatCount="indefinite" />}
+        <path d={gore(27)} fill={main} />
+        <path d={gore(18)} fill={stripe} />
+        <path d={gore(9)} fill={main} />
+        <path d="M14 -100 C41 -97 41 -67 14 -58 C33 -70 33 -94 14 -100 Z" fill="#000" opacity="0.1" />
+        <path d="M2 -88 Q4 -96 10 -98" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.35" />
+        <path d="M10.5 -60.5 L17.5 -60.5 L16.8 -56 L11.2 -56 Z" fill={PALETTE.barkDark} />
+        <path d="M11.2 -56 L10.2 -48 M16.8 -56 L17.8 -48 M14 -56 V-48" stroke="#7a5f40" stroke-width="0.5" />
+        <rect x="9" y="-48" width="10" height="7" rx="0.8" fill={wicker} />
+        <path d="M9 -45.6 H19 M9 -43.3 H19 M11.5 -48 V-41 M14 -48 V-41 M16.5 -48 V-41" stroke="#9a6f40" stroke-width="0.45" />
+        <rect x="8.6" y="-48.6" width="10.8" height="1.4" rx="0.5" fill={PALETTE.bark} />
+        <circle cx="8.4" cy="-43.6" r="1.3" fill="#a07d55" />
+        <circle cx="19.6" cy="-43.2" r="1.3" fill="#a07d55" />
+      </g>
+    </g>
+  );
+}
 
 export function LandmarkArt({ kind, seed, size }: { kind: LandmarkKind; seed: number; size: number }) {
   const rng = createRng(seed);
@@ -857,8 +1001,10 @@ export function LandmarkArt({ kind, seed, size }: { kind: LandmarkKind; seed: nu
         return <Pagoda rng={rng} />;
       case 'stones':
         return <StoneCircle rng={rng} />;
-      default:
-        return <Cairn />;
+      case 'waterfall':
+        return <Waterfall rng={rng} />;
+      case 'balloon':
+        return <BalloonPier rng={rng} />;
     }
   })();
   return (

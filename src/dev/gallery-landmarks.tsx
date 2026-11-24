@@ -2,7 +2,7 @@
 // и в размере долины рядом с деревьями.
 
 import { LANDMARK_KINDS, type LandmarkKind } from '../model/types';
-import { DRAWN_LANDMARKS, LANDMARK_NAMES, LandmarkArt } from '../ui/valley/landmark-art';
+import { LANDMARK_NAMES, LandmarkArt } from '../ui/valley/landmark-art';
 import { PlantArt } from '../ui/valley/plant-art';
 
 /** Сиды, у которых все три варианта цвета разные: камень, стены и крыша мельницы, купол обсерватории. */
@@ -37,14 +37,11 @@ function ValleyTile({ kind, size }: { kind: LandmarkKind; size: number }) {
 }
 
 export function LandmarksSection() {
-  const waiting = LANDMARK_KINDS.filter((k) => !DRAWN_LANDMARKS.includes(k));
   return (
     <section class="card">
       <h2>Сооружения боссов</h2>
-      <p class="muted small">
-        Рисунок — только само сооружение, без тумана. Новые — сверху. Ещё не нарисованы: {waiting.map((k) => LANDMARK_NAMES[k].toLowerCase()).join(', ')}.
-      </p>
-      {[...DRAWN_LANDMARKS].reverse().map((kind) => (
+      <p class="muted small">Рисунок — только само сооружение, без тумана.</p>
+      {LANDMARK_KINDS.map((kind) => (
         <div key={kind}>
           <h3 class="gallery__row-title">{LANDMARK_NAMES[kind]}: три сида</h3>
           <div class="gallery__landmarks">
@@ -59,7 +56,7 @@ export function LandmarksSection() {
       ))}
       <h3 class="gallery__row-title">В размере долины: рамка высотой 60, рядом большой дуб (42) и средняя сосна (29)</h3>
       <div class="gallery__landmarks">
-        {DRAWN_LANDMARKS.map((kind) => (
+        {LANDMARK_KINDS.map((kind) => (
           <figure key={kind}>
             <ValleyTile kind={kind} size={60} />
             <figcaption class="muted small">{LANDMARK_NAMES[kind]}</figcaption>
