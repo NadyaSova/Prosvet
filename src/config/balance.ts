@@ -14,7 +14,7 @@ export const BALANCE = {
 
   xp: {
     perTimedMinute: 1,
-    instant: { application: 10, journal: 8 },
+    instant: { application: 10, journal: 8, event: 30 },
     /** Перо и золотое перо — опыт идёт в Охоту. */
     feather: 10,
     goldenFeather: 30,
@@ -25,10 +25,20 @@ export const BALANCE = {
   gold: {
     /** Полное таймерное задание: округление minutes × perTimedMinute. Досрочное — округление вниз. */
     perTimedMinute: 0.5,
-    instant: { application: 5, journal: 4 },
+    instant: { application: 5, journal: 4, event: 15 },
     /** [РЕШЕНО] Перья — статус, золота за них нет. */
     feather: 0,
     goldenFeather: 0,
+  },
+
+  tasks: {
+    /** Звёзды за мгновенное задание сверх уровней и карты добычи. Мероприятие — «крупная награда со звездой». */
+    instantStars: { application: 0, journal: 0, event: 1 },
+    /**
+     * Задания с повышенной наградой: опыт и золото за минуты умножаются. Ключ — id задания.
+     * «Написать» — ×1,5 (docs/phase2-plan.md §4.5).
+     */
+    rewardFactor: { 'threads-write': 1.5 } as Readonly<Record<string, number>>,
   },
 
   pigeons: {

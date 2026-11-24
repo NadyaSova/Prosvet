@@ -48,7 +48,8 @@ export function plantKindFor(branch: Branch, size: PlantSize): PlantKind {
 
 /** Размер растения по заданию: короткое и мгновенное — маленькое, 10–15 минут — среднее, 25 и больше — большое. */
 export function plantSize(c: Completion): PlantSize {
-  if (c.kind === 'instant') return 'small';
+  // Мероприятие — крупное дело: большое растение.
+  if (c.kind === 'instant') return c.instant === 'event' ? 'large' : 'small';
   if (c.minutes >= BALANCE.valley.largeFromMinutes) return 'large';
   if (c.minutes >= BALANCE.valley.mediumFromMinutes) return 'medium';
   return 'small';

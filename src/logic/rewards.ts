@@ -10,8 +10,9 @@ import type { Rng } from './rng';
 import { addLog, recordActivity, resolveStreak } from './streak';
 import { dayOf } from './time';
 
+/** factor — множитель опыта и золота за минуты (BALANCE.tasks.rewardFactor); нет — 1. */
 export type Completion =
-  | { kind: 'timed'; branch: Branch; minutes: number; full: boolean }
+  | { kind: 'timed'; branch: Branch; minutes: number; full: boolean; factor?: number }
   | { kind: 'instant'; branch: Branch; instant: InstantKind };
 
 export interface RewardReport {
@@ -29,22 +30,30 @@ export interface RewardReport {
   newLevel: number | null;
   /** Новый уровень ветки, если он повысился. */
   newBranchLevel: number | null;
-  /** Все звёзды за задание: уровни, вехи серии, карта добычи. */
+  /** Все звёзды за задание: само задание, уровни, вехи серии, карта добычи. */
   stars: number;
+  /** Из них — звёзды за само задание (мероприятие). */
+  taskStars: number;
   streakMilestones: number[];
   logsBurned: number;
   comeback: boolean;
 }
 
-function baseReward(c: Completion): { xp: number; gold: number } {
+function baseReward(c: Completion): { xp: number; gold: number; stars: number } {
   if (c.kind === 'timed') {
     const round = c.full ? Math.round : Math.floor;
+    const factor = c.factor ?? 1;
     return {
-      xp: c.minutes * BALANCE.xp.perTimedMinute,
-      gold: round(c.minutes * BALANCE.gold.perTimedMinute),
+      xp: round(c.minutes * BALANCE.xp.perTimedMinute * factor),
+      gold: round(c.minutes * BALANCE.gold.perTimedMinute * factor),
+      stars: 0,
     };
   }
-  return { xp: BALANCE.xp.instant[c.instant], gold: BALANCE.gold.instant[c.instant] };
+  return {
+    xp: BALANCE.xp.instant[c.instant],
+    gold: BALANCE.gold.instant[c.instant],
+    stars: BALANCE.tasks.instantStars[c.instant],
+  };
 }
 
 export function applyCompletion(
@@ -54,12 +63,12 @@ export function applyCompletion(
   rng: Rng,
 ): { state: PlayerState; report: RewardReport } {
   const today: Day = dayOf(now);
-  const { xp, gold } = baseReward(c);
+  const { xp, gold, stars: taskStars } = baseReward(c);
 
   // Серия.
   const activity = recordActivity(state.streak, today);
   let streak = activity.streak;
-  let stars = activity.milestones.length * BALANCE.streak.starsPerMilestone;
+  let stars = taskStars + activity.milestones.length * BALANCE.streak.starsPerMilestone;
 
   // Опыт и уровни.
   const oldLevel = levelInfo(totalXp(state.xp)).level;
@@ -122,6 +131,7 @@ export function applyCompletion(
       newLevel: newLevel > oldLevel ? newLevel : null,
       newBranchLevel: newBranchLevel > oldBranchLevel ? newBranchLevel : null,
       stars,
+      taskStars,
       streakMilestones: activity.milestones,
       logsBurned: activity.logsBurned,
       comeback: activity.comeback,

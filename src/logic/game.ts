@@ -57,6 +57,11 @@ export interface StreakNews {
   broken: boolean;
 }
 
+/** Множитель награды задания (BALANCE.tasks.rewardFactor); у остальных заданий — нет. */
+function rewardFactor(templateId: string): number | undefined {
+  return BALANCE.tasks.rewardFactor[templateId];
+}
+
 function boardContext(player: PlayerState, now: number): BoardContext {
   return { today: dayOf(now), branchLastTouched: player.branchLastTouched };
 }
@@ -85,11 +90,12 @@ export function tinyTask(
   rng: Rng,
   skip?: string,
 ): TaskTemplate | undefined {
-  const exclude = skip ? [...state.board.taskIds, skip] : state.board.taskIds;
-  return (
-    pickTinyTask(templates, boardContext(state.player, now), rng, exclude) ??
-    pickTinyTask(templates, boardContext(state.player, now), rng, state.board.taskIds)
-  );
+  // pickTinyTask только старается не брать задания с доски. Коротких заданий мало (в стартовом наборе — два,
+  // оба в Летописи), поэтому «Другое» может взять и задание с доски, лишь бы не то же самое.
+  const ctx = boardContext(state.player, now);
+  const board = state.board.taskIds;
+  const others = skip ? templates.filter((t) => t.id !== skip) : templates;
+  return pickTinyTask(others, ctx, rng, board) ?? pickTinyTask(templates, ctx, rng, board);
 }
 
 export function startTimedTask(
@@ -158,7 +164,13 @@ export function finishTimedTask(
   const settled = settleTimer(t, now);
   if (!settled) return null;
   const at = settled.full ? Math.min(now, endsAt(t) ?? now) : now;
-  const completion: Completion = { kind: 'timed', branch: t.branch, minutes: settled.minutes, full: settled.full };
+  const completion: Completion = {
+    kind: 'timed',
+    branch: t.branch,
+    minutes: settled.minutes,
+    full: settled.full,
+    factor: rewardFactor(t.templateId),
+  };
   const { state: player, report } = applyCompletion(state.player, completion, at, rng);
   const grown = withPlant(afterCompletion(state, player, t.templateId, templates, now, rng), completion, at, rng);
   return {
@@ -196,6 +208,35 @@ export function completeInstantTask(
       title: template.title,
       branch: template.branch,
       report,
+      full: true,
+      whileAway: false,
+      planted: grown.planted,
+      districtOpened: grown.districtOpened,
+    },
+  };
+}
+
+/**
+ * «Уже сделала» на экране «Своё задание»: дело без таймера, засчитывается сразу как полное таймерное задание
+ * на столько минут (опыт, золото, карта добычи, серия, растение). Доска не меняется, идущий таймер — тоже.
+ */
+export function completeDoneTask(
+  state: GameState,
+  task: { title: string; branch: Branch; minutes: number },
+  now: number,
+  rng: Rng,
+): { state: GameState; done: CompletedTask } {
+  const completion: Completion = { kind: 'timed', branch: task.branch, minutes: task.minutes, full: true };
+  const { state: player, report } = applyCompletion(state.player, completion, now, rng);
+  const grown = withPlant({ ...state, player }, completion, now, rng);
+  return {
+    state: grown.state,
+    done: {
+      title: task.title,
+      branch: task.branch,
+      report,
+      minutes: task.minutes,
+      plannedMinutes: task.minutes,
       full: true,
       whileAway: false,
       planted: grown.planted,

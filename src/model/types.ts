@@ -11,14 +11,15 @@ export type Day = number;
 export const BRANCHES = ['chronicle', 'scouting', 'hunt', 'call', 'threads', 'prep', 'craft'] as const;
 export type Branch = (typeof BRANCHES)[number];
 
-export const TASK_MINUTES = [5, 10, 15, 25, 30, 45, 60] as const;
+export const TASK_MINUTES = [5, 10, 15, 20, 25, 30, 45, 60] as const;
 export type TaskMinutes = (typeof TASK_MINUTES)[number];
 
 /**
  * Виды мгновенных заданий — у каждого своя награда.
- * application — голубь улетел с откликом (голубятня).
+ * application — голубь улетел с откликом (голубятня); journal — запись в Летопись;
+ * event — сходила на мероприятие (экран «Своё задание», «Уже сделала»).
  */
-export type InstantKind = 'application' | 'journal';
+export type InstantKind = 'application' | 'journal' | 'event';
 
 interface TaskTemplateBase {
   id: string;

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_TASKS } from '../data/default-tasks';
 import { createPlayer } from '../model/player';
 import type { TaskTemplate } from '../model/types';
+import { BALANCE } from '../config/balance';
 import {
   cancelTask,
+  completeDoneTask,
   completeInstantTask,
   ensureBoard,
   finishTimedTask,
@@ -65,9 +67,11 @@ describe('доска', () => {
   it('удалённое своё задание уходит с доски', () => {
     const own: TaskTemplate = { id: 'own', branch: 'prep', kind: 'timed', minutes: 45, onBoard: true, title: 'Своё' };
     const g: GameState = { ...newGame(), board: { taskIds: ['own', 'image-one-line'], rerolls: null } };
+    // image-one-line — задание фазы 1, которого в наборе больше нет: тоже уходит.
     const next = ensureBoard(g, DEFAULT_TASKS, NOW, createRng(3));
     expect(next.board.taskIds).toHaveLength(3);
     expect(next.board.taskIds).not.toContain(own.id);
+    expect(next.board.taskIds).not.toContain('image-one-line');
   });
 
   it('если менять нечего — то же состояние', () => {
@@ -90,12 +94,12 @@ describe('доска', () => {
   });
 
   it('«Не хочу ничего» и «Другое» дают разные короткие задания', () => {
-    const g = newGame();
     for (let seed = 0; seed < 100; seed++) {
+      const g = newGame(seed + 1);
       const first = tinyTask(g, DEFAULT_TASKS, NOW, createRng(seed))!;
+      expect(g.board.taskIds).not.toContain(first.id);
       const second = tinyTask(g, DEFAULT_TASKS, NOW, createRng(seed + 1000), first.id)!;
       expect(second.id).not.toBe(first.id);
-      expect(g.board.taskIds).not.toContain(second.id);
     }
   });
 });
@@ -115,7 +119,8 @@ describe('таймерное задание', () => {
     expect(r.state.timer).toBeNull();
     expect(r.state.board.taskIds).toHaveLength(3);
     expect(r.state.board.taskIds).not.toContain(doneId);
-    expect(r.state.player.xp[get(doneId).branch]).toBe(r.done.minutes);
+    expect(r.state.player.xp[get(doneId).branch]).toBe(r.done.report.xp);
+    expect(r.done.report.xp).toBeGreaterThanOrEqual(r.done.minutes!);
   });
 
   it('закончила раньше: награда за минуты, без карты добычи', () => {
@@ -185,16 +190,57 @@ describe('открытие приложения', () => {
 describe('мгновенное задание', () => {
   it('запись в журнал засчитывается и уступает место на доске', () => {
     const journal = get('chronicle-achievement');
-    const g: GameState = { ...newGame(), board: { taskIds: ['chronicle-achievement', 'image-keywords', 'hunt-apply-session'], rerolls: null } };
+    const g: GameState = { ...newGame(), board: { taskIds: ['chronicle-achievement', 'hunt-review', 'hunt-apply-session'], rerolls: null } };
     const r = completeInstantTask(g, journal, DEFAULT_TASKS, NOW, PHRASE);
     expect(r.state.player.xp.chronicle).toBeGreaterThan(0);
     expect(r.state.board.taskIds).not.toContain('chronicle-achievement');
     expect(r.state.board.taskIds).toHaveLength(3);
   });
 
+  it('мероприятие: звезда, крупное растение, доска не меняется', () => {
+    const event = get('threads-event');
+    const g = newGame();
+    const r = completeInstantTask(g, event, DEFAULT_TASKS, NOW, PHRASE);
+    expect(r.done.report.taskStars).toBe(BALANCE.tasks.instantStars.event);
+    expect(r.state.player.stars).toBe(r.done.report.stars);
+    expect(r.state.player.xp.threads).toBe(BALANCE.xp.instant.event);
+    expect(r.done.planted).toMatchObject({ kind: 'flax', size: 'large' });
+    expect(r.state.board.taskIds).toEqual(g.board.taskIds);
+  });
+
   it('не сбрасывает идущий таймер', () => {
     const journal = get('chronicle-achievement');
     const g = startTimedTask(newGame(), { templateId: 'once', title: 'x', branch: 'call', minutes: 30 }, NOW);
     expect(completeInstantTask(g, journal, DEFAULT_TASKS, NOW + MIN, PHRASE).state.timer).toBe(g.timer);
+  });
+});
+
+describe('«Уже сделала»', () => {
+  it('засчитывается сразу как полное задание на столько минут', () => {
+    const g = startTimedTask(newGame(), { templateId: 'once', title: 'x', branch: 'call', minutes: 30 }, NOW);
+    const r = completeDoneTask(g, { title: 'Созвонилась с коллегой', branch: 'threads', minutes: 20 }, NOW + MIN, PHRASE);
+    expect(r.done).toMatchObject({ title: 'Созвонилась с коллегой', branch: 'threads', minutes: 20, full: true });
+    expect(r.state.player.xp.threads).toBe(20);
+    expect(r.done.report.loot?.kind).toBe('phrase');
+    expect(r.done.planted?.kind).toBe('flax');
+    expect(r.state.player.streak.lastActiveDay).toBe(dayOf(NOW));
+    expect(r.state.board).toBe(g.board);
+    expect(r.state.timer).toBe(g.timer);
+  });
+});
+
+describe('«Написать» — награда ×1,5', () => {
+  it('полное время: опыт и золото умножены', () => {
+    const g = startTimedTask(newGame(), { templateId: 'threads-write', title: 'Написать', branch: 'threads', minutes: 20 }, NOW);
+    const r = finishTimedTask(g, DEFAULT_TASKS, NOW + 20 * MIN, PHRASE)!;
+    expect(r.done.report.xp).toBe(30);
+    expect(r.done.report.gold - r.done.report.lootGold).toBe(15);
+  });
+
+  it('досрочно — пропорционально, с тем же множителем', () => {
+    const g = startTimedTask(newGame(), { templateId: 'threads-write', title: 'Написать', branch: 'threads', minutes: 20 }, NOW);
+    const r = finishTimedTask(g, DEFAULT_TASKS, NOW + 7 * MIN + 30_000, PHRASE)!;
+    expect(r.done.report.xp).toBe(10); // 7 × 1,5 = 10,5 → вниз
+    expect(r.done.report.gold).toBe(5); // 7 × 0,5 × 1,5 = 5,25 → вниз
   });
 });

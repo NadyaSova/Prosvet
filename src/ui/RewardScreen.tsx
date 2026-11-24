@@ -77,7 +77,7 @@ export function RewardScreen({ reward, onClose, onLoft }: { reward: ShownReward;
   const baseGold = r.gold - r.lootGold;
   const lootStars = r.loot?.kind === 'star' ? 1 : 0;
   const milestoneStars = r.streakMilestones.length * BALANCE.streak.starsPerMilestone;
-  const levelStars = r.stars - lootStars - milestoneStars;
+  const levelStars = r.stars - lootStars - milestoneStars - r.taskStars;
 
   let kicker = 'Засчитано';
   if (reward.whileAway) kicker = 'Время вышло, пока тебя не было. Засчитано';
@@ -97,6 +97,11 @@ export function RewardScreen({ reward, onClose, onLoft }: { reward: ShownReward;
         <div>
           <b>+{baseGold}</b> золота
         </div>
+        {r.taskStars > 0 && (
+          <div>
+            <b>+{r.taskStars}</b> ★
+          </div>
+        )}
       </div>
 
       {r.loot ? (

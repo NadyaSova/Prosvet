@@ -1,13 +1,16 @@
 // Доска заданий. SPEC.md §5, §7.1.
-// На доске 3 задания из разных веток и разных размеров. Ветки, которые давно не трогали, выпадают чаще.
-// Если шаблонов не хватает (пользователь многое скрыла), сначала жертвуем разными размерами, потом — разными ветками.
+// На доске 3 задания из разных веток. Ветки, которые давно не трогали, выпадают чаще.
+// Сначала выбирается ветка (по весу), потом задание в ней — по возможности другого размера, чем уже на доске.
+// Одно задание на доске — не длинное (до 15 минут или мгновенное), если такие есть: чтобы было что взять
+// и в вялый день. Размер не решает, какая ветка попадёт на доску: в наборе фазы 2 короткие задания
+// есть только в Летописи, и правило «три разных размера» ставило бы Летопись на каждую доску.
+// Если шаблонов не хватает (пользователь многое скрыла), жертвуем разными ветками.
 
 import { BALANCE } from '../config/balance';
 import { BRANCHES, type Branch, type Day, type TaskTemplate } from '../model/types';
-import { pickWeighted, shuffled, type Rng } from './rng';
+import { pickFrom, pickWeighted, type Rng } from './rng';
 
 export type SizeBucket = 'short' | 'medium' | 'long';
-const BUCKETS: SizeBucket[] = ['short', 'medium', 'long'];
 
 export interface BoardContext {
   today: Day;
@@ -20,6 +23,9 @@ export function sizeBucket(t: TaskTemplate): SizeBucket {
   if (t.minutes <= 15) return 'medium';
   return 'long';
 }
+
+/** Не длинное задание: короткое или среднее. */
+export const isLight = (t: TaskTemplate): boolean => sizeBucket(t) !== 'long';
 
 export function branchWeights(ctx: BoardContext): Record<Branch, number> {
   const { staleBoostPerDay, maxStaleDays } = BALANCE.board;
@@ -38,26 +44,56 @@ function boardable(templates: readonly TaskTemplate[]): TaskTemplate[] {
 
 type Filter = (t: TaskTemplate) => boolean;
 
+/** Отбор, который отбрасывается, если после него ничего не остаётся. */
+function softly(pool: readonly TaskTemplate[], f: Filter | undefined): readonly TaskTemplate[] {
+  if (!f) return pool;
+  const kept = pool.filter(f);
+  return kept.length > 0 ? kept : pool;
+}
+
+interface Wishes {
+  /** Какие задания подходят — до выбора ветки (например, только не длинные). */
+  pool?: Filter;
+  /** Ветка, которой ещё нет на доске. */
+  branch?: (b: Branch) => boolean;
+  /** Какое задание взять внутри ветки; пробуются по порядку, первое непустое побеждает. */
+  inBranch?: Filter[];
+}
+
 /**
- * Выбирает один шаблон. Сначала пробует все пожелания сразу, потом отбрасывает их с конца по одному.
- * Ветка выбирается по весу, а внутри ветки шаблоны равновероятны — так ветка с большим числом
- * шаблонов не получает преимущества.
+ * Выбирает один шаблон: сначала ветку по весу, потом задание в ней. Пожелания мягкие:
+ * если пожеланию ничего не отвечает, оно отбрасывается. Ветка с большим числом шаблонов
+ * не получает преимущества: вес — у ветки, а не у задания.
  */
 function pickOne(
   candidates: readonly TaskTemplate[],
-  wishes: Filter[],
+  wishes: Wishes,
   weights: Record<Branch, number>,
   rng: Rng,
 ): TaskTemplate | undefined {
-  for (let n = wishes.length; n >= 0; n--) {
-    const active = wishes.slice(0, n);
-    const pool = candidates.filter((t) => active.every((w) => w(t)));
-    if (pool.length === 0) continue;
-    const perBranch = new Map<Branch, number>();
-    for (const t of pool) perBranch.set(t.branch, (perBranch.get(t.branch) ?? 0) + 1);
-    return pickWeighted(pool, (t) => weights[t.branch] / perBranch.get(t.branch)!, rng);
+  // Другая ветка важнее, чем не длинное задание.
+  const branchWish = wishes.branch;
+  let pool = softly(candidates, branchWish && ((t) => branchWish(t.branch)));
+  pool = softly(pool, wishes.pool);
+  if (pool.length === 0) return undefined;
+  const branches = [...new Set(pool.map((t) => t.branch))];
+  const branch = pickWeighted(branches, (b) => weights[b], rng);
+  const inBranch = pool.filter((t) => t.branch === branch);
+  for (const f of wishes.inBranch ?? []) {
+    const kept = inBranch.filter(f);
+    if (kept.length > 0) return pickFrom(kept, rng);
   }
-  return undefined;
+  return pickFrom(inBranch, rng);
+}
+
+/** Пожелания для следующего задания на доску, где уже лежат chosen. */
+function nextWishes(chosen: readonly TaskTemplate[]): Wishes {
+  const sizes = new Set(chosen.map(sizeBucket));
+  return {
+    pool: chosen.some(isLight) ? undefined : isLight,
+    branch: (b) => !chosen.some((c) => c.branch === b),
+    inBranch: [(t) => !sizes.has(sizeBucket(t))],
+  };
 }
 
 /**
@@ -72,15 +108,12 @@ export function buildBoard(
 ): string[] {
   const weights = branchWeights(ctx);
   const chosen: TaskTemplate[] = [];
-  const order = shuffled(BUCKETS, rng);
   const base = boardable(templates).filter((t) => !exclude.includes(t.id));
 
   for (let i = 0; i < BALANCE.board.size; i++) {
-    const bucket = order[i % order.length]!;
-    const candidates = base.filter((t) => !chosen.includes(t));
     const pick = pickOne(
-      candidates,
-      [(t) => !chosen.some((c) => c.branch === t.branch), (t) => sizeBucket(t) === bucket],
+      base.filter((t) => !chosen.includes(t)),
+      nextWishes(chosen),
       weights,
       rng,
     );
@@ -97,8 +130,8 @@ export function buildBoard(
 }
 
 /**
- * Заменяет задание в ячейке index новым: того же размера, из ветки, которой нет на доске,
- * и не то же самое задание.
+ * Заменяет задание в ячейке index новым: из ветки, которой нет на доске, и не то же самое задание;
+ * в выбранной ветке — по возможности того же размера.
  */
 export function refillSlot(
   board: readonly string[],
@@ -112,8 +145,8 @@ export function refillSlot(
   const others = board.filter((_, i) => i !== index).map((id) => byId.get(id)).filter((t) => t !== undefined);
   const candidates = boardable(templates).filter((t) => !board.includes(t.id));
 
-  const wishes: Filter[] = [(t) => !others.some((o) => o.branch === t.branch)];
-  if (removed) wishes.push((t) => sizeBucket(t) === sizeBucket(removed));
+  const wishes = nextWishes(others);
+  if (removed) wishes.inBranch = [(t) => sizeBucket(t) === sizeBucket(removed), ...(wishes.inBranch ?? [])];
 
   const pick = pickOne(candidates, wishes, branchWeights(ctx), rng);
   const next = [...board];
@@ -145,10 +178,9 @@ export function repairBoard(
   const chosen = next.map((id) => byId.get(id)!);
   const weights = branchWeights(ctx);
   while (chosen.length < BALANCE.board.size) {
-    const buckets = new Set(chosen.map(sizeBucket));
     const pick = pickOne(
       boardable(templates).filter((t) => !chosen.includes(t)),
-      [(t) => !chosen.some((c) => c.branch === t.branch), (t) => !buckets.has(sizeBucket(t))],
+      nextWishes(chosen),
       weights,
       rng,
     );
@@ -167,7 +199,7 @@ export function pickTinyTask(
   board: readonly string[] = [],
 ): TaskTemplate | undefined {
   const short = boardable(templates).filter((t) => sizeBucket(t) === 'short');
-  return pickOne(short, [(t) => !board.includes(t.id)], branchWeights(ctx), rng);
+  return pickOne(short, { pool: (t) => !board.includes(t.id) }, branchWeights(ctx), rng);
 }
 
 /** Можно ли сегодня бесплатно перетянуть доску. */

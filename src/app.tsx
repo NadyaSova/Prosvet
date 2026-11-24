@@ -4,6 +4,7 @@ import { PHRASES, type PhraseContext } from './data/phrases';
 import {
   answerPigeonAction,
   cancelTask,
+  completeDoneTask,
   completeInstantTask,
   ensureBoard,
   finishTimedTask,
@@ -45,7 +46,7 @@ import {
   type AppData,
   type SaveExtras,
 } from './storage/repo';
-import { CustomTaskScreen, type CustomTaskInput } from './ui/CustomTaskScreen';
+import { CustomTaskScreen, type CustomTaskInput, type DoneTaskInput } from './ui/CustomTaskScreen';
 import { FeatherScreen, type ShownFeather } from './ui/FeatherScreen';
 import { minutesText } from './ui/format';
 import { JournalEntryScreen } from './ui/JournalEntryScreen';
@@ -100,6 +101,9 @@ export function App() {
  * чтобы запись засчитывалась, даже если пользователь скрыла это задание с доски.
  */
 const JOURNAL_TASK = DEFAULT_TASKS.find((t) => t.kind === 'instant' && t.instant === 'journal')!;
+
+/** Мероприятие — мгновенное задание Нитей; на доску не попадает, отмечается на экране «Своё задание». */
+const EVENT_TASK = DEFAULT_TASKS.find((t) => t.kind === 'instant' && t.instant === 'event')!;
 
 /** Задание, во время которого полезно открыть Летопись: ветка Летописи или метка journal. */
 const opensJournal = (t: TaskTemplate | undefined, branch: Branch) => branch === 'chronicle' || !!t?.tags?.includes('journal');
@@ -433,6 +437,17 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     startTimed({ templateId, title: input.title, branch: input.branch, minutes: input.minutes });
   }
 
+  /** «Уже сделала»: засчитывается сразу, без таймера. */
+  function doneCustom(input: DoneTaskInput) {
+    const at = Date.now();
+    const r = input.event
+      ? completeInstantTask(gameRef.current, EVENT_TASK, templatesRef.current, at, Math.random)
+      : completeDoneTask(gameRef.current, input, at, Math.random);
+    commit(r.state);
+    showReward(input.event ? { ...r.done, title: `Мероприятие: «${input.title}»` } : r.done);
+    goHome();
+  }
+
   /** Список заданий изменился — убрать с доски то, чего больше нет. */
   function applyTemplates(nextCustom: TaskTemplate[], nextSettings: Settings) {
     const merged = mergeTemplates(DEFAULT_TASKS, nextCustom, nextSettings.hiddenTaskIds);
@@ -627,7 +642,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       />
     );
   } else if (route === 'custom') {
-    screen = <CustomTaskScreen onStart={(input) => void startCustom(input)} />;
+    screen = <CustomTaskScreen onStart={(input) => void startCustom(input)} onDone={doneCustom} />;
   } else {
     screen = (
       <MainScreen
