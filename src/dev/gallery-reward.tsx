@@ -8,6 +8,9 @@ import { createRng } from '../logic/rng';
 import { emptyValley } from '../logic/valley';
 import { createPlayer } from '../model/player';
 import type { LoftState, TaskTemplate } from '../model/types';
+import { BRANCHES } from '../model/types';
+import { GoldIcon, XpIcon } from '../ui/common';
+import { BRANCH_NAMES } from '../ui/labels';
 import { RewardScreen } from '../ui/RewardScreen';
 
 const NOW = new Date(2026, 10, 24, 12, 0).getTime();
@@ -146,11 +149,51 @@ export function StopQuestionsSection() {
       <h2>Вопросы при остановке</h2>
       <p class="muted small">
         Записка внизу экрана награды, перед «Дальше». Ответ пересчитывает награду: бонус входит в опыт и золото вверху. Галочки остаются на
-        записке, под ними — итог; галочку можно переставить. Находка после записи сворачивается в строку с «изменить».
+        записке, галочку можно переставить. Бонус — меткой справа в строке ответа; у находки — под линией справа, слева «✓ записано», кнопки нет.
       </p>
       <div class="gallery__phones">
         {ASK_CASES.map((c) => (
           <AskSample key={c.label} c={c} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Значок опыта — росток — во всех цветах веток: крупно, в строке прибавки и на записке. */
+export function XpIconSection() {
+  return (
+    <section class="card">
+      <h2>Значок опыта: росток</h2>
+      <p class="muted small">
+        Цветом ветки, к которой идёт опыт. Стоит рядом с числом вместо слова «опыта» — как монета у золота и ★ у звёзд.
+      </p>
+      <div class="gallery__xp">
+        {BRANCHES.map((b) => (
+          <figure key={b} class="gallery__xp-item">
+            <span class="gallery__xp-big">
+              <XpIcon branch={b} />
+            </span>
+            <div class="reward__gains">
+              <div>
+                <b>+30</b> <XpIcon branch={b} />
+              </div>
+              <div>
+                <b>+15</b> <GoldIcon />
+              </div>
+            </div>
+            <div class={`reward-note gallery__xp-note task--${b}`}>
+              <span class="bonus-tag">
+                <span class="bonus-tag__part">
+                  +5 <XpIcon branch={b} />
+                </span>
+                <span class="bonus-tag__part">
+                  +3 <GoldIcon />
+                </span>
+              </span>
+            </div>
+            <figcaption class="muted small">{BRANCH_NAMES[b]}</figcaption>
+          </figure>
         ))}
       </div>
     </section>

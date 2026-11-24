@@ -12,6 +12,7 @@ import { cleanFinding } from '../logic/stop-questions';
 import { CORRECTION_MAX, CORRECTION_MIN, nudgeMinutes } from '../logic/timer';
 import type { LoftState, StopAnswer, Verdict } from '../model/types';
 import { daysText, minutesText, plural } from './format';
+import { GoldIcon, XpIcon } from './common';
 import { BRANCH_NAMES, itemName, plantName } from './labels';
 import { PigeonSend } from './PigeonSend';
 
@@ -78,19 +79,21 @@ function LootFace({ loot, converted, phrase }: { loot: Loot; converted: boolean;
   }
 }
 
-/** «Засчитано», «Засчитано 12 минут из 30», «Засчитано 45 минут» — и что время вышло без тебя. */
+/** Строка над названием: «Засчитано» — и что время вышло без тебя. */
 function kickerOf(reward: ShownReward): string {
+  return reward.whileAway ? 'Время вышло, пока тебя не было. Засчитано' : 'Засчитано';
+}
+
+/** Засчитанное время под названием: «25 минут», «12 минут из 30». Без таймера — ничего. */
+function timeOf(reward: ShownReward): string | undefined {
   const { minutes, plannedMinutes } = reward;
-  let text = 'Засчитано';
-  if (minutes !== undefined && minutes !== plannedMinutes) {
-    text += ` ${minutesText(minutes)}${minutes < (plannedMinutes ?? 0) ? ` из ${plannedMinutes}` : ''}`;
-  }
-  return reward.whileAway ? `Время вышло, пока тебя не было. ${text}` : text;
+  if (minutes === undefined) return undefined;
+  return `${minutesText(minutes)}${minutes < (plannedMinutes ?? 0) ? ` из ${plannedMinutes}` : ''}`;
 }
 
 /**
  * Правка времени (docs/phase2-plan.md §3): сколько засчитать, в обе стороны.
- * Открывается ссылкой «поправить время» в строке прибавки и встаёт на место этой строки.
+ * Открывается ссылкой «поправить» в строке под названием («25 минут · поправить») и встаёт на место строки прибавки.
  */
 function TimeCorrection({ reward, onCorrect, onClose }: { reward: ShownReward; onCorrect: (minutes: number) => void; onClose: () => void }) {
   const [minutes, setMinutes] = useState(reward.minutes ?? 0);
@@ -145,13 +148,26 @@ function TimeCorrection({ reward, onCorrect, onClose }: { reward: ShownReward; o
   );
 }
 
-/** «+10 опыта и +5 золота» — бонус за ответ. */
-function bonusText(reward: ShownReward): string {
+/**
+ * Метка бонуса за ответ: «+5 [росток] +3 [монета]». Росток — цветом ветки задания.
+ * Стоит справа в строке выбранного ответа (у находки — под линией для письма); появляется плавно.
+ */
+function BonusTag({ reward }: { reward: ShownReward }) {
   const b = reward.report.bonus;
-  return b ? `+${b.xp} опыта и +${b.gold} золота` : '';
+  if (!b) return null;
+  return (
+    <span class="bonus-tag">
+      <span class="bonus-tag__part">
+        +{b.xp} <XpIcon branch={reward.branch} />
+      </span>
+      <span class="bonus-tag__part">
+        +{b.gold} <GoldIcon />
+      </span>
+    </span>
+  );
 }
 
-/** Текстовая ссылка внутри строки: «поправить время», «изменить». */
+/** Текстовая ссылка внутри строки: «поправить». */
 function InlineLink({ children, onClick }: { children: ComponentChildren; onClick: () => void }) {
   return (
     <button type="button" class="link-button reward__link" onClick={onClick}>
@@ -168,9 +184,20 @@ function Question({ children }: { children: ComponentChildren }) {
 /**
  * Ответы — квадратики-галочки, как в анкете на листке: всё внутри записки «написано на бумаге».
  * Нажатие рисует галочку цветом ветки. Вопрос и ответы остаются на записке — галочку можно переставить.
+ * tag — метка справа в строке выбранного ответа (бонус).
  * onPick нет — ответ уже не поменять (награду пересчитать нельзя): галочки только показывают выбранное.
  */
-function Answers<T extends string>({ options, value, onPick }: { options: [T, string][]; value?: T; onPick?: (v: T) => void }) {
+function Answers<T extends string>({
+  options,
+  value,
+  onPick,
+  tag,
+}: {
+  options: [T, string][];
+  value?: T;
+  onPick?: (v: T) => void;
+  tag?: ComponentChildren;
+}) {
   return (
     <div class="reward-note__ticks">
       {options.map(([v, label]) => (
@@ -190,30 +217,16 @@ function Answers<T extends string>({ options, value, onPick }: { options: [T, st
             )}
           </span>
           {label}
+          {value === v && tag}
         </button>
       ))}
     </div>
   );
 }
 
-/** Итог под галочками: бонус или «время засчитано и так». */
+/** Строка под галочками: «Время засчитано. Решишь потом.» */
 function Result({ children }: { children: ComponentChildren }) {
   return <p class="reward-note__result small">{children}</p>;
-}
-
-/** Строка на записке: улетевший голубь, записанная находка. «изменить» разворачивает вопрос обратно. */
-function Summary({ children, onEdit }: { children: ComponentChildren; onEdit?: () => void }) {
-  return (
-    <p class="reward-note__summary">
-      {children}
-      {onEdit && (
-        <span class="reward-note__edit">
-          {' · '}
-          <InlineLink onClick={onEdit}>изменить</InlineLink>
-        </span>
-      )}
-    </p>
-  );
 }
 
 /** Отправка голубя после Отклика: «Отправила?» → голубь → компания. Голубь улетает отдельным заданием со своей наградой. */
@@ -228,7 +241,7 @@ export interface PigeonQuestion {
 
 function PigeonAsk({ pigeon }: { pigeon: PigeonQuestion }) {
   const [choice, setChoice] = useState(pigeon.initial);
-  if (pigeon.sentTo) return <Summary>Голубь улетел: «{pigeon.sentTo}»</Summary>;
+  if (pigeon.sentTo) return <p class="reward-note__summary">Голубь улетел: «{pigeon.sentTo}»</p>;
   return (
     <>
       <Question>Отправила отклик?</Question>
@@ -248,14 +261,13 @@ function PigeonAsk({ pigeon }: { pigeon: PigeonQuestion }) {
           </div>
         </>
       )}
-      {choice === 'no' && <Result>Время засчитано и так.</Result>}
     </>
   );
 }
 
 const YES_NO = {
-  sent: { question: 'Отправила?', yes: 'Да, отправила', no: 'Пока нет', why: 'за отправленное' },
-  found: { question: 'Нашлась подходящая вакансия?', yes: 'Да, нашлась', no: 'Нет', why: 'за подходящую вакансию' },
+  sent: { question: 'Отправила?', yes: 'Да, отправила', no: 'Пока нет' },
+  found: { question: 'Нашлась подходящая вакансия?', yes: 'Да, нашлась', no: 'Нет' },
 } as const;
 
 function YesNoAsk({ reward, ask, onAnswer }: { reward: ShownReward; ask: 'sent' | 'found'; onAnswer?: (a: StopAnswer) => void }) {
@@ -274,13 +286,8 @@ function YesNoAsk({ reward, ask, onAnswer }: { reward: ShownReward; ask: 'sent' 
         ]}
         value={value}
         onPick={onAnswer && ((v) => onAnswer({ ask, yes: v === 'yes' }))}
+        tag={<BonusTag reward={reward} />}
       />
-      {value === 'yes' && (
-        <Result>
-          {bonusText(reward)} — {t.why}.
-        </Result>
-      )}
-      {value === 'no' && <Result>Время засчитано и так.</Result>}
     </>
   );
 }
@@ -298,43 +305,35 @@ function VerdictAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: 
   return (
     <>
       <Question>Что решила по вакансии?</Question>
-      <Answers<Verdict> options={VERDICTS} value={answered} onPick={onAnswer && ((verdict) => onAnswer({ ask: 'verdict', verdict }))} />
-      {answered && answered !== 'think' && <Result>{bonusText(reward)} — за решение.</Result>}
+      <Answers<Verdict>
+        options={VERDICTS}
+        value={answered}
+        onPick={onAnswer && ((verdict) => onAnswer({ ask: 'verdict', verdict }))}
+        tag={<BonusTag reward={reward} />}
+      />
       {answered === 'think' && <Result>Время засчитано. Решишь потом.</Result>}
     </>
   );
 }
 
+/**
+ * Находка: строка на линии для письма. Записанный текст остаётся на линии, кнопки нет;
+ * под линией слева «✓ записано», справа — метка бонуса. Поправила текст — отметка пропадает, бонус остаётся,
+ * снова кнопка «Записать находку».
+ */
 function FindingAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: StopAnswer) => void }) {
   const saved = reward.answer?.ask === 'finding' ? reward.answer.text : undefined;
-  const [editing, setEditing] = useState(false);
   const [text, setText] = useState(saved ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
-  if (saved && (!editing || !onAnswer)) {
-    return (
-      <Summary
-        onEdit={
-          onAnswer &&
-          (() => {
-            setText(saved);
-            setEditing(true);
-          })
-        }
-      >
-        Находка: «{saved}» · {bonusText(reward)}
-      </Summary>
-    );
-  }
-  if (!onAnswer) return null;
-  const answer = onAnswer;
+  if (!saved && !onAnswer) return null;
+  const clean = cleanFinding(text);
+  const isSaved = saved !== undefined && clean === saved;
   function save(e: Event) {
     e.preventDefault();
-    const clean = cleanFinding(text);
-    if (!clean) return;
+    if (!clean || isSaved || !onAnswer) return;
     // Как в голубятне: сначала отпустить поле, чтобы клавиатура Android дописала слово.
     inputRef.current?.blur();
-    answer({ ask: 'finding', text: clean });
-    setEditing(false);
+    onAnswer({ ask: 'finding', text: clean });
   }
   return (
     <form class="reward-note__form" onSubmit={save}>
@@ -346,27 +345,38 @@ function FindingAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: 
           class="ink-input"
           ref={inputRef}
           maxLength={BALANCE.tasks.findingMaxLength}
+          readOnly={!onAnswer}
           value={text}
           onInput={(e) => setText(e.currentTarget.value)}
         />
       </label>
-      <div class="ink-actions">
-        {saved && (
-          <button type="button" class="ink-button ink-button--quiet" onClick={() => setEditing(false)}>
-            Отмена
+      {saved !== undefined && (
+        <div class="reward-note__tag-row">
+          {isSaved && (
+            <span class="reward-note__saved">
+              <svg class="reward-note__saved-mark" viewBox="0 0 22 22" aria-hidden="true">
+                <path d="M4 11.5 L9 16.5 L19 4" />
+              </svg>
+              записано
+            </span>
+          )}
+          <BonusTag reward={reward} />
+        </div>
+      )}
+      {onAnswer && !isSaved && (
+        <div class="ink-actions">
+          <button type="submit" class="ink-button ink-actions__main" disabled={!clean}>
+            Записать находку
           </button>
-        )}
-        <button type="submit" class="ink-button ink-actions__main" disabled={!cleanFinding(text)}>
-          Записать находку
-        </button>
-      </div>
+        </div>
+      )}
     </form>
   );
 }
 
 /**
  * Вопрос при остановке таймера (docs/phase2-plan.md §4) — записка с булавкой цвета ветки, как задание на доске.
- * Стоит последней перед «Дальше»: сначала награда, потом вопрос. После ответа сворачивается в строку.
+ * Стоит последней перед «Дальше»: сначала награда, потом вопрос. Ответ остаётся на записке, бонус — меткой.
  */
 function StopAsk({ reward, onAnswer, pigeon }: { reward: ShownReward; onAnswer?: (a: StopAnswer) => void; pigeon?: PigeonQuestion }) {
   let body;
@@ -411,31 +421,39 @@ export function RewardScreen({ reward, onClose, onLoft, onCorrect, onAnswer, pig
   const milestoneStars = r.streakMilestones.length * BALANCE.streak.starsPerMilestone;
   const levelStars = r.stars - lootStars - milestoneStars - r.taskStars;
   const canCorrect = onCorrect !== undefined && reward.minutes !== undefined;
+  const time = timeOf(reward);
 
   return (
     <main class="screen reward">
       <p class="reward__kicker">{kickerOf(reward)}</p>
-      <h1 class="reward__title">{reward.title}</h1>
+      <div class="reward__head">
+        <h1 class="reward__title">{reward.title}</h1>
+        {time && (
+          <p class="reward__time small muted">
+            {time}
+            {canCorrect && !correcting && (
+              <>
+                {' · '}
+                <InlineLink onClick={() => setCorrecting(true)}>поправить</InlineLink>
+              </>
+            )}
+          </p>
+        )}
+      </div>
 
       {canCorrect && correcting ? (
         <TimeCorrection reward={reward} onCorrect={onCorrect} onClose={() => setCorrecting(false)} />
       ) : (
         <div class="reward__gains">
           <div>
-            <b>+{r.xp}</b> опыта <span class="muted">· {BRANCH_NAMES[r.branch]}</span>
-            {canCorrect && (
-              <>
-                <span class="muted"> · </span>
-                <InlineLink onClick={() => setCorrecting(true)}>поправить время</InlineLink>
-              </>
-            )}
+            <b>+{r.xp}</b> <XpIcon branch={r.branch} />
           </div>
           <div>
-            <b>+{baseGold}</b> золота
+            <b>+{baseGold}</b> <GoldIcon />
           </div>
           {r.taskStars > 0 && (
             <div>
-              <b>+{r.taskStars}</b> ★
+              <b>+{r.taskStars}</b> <span class="wallet__star">★</span>
             </div>
           )}
         </div>

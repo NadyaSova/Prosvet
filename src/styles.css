@@ -527,8 +527,11 @@ h2 {
 }
 
 .wallet__gold {
+  display: inline-block;
+  flex: none;
   width: 14px;
   height: 14px;
+  vertical-align: -1px;
   border-radius: 50%;
   background: var(--color-gold);
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.15);
@@ -537,6 +540,18 @@ h2 {
 .wallet__star,
 .loot__star {
   color: var(--color-gold);
+}
+
+/* Значок опыта — росток цветом ветки, к которой идёт опыт (класс task--<ветка>); без ветки — зелёный.
+   Стоит рядом с числом вместо слова «опыта», как монета у золота и ★ у звёзд. */
+.xp-icon {
+  display: inline-block;
+  flex: none;
+  width: var(--icon-size, 15px);
+  height: var(--icon-size, 15px);
+  vertical-align: -2px;
+  fill: currentColor;
+  color: var(--branch-ink, var(--color-accent));
 }
 
 /* Настройки в шапке — без кружка, как огонёк серии. */
@@ -1356,7 +1371,8 @@ h2 {
   .note-layer,
   .note,
   .reward-note,
-  .tick__mark {
+  .tick__mark,
+  .bonus-tag {
     animation: none;
   }
 }
@@ -1465,7 +1481,19 @@ body.no-scroll {
   max-width: 26ch;
 }
 
-/* Правка времени: ссылка «поправить время» в строке прибавки, по нажатию — лист со счётчиком минут на месте строки. */
+/* Название и под ним, как на записке доски, засчитанное время: «25 минут · поправить». */
+.reward__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.reward__time {
+  margin: 0;
+}
+
+/* Правка времени: по ссылке «поправить» — лист со счётчиком минут на месте строки прибавки. */
 
 .reward__correct {
   width: 100%;
@@ -1528,14 +1556,68 @@ body.no-scroll {
   line-height: 1.5;
 }
 
-/* «· изменить» не отрывается от строки по одному слову. */
-.reward-note__edit {
+/* Метка бонуса за ответ: «+5 [росток] +3 [монета]» справа в строке выбранного ответа. Появляется плавно. */
+.bonus-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-left: auto;
+  padding-left: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 550;
   white-space: nowrap;
+  animation: bonus-in 0.3s ease-out;
 }
 
-/* Ссылка на записке — тёмным цветом ветки: зелёный на малиновой бумаге Нитей был ниже 4.5 : 1. */
-.reward-note .link-button.reward__link {
-  color: var(--branch-ink);
+/* Пара «число + значок» — одно правило для прибавки вверху экрана награды и для метки бонуса:
+   значки опыта и золота — квадрат 0.95em от шрифта пары, по центру строки, 4 px от числа; между парами — 20 px. */
+.reward__gains > div,
+.bonus-tag__part {
+  --icon-size: 0.95em;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.reward__gains .wallet__gold,
+.bonus-tag__part .wallet__gold {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  vertical-align: middle;
+}
+
+@keyframes bonus-in {
+  from { opacity: 0; transform: translateX(-4px); }
+}
+
+/* У находки метка — под линией для письма, справа. */
+/* У находки строка под линией: слева «✓ записано», справа метка бонуса. Кнопки после записи нет. */
+.reward-note__tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.reward-note__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.reward-note__saved .reward-note__saved-mark {
+  display: inline-block;
+  flex: none;
+  width: 0.95em;
+  height: 0.95em;
+  fill: none;
+  stroke: var(--branch-ink, var(--color-accent));
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Внутри записки всё «написано на бумаге»: галочки, линия для письма, текст чернилами.
@@ -1682,6 +1764,8 @@ body.no-scroll {
   width: 100%;
 }
 
+/* Прибавка: всё заработанное одной строкой, крупно. Ветку показывает цвет ростка.
+   От названия — обычный зазор экрана (--space-4), до карты добычи — --space-6. */
 .reward__gains {
   display: flex;
   gap: var(--space-5);
@@ -1689,8 +1773,13 @@ body.no-scroll {
   flex-wrap: wrap;
 }
 
-.reward__gains b {
-  font-size: var(--text-lg);
+/* Размер шрифта — у пары, чтобы значок (0.95em) считался от крупного числа. Пара и значки — в правиле у .bonus-tag__part. */
+.reward__gains > div {
+  font-size: var(--title-2xl);
+}
+
+.reward__gains + .loot {
+  margin-top: calc(var(--space-6) - var(--space-4));
 }
 
 .loot {
@@ -2541,6 +2630,14 @@ textarea:focus {
 /* Ссылка в строке текста: нажимать можно и над и под строкой — до 44 px. */
 .reward__link {
   position: relative;
+}
+
+/* «поправить» в строке под названием — того же цвета и начертания, что строка; отличает пунктирное подчёркивание. */
+.reward__time .link-button.reward__link {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
 }
 
 .reward__link::before {

@@ -14,7 +14,7 @@ import { PlantArt } from '../ui/valley/plant-art';
 import { BranchesSection } from './gallery-branches';
 import { DeerSection } from './gallery-deer';
 import { LandmarksSection } from './gallery-landmarks';
-import { RewardSection, StopQuestionsSection } from './gallery-reward';
+import { RewardSection, StopQuestionsSection, XpIconSection } from './gallery-reward';
 import { SectionIconsSection } from './gallery-sections';
 import { WillowSection } from './gallery-willow';
 
@@ -232,6 +232,8 @@ function Gallery() {
         видны здесь сразу, без перезагрузки.
       </p>
 
+      <XpIconSection />
+
       <StopQuestionsSection />
 
       <LandmarksSection />
@@ -377,6 +379,11 @@ style.textContent = `
   .gallery__phone { width: 380px; }
   .gallery__phone .screen { min-height: 780px; border: 1px solid var(--color-field-border); border-radius: 12px; }
   .gallery__phone .loot svg { width: auto; }
+  .gallery__xp { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .gallery__xp-item { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .gallery .xp-icon { display: inline-block; width: var(--icon-size, 15px); height: var(--icon-size, 15px); }
+  .gallery .gallery__xp-big { --icon-size: 56px; }
+  .gallery__xp-note { transform: none; padding: 12px 16px; align-items: flex-end; animation: none; }
 `;
 document.head.append(style);
 

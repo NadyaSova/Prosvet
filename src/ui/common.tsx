@@ -30,6 +30,34 @@ export function Progress({ value, max }: { value: number; max: number }) {
   );
 }
 
+/**
+ * Значок опыта — росток, цветом ветки, к которой идёт опыт (без ветки — зелёный).
+ * Стоит рядом с числом вместо слова: «+30 [росток]». Для чтения с экрана — скрытое «опыта».
+ */
+export function XpIcon({ branch }: { branch?: TaskTemplate['branch'] }) {
+  return (
+    <>
+      <svg class={`xp-icon ${branch ? `task--${branch}` : ''}`} viewBox="0 0 16 16" aria-hidden="true">
+        {/* Рисунок заполняет квадрат 16×16 без полей: стебель и два залитых листа. */}
+        <path d="M7.1 16 C7 13.2 7.2 10.8 7.9 8.6 L9.5 9 C8.9 11.1 8.7 13.4 8.9 16 Z" />
+        <path d="M7.9 10.8 C3.6 11.8 0.2 9.6 0 4.6 C4.8 4.2 8 6.4 7.9 10.8 Z" />
+        <path d="M8.6 9 C7.8 4.2 10.6 0.4 16 0 C16.2 5.6 13.6 9.4 8.6 9 Z" />
+      </svg>
+      <span class="visually-hidden">опыта</span>
+    </>
+  );
+}
+
+/** Значок золота — монета, как в кошельке. Для чтения с экрана — скрытое «золота». */
+export function GoldIcon() {
+  return (
+    <>
+      <span class="wallet__gold" aria-hidden="true" />
+      <span class="visually-hidden">золота</span>
+    </>
+  );
+}
+
 export function BranchChip({ branch }: { branch: TaskTemplate['branch'] }) {
   return <span class={`chip chip--${branch}`}>{BRANCH_NAMES[branch]}</span>;
 }

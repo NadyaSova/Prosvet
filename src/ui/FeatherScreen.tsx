@@ -4,6 +4,7 @@ import { BALANCE } from '../config/balance';
 import type { ReturnedFeather } from '../logic/game';
 import { cloakView } from '../logic/pigeons';
 import { titleFor } from '../logic/progression';
+import { GoldIcon, XpIcon } from './common';
 import { daysText, feathersText } from './format';
 import { BRANCH_NAMES, FEATHER_NAMES } from './labels';
 import { FeatherArt, PigeonArt } from './pigeon-art';
@@ -35,11 +36,11 @@ export function FeatherScreen({ feather, onClose }: { feather: ShownFeather; onC
 
       <div class="reward__gains">
         <div>
-          <b>+{r.xp}</b> опыта <span class="muted">· {BRANCH_NAMES.call}</span>
+          <b>+{r.xp}</b> <XpIcon branch="call" />
         </div>
         {r.gold > 0 && (
           <div>
-            <b>+{r.gold}</b> золота
+            <b>+{r.gold}</b> <GoldIcon />
           </div>
         )}
         {goldenStars > 0 && (
