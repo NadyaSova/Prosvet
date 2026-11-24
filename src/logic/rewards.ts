@@ -10,9 +10,12 @@ import type { Rng } from './rng';
 import { addLog, recordActivity, resolveStreak } from './streak';
 import { dayOf } from './time';
 
-/** factor — множитель опыта и золота за минуты (BALANCE.tasks.rewardFactor); нет — 1. */
+/**
+ * factor — множитель опыта и золота за минуты (BALANCE.tasks.rewardFactor); нет — 1.
+ * stars — звёзды за само задание (особый элемент бесконечного босса, docs/phase2-plan.md §5.3).
+ */
 export type Completion =
-  | { kind: 'timed'; branch: Branch; minutes: number; full: boolean; factor?: number }
+  | { kind: 'timed'; branch: Branch; minutes: number; full: boolean; factor?: number; stars?: number }
   | { kind: 'instant'; branch: Branch; instant: InstantKind };
 
 export interface RewardReport {
@@ -32,7 +35,7 @@ export interface RewardReport {
   newBranchLevel: number | null;
   /** Все звёзды за задание: само задание, уровни, вехи серии, карта добычи. */
   stars: number;
-  /** Из них — звёзды за само задание (мероприятие). */
+  /** Из них — звёзды за само задание (мероприятие, особый элемент бесконечного босса). */
   taskStars: number;
   streakMilestones: number[];
   logsBurned: number;
@@ -46,7 +49,7 @@ function baseReward(c: Completion): { xp: number; gold: number; stars: number } 
     return {
       xp: round(c.minutes * BALANCE.xp.perTimedMinute * factor),
       gold: round(c.minutes * BALANCE.gold.perTimedMinute * factor),
-      stars: 0,
+      stars: c.stars ?? 0,
     };
   }
   return {
@@ -187,6 +190,41 @@ export function applyFeather(
       newLevel: newLevel > oldLevel ? newLevel : null,
       newBranchLevel: newBranchLevel > oldBranchLevel ? newBranchLevel : null,
       thresholds,
+    },
+  };
+}
+
+export interface VictoryReport {
+  branch: Branch;
+  xp: number;
+  gold: number;
+  /** Все звёзды: сама победа и новый общий уровень. */
+  stars: number;
+  newLevel: number | null;
+  newBranchLevel: number | null;
+}
+
+/**
+ * Победа над конечным боссом (docs/phase2-plan.md §5.2): крупный бонус со звездой, опыт — в ветку босса.
+ * Это не задание: серия, карта добычи и веса доски не меняются — работа уже засчитана подходами.
+ */
+export function applyVictory(state: PlayerState, branch: Branch): { state: PlayerState; report: VictoryReport } {
+  const { xp, gold, stars: victoryStars } = BALANCE.bosses.victory;
+  const oldLevel = levelInfo(totalXp(state.xp)).level;
+  const oldBranchLevel = levelInfo(state.xp[branch]).level;
+  const newXp = { ...state.xp, [branch]: state.xp[branch] + xp };
+  const newLevel = levelInfo(totalXp(newXp)).level;
+  const newBranchLevel = levelInfo(newXp[branch]).level;
+  const stars = victoryStars + (newLevel - oldLevel) * BALANCE.level.starsPerOverallLevel;
+  return {
+    state: { ...state, xp: newXp, gold: state.gold + gold, stars: state.stars + stars },
+    report: {
+      branch,
+      xp,
+      gold,
+      stars,
+      newLevel: newLevel > oldLevel ? newLevel : null,
+      newBranchLevel: newBranchLevel > oldBranchLevel ? newBranchLevel : null,
     },
   };
 }

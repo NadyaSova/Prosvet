@@ -4,6 +4,7 @@
 import { BALANCE } from '../config/balance';
 import type {
   BoardState,
+  Boss,
   Branch,
   LoftState,
   Pigeon,
@@ -14,8 +15,26 @@ import type {
   ValleyState,
 } from '../model/types';
 import { buildBoard, canReroll, pickTinyTask, refillSlot, repairBoard, type BoardContext } from './board';
+import {
+  addSession,
+  clampSessionMinutes,
+  measuredMinutes,
+  runningBoss,
+  sessionStars,
+  startStopwatch,
+  winBoss,
+} from './bosses';
 import { answerPigeon, feathersOf, isOverdue, lateInvite, launchPigeon, returnSilent } from './pigeons';
-import { applyCompletion, applyFeather, refreshStreak, type Completion, type FeatherReport, type RewardReport } from './rewards';
+import {
+  applyCompletion,
+  applyFeather,
+  applyVictory,
+  refreshStreak,
+  type Completion,
+  type FeatherReport,
+  type RewardReport,
+  type VictoryReport,
+} from './rewards';
 import type { Rng } from './rng';
 import { dayOf } from './time';
 import {
@@ -112,8 +131,10 @@ export function startTimedTask(
   state: GameState,
   task: { templateId: string; title: string; branch: Branch; minutes: number },
   now: number,
+  bosses: readonly Boss[] = [],
 ): GameState {
   if (state.timer) throw new Error('Таймер уже идёт');
+  if (runningBoss(bosses)) throw new Error('Идёт подход к боссу');
   return { ...state, timer: { ...startTimer(task.templateId, task.minutes, now), title: task.title, branch: task.branch } };
 }
 
@@ -407,6 +428,81 @@ export function plantFromInventory(
   if (!r) return null;
   const inventory = state.player.inventory.filter((_, i) => i !== index);
   return { state: { ...state, player: { ...state.player, inventory }, valley: r.valley }, object: r.object };
+}
+
+// Боссы. docs/phase2-plan.md §5. Боссы хранятся отдельно от GameState, как голуби: функции возвращают
+// изменённого босса, интерфейс сохраняет его вместе с игроком одной транзакцией.
+
+function findBoss(bosses: readonly Boss[], id: string): Boss {
+  const b = bosses.find((x) => x.id === id);
+  if (!b) throw new Error('Босс не найден');
+  return b;
+}
+
+/** Подход к боссу: секундомер. Пока идёт таймер задания или секундомер другого босса — нельзя. */
+export function startBossSession(state: GameState, bosses: readonly Boss[], id: string, now: number): Boss {
+  if (state.timer) throw new Error('Идёт таймер задания');
+  const running = runningBoss(bosses);
+  if (running) throw new Error(running.id === id ? 'Секундомер уже идёт' : 'Идёт подход к другому боссу');
+  return startStopwatch(findBoss(bosses, id), now);
+}
+
+/**
+ * Остановка секундомера: подход записан, награда — как за таймерное задание на столько минут
+ * (опыт и золото ветке босса, день серии; карта добычи — от BALANCE.bosses.lootFromMinutes минут).
+ * Растения в долине подход не сажает: в долине растёт сам босс — редеет туман или наполняется место.
+ * minutes — время, поправленное пользователем; как и у таймера, чтобы поправить уже засчитанное,
+ * интерфейс повторяет вызов на состоянии до остановки с тем же сидом генератора.
+ * null — секундомер не идёт или на нём меньше минимума, а поправленного времени нет (засчитывать нечего).
+ */
+export function finishBossSession(
+  state: GameState,
+  bosses: readonly Boss[],
+  id: string,
+  now: number,
+  rng: Rng,
+  options: { minutes?: number; note?: string } = {},
+): { state: GameState; boss: Boss; done: CompletedTask } | null {
+  const boss = findBoss(bosses, id);
+  if (!boss.stopwatch) return null;
+  const measured = measuredMinutes(boss, now);
+  const minutes = options.minutes === undefined ? measured : clampSessionMinutes(options.minutes);
+  if (minutes === null) return null;
+  const completion: Completion = {
+    kind: 'timed',
+    branch: boss.branch,
+    minutes,
+    full: minutes >= BALANCE.bosses.lootFromMinutes,
+    stars: sessionStars(boss),
+  };
+  const { state: player, report } = applyCompletion(state.player, completion, now, rng);
+  return {
+    state: { ...state, player },
+    boss: addSession(boss, minutes, options.note),
+    done: {
+      title: boss.title,
+      branch: boss.branch,
+      report,
+      minutes,
+      full: true,
+      whileAway: false,
+      planted: null,
+      districtOpened: false,
+    },
+  };
+}
+
+/** Победа над конечным боссом: крупный бонус со звездой. */
+export function winBossAction(
+  state: GameState,
+  bosses: readonly Boss[],
+  id: string,
+  now: number,
+  note?: string,
+): { state: GameState; boss: Boss; report: VictoryReport } {
+  const boss = winBoss(findBoss(bosses, id), now, note);
+  const { state: player, report } = applyVictory(state.player, boss.branch);
+  return { state: { ...state, player }, boss, report };
 }
 
 /** Можно ли сегодня перетянуть доску (для кнопки). */

@@ -12,8 +12,14 @@ import {
   BRANCHES,
   CAMP_KINDS,
   DECOR_KINDS,
+  GARDEN_KINDS,
+  LANDMARK_KINDS,
   type Achievement,
+  type Boss,
+  type BossSession,
   type Branch,
+  type GardenKind,
+  type LandmarkKind,
   type Coupon,
   type TaskTemplate,
   type Prize,
@@ -254,6 +260,76 @@ export function normalizeValley(raw: unknown): ValleyState | null {
   // Вещи лагеря появились на шаге 8. Каждая — не больше одной.
   const camp = CAMP_KINDS.filter((k) => Array.isArray(raw.camp) && raw.camp.includes(k));
   return { plants, decor, camp };
+}
+
+function optionalText(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.trim() !== '' ? raw : undefined;
+}
+
+function normalizeSession(raw: unknown): BossSession | null {
+  if (!isObject(raw) || typeof raw.startedAt !== 'number' || !Number.isInteger(raw.minutes) || (raw.minutes as number) < 1) {
+    return null;
+  }
+  const s: BossSession = { startedAt: raw.startedAt, minutes: raw.minutes as number };
+  const note = optionalText(raw.note);
+  if (note) s.note = note;
+  return s;
+}
+
+const BOSS_STATUSES: Record<Boss['kind'], readonly Boss['status'][]> = {
+  finite: ['active', 'won', 'released'],
+  endless: ['active', 'archived'],
+};
+
+/**
+ * Босс из базы или копии. null — без id, названия, вида или с неизвестной веткой.
+ * Сооружение или место не того вида выбирается заново по сиду; непонятный статус — «в работе».
+ */
+export function normalizeBoss(raw: unknown): Boss | null {
+  if (!isObject(raw) || typeof raw.id !== 'string' || typeof raw.title !== 'string' || !raw.title.trim()) return null;
+  if (raw.kind !== 'finite' && raw.kind !== 'endless') return null;
+  const kind = raw.kind;
+  const branch = migrateBranch(raw.branch);
+  if (!branch) return null;
+  const rawPlace = isObject(raw.place) ? raw.place : {};
+  const seed = typeof rawPlace.seed === 'number' ? rawPlace.seed >>> 0 : 0;
+  const known = <T extends string>(kinds: readonly T[], x: unknown): T =>
+    kinds.includes(x as T) ? (x as T) : kinds[seed % kinds.length]!;
+  const place: Boss['place'] =
+    kind === 'finite'
+      ? { landmark: known<LandmarkKind>(LANDMARK_KINDS, rawPlace.landmark), seed }
+      : { garden: known<GardenKind>(GARDEN_KINDS, rawPlace.garden), seed };
+  const status = BOSS_STATUSES[kind].includes(raw.status as never) ? (raw.status as Boss['status']) : 'active';
+  const sessions = (Array.isArray(raw.sessions) ? raw.sessions : []).map(normalizeSession).filter((s) => s !== null);
+  const b: Boss = {
+    id: raw.id,
+    title: raw.title,
+    kind,
+    branch,
+    status,
+    place,
+    sessions,
+    createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : 0,
+  };
+  const note = optionalText(raw.note);
+  if (note) b.note = note;
+  if (typeof raw.templateId === 'string') b.templateId = raw.templateId;
+  // Секундомер идёт только у босса в работе.
+  if (status === 'active' && isObject(raw.stopwatch) && typeof raw.stopwatch.startedAt === 'number') {
+    b.stopwatch = { startedAt: raw.stopwatch.startedAt };
+  }
+  if (status !== 'active') b.endedAt = typeof raw.endedAt === 'number' ? raw.endedAt : b.createdAt;
+  const victoryNote = optionalText(raw.victoryNote);
+  if (status === 'won' && victoryNote) b.victoryNote = victoryNote;
+  return b;
+}
+
+/** Боссы; секундомер остаётся только у одного — того, что запущен последним. */
+export function normalizeBosses(raw: readonly unknown[]): Boss[] {
+  const list = raw.map(normalizeBoss).filter((b) => b !== null);
+  const running = list.filter((b) => b.stopwatch).sort((a, b) => b.stopwatch!.startedAt - a.stopwatch!.startedAt);
+  for (const b of running.slice(1)) delete b.stopwatch;
+  return list;
 }
 
 /** Значок приза — короткая строка (эмодзи); остальное отбрасываем. */

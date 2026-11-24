@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../logic/rng';
 import { emptyValley, plantForCompletion } from '../logic/valley';
 import { createPlayer } from '../model/player';
-import type { Achievement, Pigeon, TaskTemplate } from '../model/types';
+import type { Achievement, Boss, Pigeon, TaskTemplate } from '../model/types';
 import {
   BackupError,
   backupFileName,
@@ -15,10 +15,20 @@ import {
   serializeSnapshot,
 } from './backup';
 import { openProsvetDb, SCHEMA_VERSION } from './db';
-import { normalizeLoft, normalizePigeon, normalizePlayer, normalizeShop, normalizeTimer, normalizeValley } from './normalize';
+import {
+  normalizeBoss,
+  normalizeBosses,
+  normalizeLoft,
+  normalizePigeon,
+  normalizePlayer,
+  normalizeShop,
+  normalizeTimer,
+  normalizeValley,
+} from './normalize';
 import {
   getKv,
   listAchievements,
+  listBosses,
   listCustomTasks,
   listPigeons,
   loadAppData,
@@ -276,7 +286,7 @@ describe('голубятня', () => {
     expect(normalizePigeon({ id: 'x', company: 'К', sentAt: NOW, status: 'returned' })).toMatchObject({ status: 'flying' });
   });
 
-  it('база версии 1 обновляется до версии 2 без потери данных', async () => {
+  it('база версии 1 обновляется до текущей без потери данных', async () => {
     const name = `test-upgrade-${dbCounter++}`;
     const v1 = await openDB(name, 1, {
       upgrade(db) {
@@ -290,7 +300,7 @@ describe('голубятня', () => {
     v1.close();
 
     const db = await openProsvetDb(name);
-    expect(db.version).toBe(2);
+    expect(db.version).toBe(SCHEMA_VERSION);
     const data = await loadAppData(db, NOW);
     expect(data.player.gold).toBe(77);
     expect(data.pigeons).toEqual([]);
@@ -425,6 +435,84 @@ describe('лавка', () => {
 
   it('вещи лагеря без повторов, неизвестные отбрасываются', () => {
     expect(normalizeValley({ plants: [], decor: [], camp: ['tent', 'tent', 'замок', 'lantern'] })?.camp).toEqual(['tent', 'lantern']);
+  });
+});
+
+describe('боссы', () => {
+  const boss: Boss = {
+    id: 'b1', title: 'Интервью в «Ромашке»', kind: 'finite', branch: 'prep', status: 'active',
+    place: { landmark: 'windmill', seed: 7 }, sessions: [{ startedAt: NOW, minutes: 30, note: 'продукт' }],
+    stopwatch: { startedAt: NOW + DAY_MS }, createdAt: NOW,
+  };
+  const emptyGame = () => ({ player: createPlayer(), board: { taskIds: [], rerolls: null }, timer: null, valley: emptyValley() });
+
+  it('новый игрок — боссов нет', async () => {
+    expect((await loadAppData(await freshDb(), NOW)).bosses).toEqual([]);
+  });
+
+  it('босс и награда за подход пишутся вместе', async () => {
+    const db = await freshDb();
+    const data = await loadAppData(db, NOW);
+    await saveGame(db, { ...data, player: { ...data.player, gold: 15 } }, { bosses: [boss] });
+    const again = await loadAppData(db, NOW);
+    expect(again.player.gold).toBe(15);
+    expect(again.bosses).toEqual([boss]);
+    expect(await listBosses(db)).toEqual([boss]);
+  });
+
+  it('база версии 2 обновляется до версии 3: голуби на месте, боссов нет', async () => {
+    const name = `test-upgrade-${dbCounter++}`;
+    const v2 = await openDB(name, 2, {
+      upgrade(db) {
+        db.createObjectStore('kv');
+        db.createObjectStore('tasks', { keyPath: 'id' });
+        db.createObjectStore('achievements', { keyPath: 'id' }).createIndex('byUpdatedAt', 'updatedAt');
+        db.createObjectStore('pigeons', { keyPath: 'id' });
+      },
+    });
+    await v2.put('pigeons', { id: 'p', company: 'К', sentAt: NOW, status: 'flying', look: { pose: 'sit', size: 'small', color: 'white' } });
+    v2.close();
+    const db = await openProsvetDb(name);
+    const data = await loadAppData(db, NOW);
+    expect(data.pigeons.map((p) => p.id)).toEqual(['p']);
+    expect(data.bosses).toEqual([]);
+  });
+
+  it('копия с боссами — туда и обратно; копия версии 2 загружается без боссов', async () => {
+    const source = await freshDb();
+    await loadAppData(source, NOW);
+    await saveGame(source, emptyGame(), { bosses: [boss] });
+    const text = serializeSnapshot(await exportSnapshot(source, NOW));
+    const target = await freshDb();
+    await saveGame(target, emptyGame(), { bosses: [{ ...boss, id: 'лишний' }] });
+    await importSnapshot(target, parseSnapshot(text));
+    expect(await listBosses(target)).toEqual([boss]);
+
+    const v2 = parseSnapshot(JSON.stringify({ app: 'prosvet', schemaVersion: 2, data: { kv: {}, tasks: [], achievements: [], pigeons: [] } }));
+    expect(v2.data.bosses).toEqual([]);
+    expect(() => parseSnapshot(JSON.stringify({ app: 'prosvet', schemaVersion: 3, data: { kv: {}, tasks: [], achievements: [], pigeons: [] } })))
+      .toThrow(BackupError);
+  });
+
+  it('испорченные боссы отбрасываются, недостающее восстанавливается', () => {
+    expect(normalizeBoss({ id: 'x', title: 'Б', kind: 'other', branch: 'prep' })).toBeNull();
+    expect(normalizeBoss({ id: 'x', title: ' ', kind: 'finite', branch: 'prep' })).toBeNull();
+    expect(normalizeBoss({ id: 'x', title: 'Б', kind: 'finite', branch: 'nope' })).toBeNull();
+    const b = normalizeBoss({
+      id: 'x', title: 'Б', kind: 'endless', branch: 'speech', status: 'won', place: { seed: 5 },
+      sessions: [{ startedAt: NOW, minutes: 20 }, { minutes: 5 }, { startedAt: NOW, minutes: 0 }],
+    })!;
+    expect(b).toMatchObject({ branch: 'prep', status: 'active', sessions: [{ startedAt: NOW, minutes: 20 }] });
+    expect(b.place.garden).toBeDefined();
+    expect(b.place.landmark).toBeUndefined();
+    const ended = normalizeBoss({ ...boss, status: 'released', endedAt: undefined })!;
+    expect(ended.stopwatch).toBeUndefined();
+    expect(ended.endedAt).toBe(NOW);
+  });
+
+  it('секундомер остаётся только у запущенного последним', () => {
+    const list = normalizeBosses([boss, { ...boss, id: 'b2', stopwatch: { startedAt: NOW + 2 * DAY_MS } }]);
+    expect(list.filter((b) => b.stopwatch).map((b) => b.id)).toEqual(['b2']);
   });
 });
 

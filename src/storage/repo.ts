@@ -8,6 +8,7 @@ import type { Rng } from '../logic/rng';
 import type {
   Achievement,
   BoardState,
+  Boss,
   LoftState,
   Pigeon,
   PlayerState,
@@ -21,6 +22,7 @@ import {
   createSettings,
   normalizeAchievements,
   normalizeBoard,
+  normalizeBosses,
   normalizeLoft,
   normalizePhrases,
   normalizePigeons,
@@ -53,6 +55,8 @@ export interface AppData {
   /** Записи Летописи, свежие сверху (по дате создания). */
   achievements: Achievement[];
   shop: ShopState;
+  /** Боссы во всех состояниях, по порядку создания. */
+  bosses: Boss[];
 }
 
 /**
@@ -60,7 +64,7 @@ export interface AppData {
  * Долины нет (база или копия старше шага 6) — она вырастает по уже накопленному опыту веток.
  */
 export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.random): Promise<AppData> {
-  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley, rawAchievements, rawShop] =
+  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley, rawAchievements, rawShop, rawBosses] =
     await Promise.all([
       getKv(db, 'player'),
       getKv(db, 'settings'),
@@ -72,6 +76,7 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
       getKv(db, 'valley'),
       db.getAll('achievements') as Promise<unknown[]>,
       getKv(db, 'shop'),
+      db.getAll('bosses') as Promise<unknown[]>,
     ]);
   const player = normalizePlayer(rawPlayer);
   const storedLoft = normalizeLoft(rawLoft);
@@ -89,6 +94,7 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
     valley,
     achievements: sortEntries(normalizeAchievements(rawAchievements)),
     shop: normalizeShop(rawShop),
+    bosses: sortBosses(normalizeBosses(rawBosses)),
   };
   if (rawPlayer === undefined) await setKv(db, 'player', data.player);
   if (rawSettings === undefined) await setKv(db, 'settings', data.settings);
@@ -105,14 +111,16 @@ export interface SaveExtras {
   loft?: LoftState;
   /** Призы и купоны: покупка купона списывает звёзды той же транзакцией. */
   shop?: ShopState;
+  /** Новые и изменённые боссы: подход и награда за него пишутся вместе. */
+  bosses?: readonly Boss[];
 }
 
 /**
- * Сохраняет игру одной транзакцией: игрока, доску, таймер и долину, а если переданы — запись журнала, голубей и жёрдочку.
+ * Сохраняет игру одной транзакцией: игрока, доску, таймер и долину, а если переданы — запись журнала, голубей, жёрдочку, лавку и боссов.
  * Так награда и то, за что она дана, не могут разойтись: либо записалось всё, либо ничего.
  */
 export async function saveGame(db: ProsvetDb, game: GameState, extras: SaveExtras = {}): Promise<void> {
-  const tx = db.transaction(['kv', 'achievements', 'pigeons'], 'readwrite');
+  const tx = db.transaction(['kv', 'achievements', 'pigeons', 'bosses'], 'readwrite');
   const kv = tx.objectStore('kv');
   const writes: Promise<unknown>[] = [
     kv.put(game.player, 'player'),
@@ -124,7 +132,17 @@ export async function saveGame(db: ProsvetDb, game: GameState, extras: SaveExtra
   if (extras.loft) writes.push(kv.put(extras.loft, 'loft'));
   if (extras.shop) writes.push(kv.put(extras.shop, 'shop'));
   for (const p of extras.pigeons ?? []) writes.push(tx.objectStore('pigeons').put(p));
+  for (const b of extras.bosses ?? []) writes.push(tx.objectStore('bosses').put(b));
   await Promise.all([...writes, tx.done]);
+}
+
+/** Боссы по порядку создания. */
+function sortBosses(list: Boss[]): Boss[] {
+  return list.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function listBosses(db: ProsvetDb): Promise<Boss[]> {
+  return sortBosses(normalizeBosses(await db.getAll('bosses')));
 }
 
 /** Голуби, свежие сверху. */

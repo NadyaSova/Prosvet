@@ -1,9 +1,9 @@
 // Резервная копия: все данные в один JSON-файл и обратно. SPEC.md §14.3.
 
 import { BALANCE } from '../config/balance';
-import type { Achievement, Pigeon, Settings, TaskTemplate } from '../model/types';
+import type { Achievement, Boss, Pigeon, Settings, TaskTemplate } from '../model/types';
 import { KV_KEYS, SCHEMA_VERSION, STORE_NAMES, type KvKey, type ProsvetDb } from './db';
-import { normalizePigeons, normalizeSettings } from './normalize';
+import { normalizeBosses, normalizePigeons, normalizeSettings } from './normalize';
 
 export interface Snapshot {
   app: 'prosvet';
@@ -15,6 +15,8 @@ export interface Snapshot {
     tasks: TaskTemplate[];
     achievements: Achievement[];
     pigeons: Pigeon[];
+    /** Появились в версии 3. */
+    bosses: Boss[];
   };
 }
 
@@ -27,6 +29,8 @@ export class BackupError extends Error {}
 const SNAPSHOT_MIGRATIONS: Record<number, (s: Snapshot) => Snapshot> = {
   // Версия 2: голубятня. В старых копиях голубей нет.
   1: (s) => ({ ...s, schemaVersion: 2, data: { ...s.data, pigeons: [] } }),
+  // Версия 3: боссы. В старых копиях боссов нет.
+  2: (s) => ({ ...s, schemaVersion: 3, data: { ...s.data, bosses: [] } }),
 };
 
 /**
@@ -47,13 +51,14 @@ export async function exportSnapshot(db: ProsvetDb, now: number): Promise<Snapsh
   const tasks = await tx.objectStore('tasks').getAll();
   const achievements = await tx.objectStore('achievements').getAll();
   const pigeons = await tx.objectStore('pigeons').getAll();
+  const bosses = await tx.objectStore('bosses').getAll();
   await tx.done;
 
   return {
     app: 'prosvet',
     schemaVersion: SCHEMA_VERSION,
     exportedAt: new Date(now).toISOString(),
-    data: { kv, tasks, achievements, pigeons },
+    data: { kv, tasks, achievements, pigeons, bosses },
   };
 }
 
@@ -87,10 +92,12 @@ export function parseSnapshot(text: string): Snapshot {
     throw new BackupError('Копия сделана в более новой версии приложения. Обнови приложение и попробуй снова.');
   }
 
-  const { kv, tasks, achievements, pigeons } = raw.data;
+  const { kv, tasks, achievements, pigeons, bosses } = raw.data;
   if (!isObject(kv) || !hasIds(tasks) || !hasIds(achievements)) throw new BackupError(NOT_A_BACKUP);
   // Голуби появились в версии 2.
   if (version >= 2 && !hasIds(pigeons)) throw new BackupError(NOT_A_BACKUP);
+  // Боссы — в версии 3.
+  if (version >= 3 && !hasIds(bosses)) throw new BackupError(NOT_A_BACKUP);
 
   const knownKv: Snapshot['data']['kv'] = {};
   for (const key of KV_KEYS) if (kv[key] !== undefined) knownKv[key] = kv[key];
@@ -104,6 +111,7 @@ export function parseSnapshot(text: string): Snapshot {
       tasks: tasks as TaskTemplate[],
       achievements: achievements as Achievement[],
       pigeons: version >= 2 ? normalizePigeons(pigeons as unknown[]) : [],
+      bosses: version >= 3 ? normalizeBosses(bosses as unknown[]) : [],
     },
   };
   while (snapshot.schemaVersion < SCHEMA_VERSION) {
@@ -121,7 +129,8 @@ export async function importSnapshot(db: ProsvetDb, s: Snapshot): Promise<void> 
   const tasks = tx.objectStore('tasks');
   const achievements = tx.objectStore('achievements');
   const pigeons = tx.objectStore('pigeons');
-  await Promise.all([kv.clear(), tasks.clear(), achievements.clear(), pigeons.clear()]);
+  const bosses = tx.objectStore('bosses');
+  await Promise.all([kv.clear(), tasks.clear(), achievements.clear(), pigeons.clear(), bosses.clear()]);
   for (const key of KV_KEYS) {
     const value = s.data.kv[key];
     if (value !== undefined) await kv.put(value, key);
@@ -129,6 +138,7 @@ export async function importSnapshot(db: ProsvetDb, s: Snapshot): Promise<void> 
   for (const t of s.data.tasks) await tasks.put(t);
   for (const a of s.data.achievements) await achievements.put(a);
   for (const p of s.data.pigeons) await pigeons.put(p);
+  for (const b of s.data.bosses) await bosses.put(b);
   await tx.done;
 }
 

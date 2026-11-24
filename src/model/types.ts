@@ -205,6 +205,58 @@ export interface ShopState {
   coupons: Coupon[];
 }
 
+/**
+ * Сооружения конечных боссов (docs/phase2-plan.md §5.2): мост, мельница, обсерватория, оранжерея, ротонда,
+ * дом на дереве, акведук, пагода, каменный круг, водопад с радугой, причал с воздушным шаром.
+ */
+export const LANDMARK_KINDS = [
+  'bridge', 'windmill', 'observatory', 'greenhouse', 'rotunda', 'treehouse',
+  'aqueduct', 'pagoda', 'stones', 'waterfall', 'balloon',
+] as const;
+export type LandmarkKind = (typeof LANDMARK_KINDS)[number];
+
+/** Места бесконечных боссов (docs/phase2-plan.md §5.3): пруд с рыбками, цветник, пасека, луг с бабочками. */
+export const GARDEN_KINDS = ['pond', 'flowerbed', 'apiary', 'meadow'] as const;
+export type GardenKind = (typeof GARDEN_KINDS)[number];
+
+/** Подход к боссу: когда начат, сколько минут засчитано, необязательная заметка. */
+export interface BossSession {
+  startedAt: number;
+  minutes: number;
+  note?: string;
+}
+
+/**
+ * Босс — большая задача вне доски (docs/phase2-plan.md §5). Работа над ним — подходы с секундомером.
+ * finite — конечный: сооружение под туманом, победу объявляет пользователь.
+ * endless — бесконечный: место в долине, которое наполняется с каждым подходом.
+ */
+export interface Boss {
+  id: string;
+  title: string;
+  note?: string;
+  /** Из какого шаблона заведён (шаблоны — шаг 9 фазы 2). */
+  templateId?: string;
+  kind: 'finite' | 'endless';
+  branch: Branch;
+  /** active — в работе; won — победа (конечный); released — отпущен (конечный); archived — в архиве (бесконечный). */
+  status: 'active' | 'won' | 'released' | 'archived';
+  /**
+   * Что стоит в долине: у конечного — сооружение, у бесконечного — место. seed — разброс рисунка.
+   * Где именно в долине — выбирается на шагах 7 и 8 фазы 2.
+   */
+  place: { landmark?: LandmarkKind; garden?: GardenKind; seed: number };
+  /** Подходы по порядку. */
+  sessions: BossSession[];
+  /** Идущий секундомер. */
+  stopwatch?: { startedAt: number };
+  createdAt: number;
+  /** Когда победа, отпущен или убран в архив. */
+  endedAt?: number;
+  /** Заметка при победе: например, разбор интервью. */
+  victoryNote?: string;
+}
+
 /** Доска заданий. */
 export interface BoardState {
   /** Шаблоны заданий на доске. */
