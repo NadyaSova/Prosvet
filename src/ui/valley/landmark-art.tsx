@@ -119,8 +119,11 @@ const MILL_CAPS = ['#7d5638', '#66707a', '#8f4f3c'];
 /** Оборот крыльев мельницы, секунд. */
 const MILL_TURN_SECONDS = 20;
 
-/** Крылья вращаются, если в настройках телефона не включено «уменьшить движение». Анимация SVG, а не CSS: её не выключить правилом в styles.css. */
-function turns(): boolean {
+/**
+ * Движение в рисунках (крылья мельницы, вода акведука) — если в настройках телефона не включено «уменьшить движение».
+ * Анимация SVG, а не CSS: её не выключить правилом в styles.css.
+ */
+function moves(): boolean {
   return typeof matchMedia === 'undefined' || !matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
@@ -173,7 +176,7 @@ function Windmill({ rng }: { rng: Rng }) {
           {[0, 90, 180, 270].map((a) => (
             <Sail key={a} angle={a} cloth={cloth} />
           ))}
-          {turns() && (
+          {moves() && (
             <animateTransform
               attributeName="transform"
               type="rotate"
@@ -499,6 +502,319 @@ function Treehouse({ rng }: { rng: Rng }) {
   );
 }
 
+// ---------- 7. Акведук ----------
+
+/** Проём арки: прямые стенки до пяты свода, сверху полукруг. */
+function archHole(cx: number, half: number, bottom: number, spring: number): string {
+  return `M${cx - half} ${bottom} V${spring} A${half} ${half} 0 0 1 ${cx + half} ${spring} V${bottom} Z`;
+}
+
+/** Арки акведука: середины проёмов, полуширина, низ проёма и пята свода. */
+const AQUEDUCT_TIERS = [
+  { top: -34, bottom: 0, arches: [-42, -14, 14, 42], half: 10, spring: -16 },
+  { top: -58, bottom: -36.5, arches: [-49, -35, -21, -7, 7, 21, 35, 49], half: 4.5, spring: -44 },
+];
+
+/** Куски строки кладки на высоте y, где стена сплошная (не проём арки). */
+function solidSpans(tier: (typeof AQUEDUCT_TIERS)[number], y: number): [number, number][] {
+  const holes = tier.arches
+    .map((cx) => {
+      if (y > tier.bottom) return null;
+      const r = tier.half + 1.5; // камни свода закрывают кладку вокруг проёма
+      const half = y >= tier.spring ? r : Math.sqrt(Math.max(0, r * r - (y - tier.spring) ** 2));
+      return half > 0 ? ([cx - half, cx + half] as [number, number]) : null;
+    })
+    .filter((h): h is [number, number] => h !== null);
+  const spans: [number, number][] = [];
+  let from = -56;
+  for (const [a, b] of holes) {
+    if (a > from) spans.push([from, a]);
+    from = Math.max(from, b);
+  }
+  if (from < 56) spans.push([from, 56]);
+  return spans;
+}
+
+/** Кладка: ряды блоков со смещёнными швами и несколько блоков другого оттенка — только на сплошной стене. */
+function Masonry({ s, rng }: { s: (typeof STONES)[number]; rng: Rng }) {
+  const course = 3.4;
+  const block = 7;
+  const joints: string[] = [];
+  const tinted: { x: number; y: number; light: boolean }[] = [];
+  AQUEDUCT_TIERS.forEach((tier) => {
+    for (let row = 0, y = tier.bottom - course; y > tier.top + 0.5; row++, y -= course) {
+      for (const [a, b] of solidSpans(tier, y)) {
+        joints.push(`M${a} ${y} H${b}`);
+        const shift = row % 2 ? block / 2 : 0;
+        for (let x = Math.ceil((a - shift) / block) * block + shift; x < b; x += block) {
+          if (x - a > 0.8 && b - x > 0.8) joints.push(`M${x} ${y} V${y + course}`);
+          if (x + block < b && rng() < 0.12) tinted.push({ x, y, light: rng() < 0.5 });
+        }
+      }
+    }
+  });
+  return (
+    <g>
+      {tinted.map((t, i) => (
+        <rect key={i} x={t.x} y={t.y} width={block} height={course} fill={t.light ? s.light : s.dark} opacity={t.light ? 0.45 : 0.18} />
+      ))}
+      <path d={joints.join(' ')} stroke={s.dark} stroke-width="0.4" opacity="0.32" />
+    </g>
+  );
+}
+
+/** Вода в жёлобе, струя с края и пруд. С движением — блики бегут по жёлобу и вниз по струе, по пруду расходятся круги. */
+function AqueductWater() {
+  const fall = 'M55.5 -61.5 Q60 -60 59.5 -50 L59 -2';
+  const run = moves();
+  return (
+    <g>
+      <rect x="-55" y="-62.2" width="110" height="1.4" fill={PALETTE.river} />
+      <ellipse cx="59" cy="-0.8" rx="7" ry="1.8" fill={PALETTE.river} />
+      <path d={fall} stroke={PALETTE.river} stroke-width="2.4" fill="none" stroke-linecap="round" />
+      {run ? (
+        <g stroke="#eef7fa" fill="none" stroke-linecap="round">
+          <path d="M-55 -61.5 H55" stroke-width="0.5" stroke-dasharray="3 7 5 9" opacity="0.8">
+            <animate attributeName="stroke-dashoffset" from="24" to="0" dur="4.8s" repeatCount="indefinite" />
+          </path>
+          <path d={fall} stroke-width="0.7" stroke-dasharray="5 7">
+            <animate attributeName="stroke-dashoffset" from="12" to="0" dur="0.8s" repeatCount="indefinite" />
+          </path>
+          {[0, 0.7].map((begin) => (
+            <ellipse key={begin} cx="59" cy="-0.9" rx="1" ry="0.35" stroke-width="0.5">
+              <animate attributeName="rx" values="1;6.5" dur="1.4s" begin={`${begin}s`} repeatCount="indefinite" />
+              <animate attributeName="ry" values="0.35;1.6" dur="1.4s" begin={`${begin}s`} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.9;0" dur="1.4s" begin={`${begin}s`} repeatCount="indefinite" />
+            </ellipse>
+          ))}
+        </g>
+      ) : (
+        <g stroke="#e3f1f6" fill="none" stroke-linecap="round">
+          <path d="M59.6 -48 V-30 M58.8 -22 V-10" stroke-width="0.6" />
+          <path d="M54 -1.2 q1.5 -1.6 3 0 M61 -1.4 q1.5 -1.6 3 0" stroke-width="0.6" />
+        </g>
+      )}
+    </g>
+  );
+}
+
+function Aqueduct({ rng }: { rng: Rng }) {
+  const s = pickFrom(STONES, rng);
+  // Вода стекает с правого или левого края: весь рисунок отражается.
+  const flip = pickFrom([1, -1, 1], rng);
+  const [lowerTier, upperTier] = AQUEDUCT_TIERS;
+  const lower = lowerTier!.arches;
+  const upper = upperTier!.arches;
+  const ivy = Array.from({ length: 3 }, () => {
+    const x = pickFrom([-28, 0, 28, -56, 56], rng) + (rng() - 0.5) * 4;
+    const y = -34 + rng() * 6;
+    return Array.from({ length: 5 }, () => [x + (rng() - 0.5) * 6, y + rng() * 10, 1.2 + rng() * 1] as const);
+  });
+  return (
+    <g transform={`scale(${flip} 1)`}>
+      <Shadow rx={56} />
+      {/* нижний ярус: четыре большие арки */}
+      {/* два яруса стены с проёмами арок и кладка на них */}
+      <path d={`M-56 0 V-34 H56 V0 Z ${lower.map((cx) => archHole(cx, 10, 0, -16)).join(' ')}`} fill={s.body} fill-rule="evenodd" />
+      <path d={`M-56 -36.5 V-58 H56 V-36.5 Z ${upper.map((cx) => archHole(cx, 4.5, -36.5, -44)).join(' ')}`} fill={s.body} fill-rule="evenodd" />
+      <Masonry s={s} rng={rng} />
+      {lower.map((cx) => (
+        <g key={cx}>
+          <path d={`M${cx - 9} -16 A9 9 0 0 1 ${cx + 9} -16`} stroke={s.dark} stroke-width="1.4" fill="none" opacity="0.5" />
+          <path d={`M${cx - 11.5} -16 A11.5 11.5 0 0 1 ${cx + 11.5} -16`} stroke={s.light} stroke-width="3" fill="none" stroke-dasharray="3.4 0.7" />
+        </g>
+      ))}
+      {upper.map((cx) => (
+        <path key={cx} d={`M${cx - 4} -44 A4 4 0 0 1 ${cx + 4} -44`} stroke={s.dark} stroke-width="1" fill="none" opacity="0.5" />
+      ))}
+      <rect x="-57" y="-36.5" width="114" height="2.6" fill={s.light} />
+      {/* жёлоб; вода в нём стекает с края в маленький пруд */}
+      <rect x="-57.5" y="-61" width="115" height="3.2" fill={s.light} />
+      <AqueductWater />
+
+      {/* плющ на опорах */}
+      {ivy.map((leaves, i) => (
+        <g key={i}>
+          {leaves.map(([x, y, r], j) => (
+            <circle key={j} cx={x} cy={y} r={r} fill={LEAVES[j % 3]} />
+          ))}
+        </g>
+      ))}
+    </g>
+  );
+}
+
+// ---------- 8. Пагода ----------
+
+const PAGODA_WALLS = ['#b5523b', '#eadfc9', '#9a6a45'];
+const PAGODA_ROOFS = ['#4f6b5e', '#5b6675', '#6b4a35'];
+
+/** Ярусы пагоды: полуширина стены, высота стены. */
+const PAGODA_TIERS = [
+  { hw: 15, h: 12 },
+  { hw: 12.5, h: 11 },
+  { hw: 10, h: 10 },
+  { hw: 7.5, h: 9 },
+];
+
+/** Каменный фонарь у пагоды. Начало — на земле. */
+function StoneLantern({ s }: { s: (typeof STONES)[number] }) {
+  return (
+    <g>
+      <rect x="-3.4" y="-2" width="6.8" height="2" fill={s.body} />
+      <rect x="-1.4" y="-9" width="2.8" height="7" fill={s.body} />
+      <rect x="-3" y="-13.5" width="6" height="4.5" fill={s.light} />
+      <rect x="-1.3" y="-12.6" width="2.6" height="2.8" fill="#ffe6a0" />
+      <path d="M-5.5 -13.5 Q0 -16.5 5.5 -13.5 L3 -16.5 H-3 Z" fill={s.dark} />
+      <circle cx="0" cy="-17.6" r="1.2" fill={s.dark} />
+    </g>
+  );
+}
+
+function Pagoda({ rng }: { rng: Rng }) {
+  const wall = pickFrom(PAGODA_WALLS, rng);
+  const roof = pickFrom(PAGODA_ROOFS, rng);
+  const lanternSide = pickFrom([-1, 1], rng);
+  const s = STONES[1]!;
+  const posts = '#4a3a30';
+  // Ярусы снизу вверх: каждый следующий стоит на верху крыши предыдущего.
+  let y = -6;
+  const tiers = PAGODA_TIERS.map((t, i) => {
+    const bottom = y;
+    const top = bottom - t.h;
+    const last = i === PAGODA_TIERS.length - 1;
+    const roofTop = top - (last ? 8 : 6);
+    const nextHalf = last ? 1.5 : PAGODA_TIERS[i + 1]!.hw + 1;
+    const ew = t.hw + 11;
+    y = roofTop;
+    return { ...t, bottom, top, roofTop, nextHalf, ew };
+  });
+  return (
+    <g>
+      <Shadow rx={36} />
+      <g transform={`translate(${lanternSide * 44} 0)`}>
+        <StoneLantern s={s} />
+      </g>
+      {/* каменное основание со ступенями */}
+      <rect x="-30" y="-6" width="60" height="6" fill={s.body} />
+      <rect x="-31" y="-7" width="62" height="1.6" fill={s.light} />
+      <rect x="-7" y="-3" width="14" height="3" fill={s.light} />
+      {tiers.map((t, i) => (
+        <g key={i}>
+          {/* стена яруса со столбами и решётчатым окном */}
+          <rect x={-t.hw} y={t.top} width={t.hw * 2} height={t.h} fill={wall} />
+          <rect x={t.hw * 0.35} y={t.top} width={t.hw * 0.65} height={t.h} fill="#000" opacity="0.1" />
+          <path d={`M${-t.hw + 0.8} ${t.bottom} V${t.top} M${t.hw - 0.8} ${t.bottom} V${t.top}`} stroke={posts} stroke-width="1.6" />
+          {i === 0 ? (
+            <path d={`M-4 ${t.bottom} V${t.top + 3} H4 V${t.bottom} Z`} fill={posts} />
+          ) : (
+            <g>
+              <rect x={-t.hw * 0.4} y={t.top + 2.5} width={t.hw * 0.8} height={t.h - 4.5} fill={posts} />
+              <path
+                d={`M0 ${t.top + 2.5} V${t.bottom - 2} M${-t.hw * 0.4} ${t.top + t.h / 2 + 0.2} H${t.hw * 0.4}`}
+                stroke={PALETTE.sun}
+                stroke-width="0.5"
+                opacity="0.8"
+              />
+            </g>
+          )}
+          {i > 0 && <path d={`M${-t.hw - 1} ${t.bottom - 2.4} H${t.hw + 1}`} stroke={posts} stroke-width="0.8" />}
+          {/* крыша с загнутыми краями и колокольчиками */}
+          <path
+            d={`M${-t.ew} ${t.top - 3} Q${-t.ew * 0.6} ${t.top + 1.2} 0 ${t.top + 1.2} Q${t.ew * 0.6} ${t.top + 1.2} ${t.ew} ${t.top - 3}
+                Q${t.hw + 2} ${t.top - 2} ${t.nextHalf} ${t.roofTop} H${-t.nextHalf} Q${-t.hw - 2} ${t.top - 2} ${-t.ew} ${t.top - 3} Z`}
+            fill={roof}
+          />
+          <path
+            d={`M${t.ew} ${t.top - 3} Q${t.hw + 2} ${t.top - 2} ${t.nextHalf} ${t.roofTop} L${t.nextHalf * 0.3} ${t.roofTop} Q${t.hw * 0.6} ${t.top - 1} ${t.ew * 0.6} ${t.top + 0.4} Q${t.ew * 0.85} ${t.top - 0.2} ${t.ew} ${t.top - 3} Z`}
+            fill="#000"
+            opacity="0.12"
+          />
+          <circle cx={-t.ew + 0.6} cy={t.top - 1.2} r="0.9" fill={PALETTE.gold} />
+          <circle cx={t.ew - 0.6} cy={t.top - 1.2} r="0.9" fill={PALETTE.gold} />
+        </g>
+      ))}
+      {/* шпиль с кольцами */}
+      {(() => {
+        const base = tiers[tiers.length - 1]!.roofTop;
+        return (
+          <g>
+            <path d={`M0 ${base} V${base - 19}`} stroke={posts} stroke-width="1" />
+            {[0, 1, 2, 3, 4].map((k) => (
+              <ellipse key={k} cx="0" cy={base - 3 - k * 3.2} rx={2.8 - k * 0.35} ry="0.8" fill={PALETTE.goldDeep} />
+            ))}
+            <circle cx="0" cy={base - 20.5} r="1.7" fill={PALETTE.gold} />
+          </g>
+        );
+      })()}
+    </g>
+  );
+}
+
+// ---------- 9. Каменный круг из менгиров ----------
+
+const LICHEN = '#cdd29c';
+
+function StoneCircle({ rng }: { rng: Rng }) {
+  const s = pickFrom(STONES, rng);
+  const n = 7 + Math.floor(rng() * 3);
+  const fallen = Math.floor(rng() * n);
+  const turn = rng() * Math.PI * 2;
+  const stones = Array.from({ length: n }, (_, k) => {
+    const a = turn + (k / n) * Math.PI * 2;
+    const front = (Math.sin(a) + 1) / 2; // 0 — дальний, 1 — ближний
+    const k2 = 0.7 + front * 0.35;
+    return {
+      x: 44 * Math.cos(a),
+      y: -14 + 11 * Math.sin(a),
+      h: 27 * k2 * (0.82 + rng() * 0.32),
+      w: 10 * k2 * (0.85 + rng() * 0.3),
+      lean: (rng() - 0.5) * 3,
+      top: rng(),
+      lichen: [rng(), rng(), rng()],
+      fallen: k === fallen,
+    };
+  }).sort((a, b) => a.y - b.y);
+  return (
+    <g>
+      <Shadow rx={52} />
+      {/* трава внутри круга светлее, посередине плоский камень */}
+      <ellipse cx="0" cy="-13" rx="52" ry="14" fill={PALETTE.hillFar} opacity="0.55" />
+      {/* мелкие цветы в траве */}
+      {Array.from({ length: 9 }, (_, i) => (
+        <circle key={i} cx={(rng() - 0.5) * 80} cy={-13 + (rng() - 0.5) * 18} r="0.9" fill={i % 3 ? PALETTE.glow : PALETTE.petalPink} />
+      ))}
+      <path d="M-9 -13 V-15.5 Q0 -18 9 -15.5 V-13 Q0 -11.6 -9 -13 Z" fill={s.body} />
+      <path d="M-9 -15.5 Q0 -18 9 -15.5 Q0 -13.8 -9 -15.5 Z" fill={s.light} />
+      {stones.map((st, i) => {
+        const hw = st.w / 2;
+        if (st.fallen) {
+          return (
+            <g key={i} transform={`translate(${st.x} ${st.y})`}>
+              <path d={`M${-st.h * 0.5} 0 Q${-st.h * 0.55} ${-st.w * 0.75} ${-st.h * 0.3} ${-st.w * 0.8} L${st.h * 0.45} ${-st.w * 0.65} Q${st.h * 0.55} ${-st.w * 0.3} ${st.h * 0.48} 0 Z`} fill={s.body} />
+              <path d={`M${-st.h * 0.5} 0 L${st.h * 0.48} 0 Q${st.h * 0.5} ${-st.w * 0.2} ${st.h * 0.45} ${-st.w * 0.3} H${-st.h * 0.5} Z`} fill={s.dark} opacity="0.4" />
+              <ellipse cx={-st.h * 0.1} cy={-st.w * 0.55} rx="2" ry="0.9" fill={LICHEN} opacity="0.75" />
+            </g>
+          );
+        }
+        // Верх камня: скошенный, скруглённый или с выступом — по сиду.
+        const tl = -st.h * (0.82 + st.top * 0.15);
+        const tr = -st.h * (0.97 - st.top * 0.15);
+        const d = `M${-hw} 0 L${-hw * 0.92 + st.lean * 0.3} ${tl * 0.75} Q${-hw * 0.85 + st.lean} ${tl} ${st.lean} ${Math.min(tl, tr) - 1.5} Q${hw * 0.85 + st.lean} ${tr} ${hw * 0.95 + st.lean * 0.3} ${tr * 0.7} L${hw} 0 Z`;
+        return (
+          <g key={i} transform={`translate(${st.x} ${st.y})`}>
+            <path d={d} fill={s.body} />
+            <path d={`M${hw * 0.25} 0 L${hw * 0.3 + st.lean * 0.6} ${tr * 0.9} Q${hw * 0.85 + st.lean} ${tr} ${hw * 0.95 + st.lean * 0.3} ${tr * 0.7} L${hw} 0 Z`} fill={s.dark} opacity="0.35" />
+            <ellipse cx={-hw * 0.3 + st.lichen[0]! * hw * 0.4} cy={-st.h * (0.3 + st.lichen[1]! * 0.4)} rx={1.4 + st.lichen[2]! * 1.2} ry="1" fill={LICHEN} opacity="0.75" />
+            <ellipse cx={-hw * 0.5} cy={-st.h * 0.15} rx="1.2" ry="0.7" fill={PALETTE.leafLight} opacity="0.8" />
+            <path d={`M${-hw - 1} 0.2 l0.6 -2.4 M${-hw + 0.6} 0.2 l-0.2 -2 M${hw - 0.4} 0.2 l0.5 -2.2`} stroke={PALETTE.hillNear} stroke-width="0.8" stroke-linecap="round" />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 // ---------- Заглушка для ещё не нарисованных ----------
 
 /** Пирамидка камней — пока рисунка сооружения нет. */
@@ -516,7 +832,7 @@ function Cairn() {
 }
 
 /** Сооружения, у которых уже есть рисунок. Остальные пока рисуются пирамидкой камней. */
-export const DRAWN_LANDMARKS: readonly LandmarkKind[] = ['bridge', 'windmill', 'observatory', 'greenhouse', 'rotunda', 'treehouse'];
+export const DRAWN_LANDMARKS: readonly LandmarkKind[] = ['bridge', 'windmill', 'observatory', 'greenhouse', 'rotunda', 'treehouse', 'aqueduct', 'pagoda', 'stones'];
 
 export function LandmarkArt({ kind, seed, size }: { kind: LandmarkKind; seed: number; size: number }) {
   const rng = createRng(seed);
@@ -535,6 +851,12 @@ export function LandmarkArt({ kind, seed, size }: { kind: LandmarkKind; seed: nu
         return <Rotunda rng={rng} />;
       case 'treehouse':
         return <Treehouse rng={rng} />;
+      case 'aqueduct':
+        return <Aqueduct rng={rng} />;
+      case 'pagoda':
+        return <Pagoda rng={rng} />;
+      case 'stones':
+        return <StoneCircle rng={rng} />;
       default:
         return <Cairn />;
     }
