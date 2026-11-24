@@ -13,7 +13,7 @@ export const TREE_HEIGHT: Record<PlantSize, number> = { small: 16, medium: 29, l
 
 /** Деревья качаются; цветы и кусты — нет. */
 export function sways(kind: PlantKind, size: PlantSize): boolean {
-  return size !== 'small' && !['flowers', 'bush', 'lilac', 'sunflower'].includes(kind);
+  return size !== 'small' && !['flowers', 'bush', 'flax', 'lilac', 'sunflower'].includes(kind);
 }
 
 export function vary(rng: Rng, base: number, spread = 0.12): number {
@@ -292,6 +292,138 @@ function Bush({ size, rng, blossoms }: { size: PlantSize; rng: Rng; blossoms: st
   );
 }
 
+const FLAX_BLUES = ['#7ea3db', '#6b90d2', '#94b5e6'];
+
+/** Цветок льна: пять голубых лепестков вокруг светлой серединки. */
+function FlaxFlower({ x, y, r, color }: { x: number; y: number; r: number; color: string }) {
+  return (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        return <circle key={i} cx={x + Math.cos(a) * r} cy={y + Math.sin(a) * r} r={r * 0.85} fill={color} />;
+      })}
+      <circle cx={x} cy={y} r={r * 0.55} fill="#f1e3a0" />
+    </>
+  );
+}
+
+/**
+ * Лён (Нити: из льна прядут нити) — куртинка тонких стеблей с голубыми цветками.
+ * Как цветы Разведки, растёт числом стеблей, а не высотой.
+ */
+function Flax({ size, rng }: { size: PlantSize; rng: Rng }) {
+  const n = { small: 4, medium: 6, large: 9 }[size];
+  const r = 0.72;
+  return (
+    <>
+      {Array.from({ length: n }, (_, i) => {
+        const x = (i - (n - 1) / 2) * 1.9 + (rng() - 0.5) * 1.2;
+        const h = vary(rng, 9.5, 0.2);
+        const lean = (rng() - 0.5) * 2.2;
+        const tx = x + lean;
+        const color = pickFrom(FLAX_BLUES, rng);
+        const side = rng() < 0.5 ? -1 : 1;
+        // У части стеблей сбоку второй цветок или бутон.
+        const twig = rng();
+        const fx = x + lean * 0.8 + side * 1.6;
+        const fy = -h * 0.8;
+        return (
+          <g key={i}>
+            <path d={`M${x} 0 Q${x + lean * 0.2} ${-h * 0.5} ${tx} ${-h}`} stroke="#6f9a55" stroke-width="0.45" fill="none" />
+            <ellipse
+              cx={x + lean * 0.15 + side * 0.7}
+              cy={-h * 0.4}
+              rx={1.1}
+              ry={0.28}
+              fill="#7faa63"
+              transform={`rotate(${side * -35} ${x + lean * 0.15 + side * 0.7} ${-h * 0.4})`}
+            />
+            {twig < 0.6 && (
+              <path d={`M${x + lean * 0.6} ${-h * 0.62} L${fx} ${fy}`} stroke="#6f9a55" stroke-width="0.35" fill="none" />
+            )}
+            {twig < 0.35 && <FlaxFlower x={fx} y={fy} r={r * 0.9} color={pickFrom(FLAX_BLUES, rng)} />}
+            {twig >= 0.35 && twig < 0.6 && <ellipse cx={fx} cy={fy} rx={0.45} ry={0.7} fill="#7faa63" />}
+            <FlaxFlower x={tx} y={-h} r={r} color={color} />
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
+const HAZEL_COLORS = [
+  ['#557f45', '#679552', '#7ba862'],
+  ['#5a8648', '#6c9a55', '#82ad66'],
+  ['#52793f', '#62904c', '#76a35c'],
+];
+
+/** Шары кроны орешника в долях высоты: x, y, радиус, слой (0 — сзади, 2 — спереди, светлый). */
+const HAZEL_CROWN: [number, number, number, 0 | 1 | 2][] = [
+  [-0.37, -0.56, 0.17, 0],
+  [0.38, -0.58, 0.16, 0],
+  [-0.2, -0.68, 0.22, 1],
+  [0.17, -0.7, 0.23, 1],
+  [0, -0.8, 0.2, 1],
+  [-0.1, -0.88, 0.12, 2],
+  [0.26, -0.79, 0.11, 2],
+];
+
+/**
+ * Орешник (Ремесло: «орешки знаний») — несколько тонких стволов из одного корня,
+ * широкая неровная крона и гроздья орехов в зелёных обёртках по нижнему краю.
+ */
+function Hazel({ h, rng }: { h: number; rng: Rng }) {
+  const colors = pickFrom(HAZEL_COLORS, rng);
+  const flip = rng() < 0.5 ? 1 : -1;
+  const X = (x: number) => x * h * flip;
+  const w = Math.max(0.9, h * 0.045);
+  const stems = h > 20 ? 4 : 3;
+  const nut = Math.max(0.8, h * 0.036);
+  const clusters = h > 20 ? [-0.3, 0.02, 0.3] : [-0.22, 0.2];
+  return (
+    <>
+      {Array.from({ length: stems }, (_, j) => {
+        const k = j - (stems - 1) / 2;
+        const top = -h * vary(rng, 0.55, 0.1);
+        const tx = k * h * 0.17 + (rng() - 0.5) * h * 0.05;
+        return (
+          <path
+            key={j}
+            d={`M${X(k * 0.02)} 0 Q${X(k * 0.04)} ${top * 0.5} ${X(tx / h)} ${top}`}
+            stroke={TRUNK}
+            stroke-width={w * (j % 2 ? 0.8 : 1)}
+            stroke-linecap="round"
+            fill="none"
+          />
+        );
+      })}
+      {HAZEL_CROWN.map(([x, y, r, layer], i) => (
+        <circle key={i} cx={X(x)} cy={y * h} r={h * vary(rng, r, 0.1)} fill={colors[layer]} />
+      ))}
+      {clusters.map((cx, i) => {
+        const x = X(cx + (rng() - 0.5) * 0.06);
+        const y = -h * vary(rng, 0.47, 0.06);
+        const count = rng() < 0.5 ? 2 : 3;
+        return (
+          <g key={i}>
+            {Array.from({ length: count }, (_, m) => {
+              const nx = x + (m - (count - 1) / 2) * nut * 1.5;
+              const ny = y + (m === 1 ? nut * 0.4 : 0);
+              return (
+                <g key={m}>
+                  <ellipse cx={nx} cy={ny + nut * 0.4} rx={nut * 0.8} ry={nut} fill={m % 2 ? '#9a6a35' : '#b47e43'} />
+                  <ellipse cx={nx - nut * 0.25} cy={ny + nut * 0.1} rx={nut * 0.25} ry={nut * 0.35} fill="#d9b37a" />
+                  <ellipse cx={nx} cy={ny - nut * 0.45} rx={nut * 0.95} ry={nut * 0.5} fill="#c3d68a" />
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
+    </>
+  );
+}
+
 /** Рябина: стройная, крона вытянута вверх и светлая, ягоды — оранжево-красными гроздьями. */
 function Rowan({ h, rng }: { h: number; rng: Rng }) {
   const colors = pickFrom(
@@ -469,6 +601,10 @@ export function PlantArt({ kind, size, seed }: { kind: PlantKind; size: PlantSiz
       return <Flowers size={size} rng={rng} />;
     case 'bush':
       return <Bush size={size} rng={rng} blossoms={null} />;
+    case 'flax':
+      return <Flax size={size} rng={rng} />;
+    case 'hazel':
+      return <Hazel h={h * 0.9} rng={rng} />;
     case 'lilac':
       return <Bush size="large" rng={rng} blossoms={['#b58bd1', '#9b72c0', PALETTE.petalLilac]} />;
     case 'rowan':

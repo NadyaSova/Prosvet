@@ -27,7 +27,7 @@ import { CAMP_SPOTS, DECOR_ANCHORS, MIST_START_X, riverWidth, riverX, SLOTS, WOR
 
 const NOW = new Date(2026, 10, 23, 12, 0).getTime();
 const MIN = 60_000;
-const timed = (minutes: number, branch: Completion['branch'] = 'image', full = true): Completion => ({ kind: 'timed', branch, minutes, full });
+const timed = (minutes: number, branch: Completion['branch'] = 'call', full = true): Completion => ({ kind: 'timed', branch, minutes, full });
 
 /** Долина, где заняты все места. */
 function fullValley(): ValleyState {
@@ -62,9 +62,11 @@ describe('район', () => {
 describe('что вырастает', () => {
   it('порода — по ветке, Разведка растит цветы и кусты', () => {
     expect(plantKindFor('chronicle', 'large')).toBe('oak');
-    expect(plantKindFor('image', 'small')).toBe('birch');
-    expect(plantKindFor('speech', 'medium')).toBe('willow');
+    expect(plantKindFor('call', 'small')).toBe('birch');
+    expect(plantKindFor('prep', 'medium')).toBe('willow');
     expect(plantKindFor('hunt', 'small')).toBe('pine');
+    expect(plantKindFor('threads', 'large')).toBe('flax');
+    expect(plantKindFor('craft', 'small')).toBe('hazel');
     expect(plantKindFor('scouting', 'small')).toBe('flowers');
     expect(plantKindFor('scouting', 'large')).toBe('bush');
   });
@@ -77,7 +79,7 @@ describe('что вырастает', () => {
     expect(plantSize(timed(25))).toBe('large');
     expect(plantSize(timed(60))).toBe('large');
     // «Закончила раньше» — по засчитанным минутам.
-    expect(plantSize(timed(7, 'image', false))).toBe('small');
+    expect(plantSize(timed(7, 'call', false))).toBe('small');
   });
 
   it('растение занимает свободное место, сид стабилен при том же генераторе', () => {
@@ -200,7 +202,7 @@ describe('семена и редкости', () => {
 });
 
 describe('долина для уже сыгранного', () => {
-  const xp = (x: Partial<BranchXp>): BranchXp => ({ chronicle: 0, image: 0, speech: 0, scouting: 0, hunt: 0, ...x });
+  const xp = (x: Partial<BranchXp>): BranchXp => ({ chronicle: 0, scouting: 0, hunt: 0, call: 0, threads: 0, prep: 0, craft: 0, ...x });
 
   it('по растению на каждые 15 опыта ветки, вперемешку', () => {
     const v = valleyFromXp(xp({ chronicle: 45, hunt: 20, scouting: 14 }), createRng(1));
@@ -247,9 +249,9 @@ describe('долина в игре', () => {
     expect(early.done.planted?.size).toBe('medium');
   });
 
-  it('голубь улетел — маленькая сосна', () => {
+  it('голубь улетел — маленькая берёза (Зов)', () => {
     const r = sendPigeon(newGame(), createLoft(createRng(1)), 0, 'Ромашка', NOW, PHRASE, 'p1');
-    expect(r.done.planted).toMatchObject({ kind: 'pine', size: 'small', branch: 'hunt' });
+    expect(r.done.planted).toMatchObject({ kind: 'birch', size: 'small', branch: 'call' });
   });
 
   it('возврат голубя — не задание: растений не прибавляется', () => {

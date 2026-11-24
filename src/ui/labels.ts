@@ -37,10 +37,12 @@ export const PIGEON_SIZE_NAMES: Record<PigeonSize, string> = {
 
 export const BRANCH_NAMES: Record<Branch, string> = {
   chronicle: 'Летопись',
-  image: 'Облик',
-  speech: 'Речь',
   scouting: 'Разведка',
   hunt: 'Охота',
+  call: 'Зов',
+  threads: 'Нити',
+  prep: 'Подготовка',
+  craft: 'Ремесло',
 };
 
 /** Предметы в запасе: семена из карты добычи и саженцы из лавки, редкий декор (BALANCE.loot, BALANCE.shop). */
@@ -67,6 +69,8 @@ const PLANT_NAMES: Record<PlantKind, [string, string, string]> = {
   pine: ['сосенка', 'сосна', 'высокая сосна'],
   flowers: ['цветы', 'цветы', 'поляна цветов'],
   bush: ['кустик', 'куст', 'цветущий куст'],
+  flax: ['лён', 'лён', 'полоска льна'],
+  hazel: ['орешник', 'орешник', 'густой орешник'],
   rowan: ['рябинка', 'рябина', 'рябина'],
   apple: ['яблонька', 'яблоня', 'яблоня'],
   lilac: ['сирень', 'сирень', 'сирень'],

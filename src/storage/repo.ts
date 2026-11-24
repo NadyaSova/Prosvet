@@ -27,6 +27,7 @@ import {
   normalizePlayer,
   normalizeSettings,
   normalizeShop,
+  normalizeTasks,
   normalizeTimer,
   normalizeValley,
 } from './normalize';
@@ -137,8 +138,9 @@ export async function listPigeons(db: ProsvetDb): Promise<Pigeon[]> {
 
 // Свои задания
 
+/** Свои задания; ветки фазы 1 переносятся в новые (normalize.ts, migrateBranch). */
 export async function listCustomTasks(db: ProsvetDb): Promise<TaskTemplate[]> {
-  return db.getAll('tasks');
+  return normalizeTasks(await db.getAll('tasks'));
 }
 
 export async function putCustomTask(db: ProsvetDb, task: TaskTemplate): Promise<void> {

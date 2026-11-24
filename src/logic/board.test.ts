@@ -43,9 +43,9 @@ describe('сборка доски', () => {
   it('давно заброшенная ветка попадает на доску чаще', () => {
     const touched: BoardContext = {
       today: D,
-      branchLastTouched: { chronicle: D, image: D, speech: D, scouting: D, hunt: D - 10 },
+      branchLastTouched: { chronicle: D, scouting: D, hunt: D - 10, call: D, threads: D, prep: D, craft: D },
     };
-    expect(branchWeights(touched).hunt).toBeGreaterThan(branchWeights(touched).image);
+    expect(branchWeights(touched).hunt).toBeGreaterThan(branchWeights(touched).call);
     let huntCount = 0;
     const n = 2000;
     for (let seed = 0; seed < n; seed++) {
@@ -77,7 +77,12 @@ describe('пополнение доски', () => {
       expect(next[2]).toBe(board[2]);
       const added = get(next[1]!);
       expect(board).not.toContain(added.id);
-      expect(sizeBucket(added)).toBe(sizeBucket(get(board[1]!)));
+      // Того же размера — если такое есть в других ветках; иначе ветка важнее размера.
+      const others = [get(board[0]!).branch, get(board[2]!).branch];
+      const sameSize = DEFAULT_TASKS.some(
+        (t) => !board.includes(t.id) && !others.includes(t.branch) && sizeBucket(t) === sizeBucket(get(board[1]!)),
+      );
+      if (sameSize) expect(sizeBucket(added)).toBe(sizeBucket(get(board[1]!)));
       expect(added.branch).not.toBe(get(board[0]!).branch);
       expect(added.branch).not.toBe(get(board[2]!).branch);
     }

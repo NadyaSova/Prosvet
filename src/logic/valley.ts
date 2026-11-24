@@ -28,12 +28,17 @@ export function emptyValley(): ValleyState {
 /** Сколько растений помещается в район. */
 export const CAPACITY = SLOTS.length;
 
-/** Порода по ветке (SPEC.md §6). Разведка растит цветы и кусты. */
+/**
+ * Порода по ветке (SPEC.md §6, docs/phase2-plan.md §4.9). Разведка растит цветы и кусты.
+ * Зов, Нити и Ремесло выбрала пользователь (24.11.2026). Берёза раньше была у Облика.
+ */
 const BRANCH_TREES: Record<Exclude<Branch, 'scouting'>, PlantKind> = {
   chronicle: 'oak',
-  image: 'birch',
-  speech: 'willow',
   hunt: 'pine',
+  call: 'birch',
+  threads: 'flax',
+  prep: 'willow',
+  craft: 'hazel',
 };
 
 export function plantKindFor(branch: Branch, size: PlantSize): PlantKind {
@@ -61,6 +66,8 @@ const BAND_LIKES: Record<PlantKind, Partial<Record<Band, number>>> = {
   willow: { near: 1, front: 1 },
   flowers: { front: 2, near: 1 },
   bush: { near: 2, front: 1 },
+  flax: { front: 2, near: 1 },
+  hazel: { near: 2, mid: 1 },
   rowan: { near: 2, mid: 1 },
   apple: { mid: 2, near: 1 },
   lilac: { near: 2, front: 1 },

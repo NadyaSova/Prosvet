@@ -38,7 +38,7 @@ const achievement = (id: string, updatedAt: number): Achievement => ({
   id, createdAt: updatedAt, updatedAt, title: `Запись ${id}`, status: 'draft',
 });
 const customTask: TaskTemplate = {
-  id: 'custom-1', branch: 'speech', kind: 'timed', minutes: 25, onBoard: true, title: 'Своё задание',
+  id: 'custom-1', branch: 'prep', kind: 'timed', minutes: 25, onBoard: true, title: 'Своё задание',
 };
 
 describe('первый запуск', () => {
@@ -70,7 +70,7 @@ describe('старые данные без новых полей', () => {
     const p = normalizePlayer(old);
     expect(p.gold).toBe(7);
     expect(p.xp.hunt).toBe(5);
-    expect(p.xp.image).toBe(0);
+    expect(p.xp.call).toBe(0);
     expect(p.streak.logs).toBe(1);
     expect(p.streak.startDay).toBeNull();
     expect(p.inventory).toEqual([]);
@@ -92,6 +92,43 @@ describe('старые данные без новых полей', () => {
     expect(normalizeTimer(base)).toBeNull();
     expect(normalizeTimer({ ...base, title: 'Задание', branch: 'нет такой' })).toBeNull();
     expect(normalizeTimer({ ...base, title: 'Задание', branch: 'hunt' })).toMatchObject({ pausesUsed: 0, branch: 'hunt' });
+  });
+});
+
+describe('ветки фазы 1: Облик → Летопись, Речь → Подготовка', () => {
+  it('опыт Облика складывается с Летописью, опыт Речи переходит в Подготовку', () => {
+    const p = normalizePlayer({
+      xp: { chronicle: 40, image: 25, speech: 30, scouting: 5, hunt: 12 },
+      branchLastTouched: { chronicle: 100, image: 104, speech: 90, hunt: 101 },
+    });
+    expect(p.xp).toEqual({ chronicle: 65, scouting: 5, hunt: 12, call: 0, threads: 0, prep: 30, craft: 0 });
+    expect(p.branchLastTouched).toEqual({ chronicle: 104, prep: 90, hunt: 101 });
+  });
+
+  it('незнакомые ключи опыта отбрасываются', () => {
+    expect(normalizePlayer({ xp: { hunt: 3, нечто: 9, chronicle: 'x' } }).xp).toEqual({ ...createPlayer().xp, hunt: 3 });
+  });
+
+  it('идущий таймер старой ветки продолжается в новой', () => {
+    const t = { templateId: 'image-linkedin', title: 'LinkedIn', startedAt: NOW, durationMs: 60_000 };
+    expect(normalizeTimer({ ...t, branch: 'image' })?.branch).toBe('chronicle');
+    expect(normalizeTimer({ ...t, branch: 'speech' })?.branch).toBe('prep');
+  });
+
+  it('растения долины и свои задания переходят в новые ветки', async () => {
+    const v = normalizeValley({
+      plants: [
+        { id: 'a', kind: 'birch', size: 'medium', slot: 0, seed: 1, plantedAt: 1, branch: 'image' },
+        { id: 'b', kind: 'willow', size: 'large', slot: 1, seed: 2, plantedAt: 2, branch: 'speech' },
+      ],
+    })!;
+    expect(v.plants.map((p) => [p.kind, p.branch])).toEqual([['birch', 'chronicle'], ['willow', 'prep']]);
+
+    const db = await freshDb();
+    await db.put('tasks', { ...customTask, id: 'old-image', branch: 'image' as never });
+    await db.put('tasks', { ...customTask, id: 'old-speech', branch: 'speech' as never });
+    await db.put('tasks', { ...customTask, id: 'broken', branch: 'нет такой' as never });
+    expect((await listCustomTasks(db)).map((t) => [t.id, t.branch])).toEqual([['old-image', 'chronicle'], ['old-speech', 'prep']]);
   });
 });
 
@@ -296,7 +333,7 @@ describe('голубятня', () => {
 
 describe('долина', () => {
   const grown = () =>
-    plantForCompletion(emptyValley(), { kind: 'timed', branch: 'speech', minutes: 30, full: true }, NOW, createRng(1))!.valley;
+    plantForCompletion(emptyValley(), { kind: 'timed', branch: 'prep', minutes: 30, full: true }, NOW, createRng(1))!.valley;
 
   it('новый игрок — пустая долина, она сохраняется', async () => {
     const db = await freshDb();
@@ -307,9 +344,10 @@ describe('долина', () => {
 
   it('база старше долины: долина вырастает по опыту и больше не пересоздаётся', async () => {
     const db = await freshDb();
-    await setKv(db, 'player', { ...createPlayer(), xp: { ...createPlayer().xp, hunt: 31, image: 15 } });
+    // Опыт Облика (фаза 1) уходит в Летопись: вырастает дуб, а не берёза.
+    await setKv(db, 'player', { ...createPlayer(), xp: { ...createPlayer().xp, hunt: 31, image: 15 } as never });
     const data = await loadAppData(db, NOW, createRng(1));
-    expect(data.valley.plants.map((p) => p.kind).sort()).toEqual(['birch', 'pine', 'pine']);
+    expect(data.valley.plants.map((p) => p.kind).sort()).toEqual(['oak', 'pine', 'pine']);
     expect((await loadAppData(db, NOW, createRng(2))).valley).toEqual(data.valley);
   });
 

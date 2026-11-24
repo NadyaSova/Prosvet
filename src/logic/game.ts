@@ -238,7 +238,7 @@ export interface ReturnedFeather {
   silent: boolean;
 }
 
-/** Отклик: голубь улетает, это мгновенное задание Охоты (опыт, золото, карта добычи, серия). */
+/** Отклик: голубь улетает, это мгновенное задание Зова (опыт, золото, карта добычи, серия). */
 export function sendPigeon(
   state: GameState,
   loft: LoftState,
@@ -249,7 +249,7 @@ export function sendPigeon(
   id: string,
 ): { state: GameState; loft: LoftState; pigeon: Pigeon; done: CompletedTask } {
   const launched = launchPigeon(loft, perchIndex, company, now, rng, id);
-  const completion: Completion = { kind: 'instant', branch: 'hunt', instant: 'application' };
+  const completion: Completion = { kind: 'instant', branch: 'call', instant: 'application' };
   const { state: player, report } = applyCompletion(state.player, completion, now, rng);
   const grown = withPlant({ ...state, player }, completion, now, rng);
   return {
@@ -258,7 +258,7 @@ export function sendPigeon(
     pigeon: launched.pigeon,
     done: {
       title: `Голубь улетел: «${launched.pigeon.company}»`,
-      branch: 'hunt',
+      branch: 'call',
       report,
       full: true,
       whileAway: false,

@@ -3,8 +3,12 @@
 /** Номер календарного дня по местному времени телефона (см. logic/time.ts). */
 export type Day = number;
 
-/** Пять направлений поиска работы (SPEC.md §6). */
-export const BRANCHES = ['chronicle', 'image', 'speech', 'scouting', 'hunt'] as const;
+/**
+ * Семь веток — по одной на категорию поиска работы (docs/phase2-plan.md §4.9):
+ * Летопись, Разведка, Охота (отбор вакансий), Зов (отклики), Нити (люди), Подготовка (к интервью), Ремесло (учёба).
+ * Ветки фазы 1 «Облик» (image) и «Речь» (speech) переносятся при чтении данных — storage/normalize.ts, migrateBranch.
+ */
+export const BRANCHES = ['chronicle', 'scouting', 'hunt', 'call', 'threads', 'prep', 'craft'] as const;
 export type Branch = (typeof BRANCHES)[number];
 
 export const TASK_MINUTES = [5, 10, 15, 25, 30, 45, 60] as const;
@@ -114,10 +118,12 @@ export interface LoftState {
 }
 
 /**
- * Растения долины. SPEC.md §6, §12.2. Первые шесть растут за задания по веткам,
- * остальные — из семян, выпавших в карте добычи (BALANCE.loot.seeds).
+ * Растения долины. SPEC.md §6, §12.2. Растут за задания по веткам (logic/valley.ts, plantKindFor)
+ * и из семян и саженцев (BALANCE.loot.seeds, BALANCE.shop.plants).
  */
-export const PLANT_KINDS = ['oak', 'birch', 'willow', 'pine', 'flowers', 'bush', 'rowan', 'apple', 'lilac', 'sunflower'] as const;
+export const PLANT_KINDS = [
+  'oak', 'birch', 'willow', 'pine', 'flowers', 'bush', 'flax', 'hazel', 'rowan', 'apple', 'lilac', 'sunflower',
+] as const;
 export type PlantKind = (typeof PLANT_KINDS)[number];
 
 /** Редкий декор из карты добычи (BALANCE.loot.rareDecor). */

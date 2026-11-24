@@ -24,7 +24,7 @@ const rich = (gold = 1000, stars = 0): PlayerState => ({ ...createPlayer(), gold
 
 function fullValley(): ValleyState {
   let v = emptyValley();
-  for (let i = 0; i < CAPACITY; i++) v = plantForCompletion(v, { kind: 'timed', branch: 'image', minutes: 5, full: true }, NOW + i, createRng(i))!.valley;
+  for (let i = 0; i < CAPACITY; i++) v = plantForCompletion(v, { kind: 'timed', branch: 'call', minutes: 5, full: true }, NOW + i, createRng(i))!.valley;
   return v;
 }
 

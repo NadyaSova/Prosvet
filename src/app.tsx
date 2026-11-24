@@ -508,14 +508,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const question = asking ? { pigeon: asking, day: dueQuestion(asking, now)! } : null;
 
   if (reward) {
-    const huntTask = reward.branch === 'hunt' && reward.minutes !== undefined;
+    const callTask = reward.branch === 'call' && reward.minutes !== undefined;
     const close = () => setRewards((q) => q.slice(1));
     screen = (
       <RewardScreen
         key={reward.seq}
         reward={reward}
         onClose={close}
-        onLoft={huntTask ? () => { close(); go('loft'); } : undefined}
+        onLoft={callTask ? () => { close(); go('loft'); } : undefined}
       />
     );
   } else if (feather) {

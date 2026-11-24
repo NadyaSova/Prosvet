@@ -11,6 +11,7 @@ import { PIGEON_COLOR_NAMES, PIGEON_SIZE_NAMES } from '../ui/labels';
 import { FeatherArt, MessageScrollArt, PIGEON_PALETTE, PigeonArt, SIZE_SCALE } from '../ui/pigeon-art';
 import { GoodArt } from '../ui/shop-art';
 import { PlantArt } from '../ui/valley/plant-art';
+import { BranchesSection } from './gallery-branches';
 import { DeerSection } from './gallery-deer';
 import { SectionIconsSection } from './gallery-sections';
 import { WillowSection } from './gallery-willow';
@@ -229,6 +230,8 @@ function Gallery() {
         видны здесь сразу, без перезагрузки.
       </p>
 
+      <BranchesSection />
+
       <DeerSection />
 
       <WillowSection />
@@ -358,6 +361,10 @@ style.textContent = `
   .gallery__shop { display: flex; flex-wrap: wrap; gap: 24px; }
   .gallery__shop .good__art { width: 120px; height: 120px; margin: 0 auto 4px; }
   .gallery__tree { border-radius: 10px; }
+  .gallery__chips, .gallery__inks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .gallery__ink { color: var(--branch-ink); background: var(--color-paper); padding: 4px 8px; border-radius: 4px; font-weight: 550; display: inline-flex; align-items: center; gap: 6px; }
+  .gallery__pin { width: 10px; height: 10px; border-radius: 50%; background: var(--branch); }
+  .gallery__grid--three { grid-template-columns: repeat(3, 1fr); }
 `;
 document.head.append(style);
 

@@ -143,14 +143,15 @@ export interface FeatherReport {
 
 /**
  * Голубь принёс перо. [РЕШЕНО] Это не задание: серия, карта добычи и веса доски не меняются.
- * Опыт идёт в Охоту. feathersBefore — сколько перьев было в плаще до этого.
+ * Опыт идёт в Зов — ветку откликов (решение пользователя 24.11.2026; в фазе 1 шёл в Охоту).
+ * feathersBefore — сколько перьев было в плаще до этого.
  */
 export function applyFeather(
   state: PlayerState,
   golden: boolean,
   feathersBefore: number,
 ): { state: PlayerState; report: FeatherReport } {
-  const branch: Branch = 'hunt';
+  const branch: Branch = 'call';
   const xp = golden ? BALANCE.xp.goldenFeather : BALANCE.xp.feather;
   const gold = golden ? BALANCE.gold.goldenFeather : BALANCE.gold.feather;
 

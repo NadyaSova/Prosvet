@@ -1,5 +1,7 @@
 // Стартовый набор заданий. SPEC.md §7.2. Пользователь сможет добавлять свои и скрывать эти.
 // Метка journal — на экране таймера есть кнопка «Открыть Летопись»; drafts — Летопись открывается на черновиках.
+// Ветки — уже семь (docs/phase2-plan.md §4.9); сам набор заменит шаг 2 фазы 2. Пока задания Облика — в Летописи,
+// задания Речи — в Подготовке, отклик — в Зове. Id прежние: по ним хранятся скрытые задания и доска.
 
 import type { TaskTemplate } from '../model/types';
 
@@ -14,26 +16,26 @@ export const DEFAULT_TASKS: TaskTemplate[] = [
   { id: 'chronicle-history', branch: 'chronicle', kind: 'timed', minutes: 25, onBoard: true, tags: ['journal'],
     title: 'Пройтись по истории задач и коммитов за месяц и выписать 3 кандидата в журнал' },
 
-  // Облик
-  { id: 'image-one-line', branch: 'image', kind: 'timed', minutes: 5, onBoard: true,
+  // Бывший Облик — теперь Летопись
+  { id: 'image-one-line', branch: 'chronicle', kind: 'timed', minutes: 5, onBoard: true,
     title: 'Переписать одну строку резюме' },
-  { id: 'image-keywords', branch: 'image', kind: 'timed', minutes: 15, onBoard: true,
+  { id: 'image-keywords', branch: 'chronicle', kind: 'timed', minutes: 15, onBoard: true,
     title: 'Сравнить резюме с одной вакансией и выписать недостающие ключевые слова' },
-  { id: 'image-journal-to-cv', branch: 'image', kind: 'timed', minutes: 15, onBoard: true, tags: ['journal'],
+  { id: 'image-journal-to-cv', branch: 'chronicle', kind: 'timed', minutes: 15, onBoard: true, tags: ['journal'],
     title: 'Перенести одну запись журнала в формулировку для резюме' },
-  { id: 'image-free-session', branch: 'image', kind: 'timed', minutes: 30, onBoard: true,
+  { id: 'image-free-session', branch: 'chronicle', kind: 'timed', minutes: 30, onBoard: true,
     title: 'Работа над резюме (свободная сессия)' },
-  { id: 'image-linkedin', branch: 'image', kind: 'timed', minutes: 30, onBoard: true,
+  { id: 'image-linkedin', branch: 'chronicle', kind: 'timed', minutes: 30, onBoard: true,
     title: 'Обновить один раздел профиля LinkedIn' },
 
-  // Речь
-  { id: 'speech-voice-memo', branch: 'speech', kind: 'timed', minutes: 5, onBoard: true,
+  // Подготовка (бывшая Речь)
+  { id: 'speech-voice-memo', branch: 'prep', kind: 'timed', minutes: 5, onBoard: true,
     title: 'Наговорить на диктофон минуту о своём текущем проекте' },
-  { id: 'speech-written-answer', branch: 'speech', kind: 'timed', minutes: 10, onBoard: true,
+  { id: 'speech-written-answer', branch: 'prep', kind: 'timed', minutes: 10, onBoard: true,
     title: 'Ответить письменно на один типовой вопрос собеседования' },
-  { id: 'speech-about-me', branch: 'speech', kind: 'timed', minutes: 15, onBoard: true,
+  { id: 'speech-about-me', branch: 'prep', kind: 'timed', minutes: 15, onBoard: true,
     title: 'Отрепетировать вслух «расскажите о себе»' },
-  { id: 'speech-tech-topic', branch: 'speech', kind: 'timed', minutes: 30, onBoard: true,
+  { id: 'speech-tech-topic', branch: 'prep', kind: 'timed', minutes: 30, onBoard: true,
     title: 'Разобрать одну тему для технического собеседования' },
 
   // Разведка
@@ -51,7 +53,9 @@ export const DEFAULT_TASKS: TaskTemplate[] = [
     title: 'Сохранить одну интересную вакансию' },
   { id: 'hunt-browse', branch: 'hunt', kind: 'timed', minutes: 15, onBoard: true,
     title: 'Просмотреть свежие вакансии в одном источнике' },
-  { id: 'hunt-apply-session', branch: 'hunt', kind: 'timed', minutes: 30, onBoard: true,
+
+  // Зов
+  { id: 'hunt-apply-session', branch: 'call', kind: 'timed', minutes: 30, onBoard: true,
     title: 'Подготовить и отправить один отклик' },
   // Отметка отправленного отклика и ответов на него — в голубятне (ui/LoftScreen.tsx), не здесь.
 ];

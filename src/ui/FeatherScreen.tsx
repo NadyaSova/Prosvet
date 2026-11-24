@@ -35,7 +35,7 @@ export function FeatherScreen({ feather, onClose }: { feather: ShownFeather; onC
 
       <div class="reward__gains">
         <div>
-          <b>+{r.xp}</b> опыта <span class="muted">· {BRANCH_NAMES.hunt}</span>
+          <b>+{r.xp}</b> опыта <span class="muted">· {BRANCH_NAMES.call}</span>
         </div>
         {r.gold > 0 && (
           <div>
@@ -68,7 +68,7 @@ export function FeatherScreen({ feather, onClose }: { feather: ShownFeather; onC
         )}
         {r.newBranchLevel !== null && (
           <li>
-            {BRANCH_NAMES.hunt}: уровень {r.newBranchLevel}
+            {BRANCH_NAMES.call}: уровень {r.newBranchLevel}
           </li>
         )}
       </ul>

@@ -38,7 +38,7 @@ export function LoftIcon({ class: className }: { class?: string }) {
       <rect x="29.5" y="40" width="5" height="19" rx="1.5" fill={PALETTE.log} />
       {/* домик */}
       <rect x="15" y="25" width="34" height="18" rx="2" fill={PALETTE.canvas} stroke={PALETTE.log} stroke-width="1.5" />
-      <path d="M10 27 L32 12 L54 27 Z" fill={PALETTE.hunt} stroke="#2f5541" stroke-width="1.5" stroke-linejoin="round" />
+      <path d="M10 27 L32 12 L54 27 Z" fill={PALETTE.call} stroke={PALETTE.callInk} stroke-width="1.5" stroke-linejoin="round" />
       {/* летки и жёрдочка */}
       <path d="M20 39 L20 33 A4 4 0 0 1 28 33 L28 39 Z" fill="#5a4636" />
       <path d="M36 39 L36 33 A4 4 0 0 1 44 33 L44 39 Z" fill="#5a4636" />

@@ -25,20 +25,25 @@
   --color-gold-ink: #765822; /* текст цвета золота: цены, уровень, «Лавка» */
   --color-field-border: #789a72; /* рамка поля ввода: контраст ≥ 3 */
 
-  /* Ветки (SPEC.md §6): по цвету растения в долине. */
-  --branch-chronicle: #8c6a3f;
-  --branch-image: #5f8ea6;
-  --branch-speech: #8c6fa8; /* лиловый: зелёный был слишком похож на Охоту */
-  --branch-scouting: #b9707f;
-  --branch-hunt: #3f6e55;
+  /* Ветки (docs/phase2-plan.md §4.9). Семь хорошо различимых цветов: оттенки разнесены по кругу,
+     яркость и насыщенность близкие. Назначила пользователь (24.11.2026). */
+  --branch-chronicle: #86644f; /* коричневый */
+  --branch-scouting: #4680b9; /* синий */
+  --branch-hunt: #548b4b; /* зелёный */
+  --branch-call: #9867ad; /* фиолетовый */
+  --branch-threads: #b34d72; /* малиновый */
+  --branch-prep: #c45a45; /* терракота */
+  --branch-craft: #c6942f; /* охра */
 
-  /* Те же ветки темнее — для текста и для фона под белым текстом (контраст ≥ 4.5).
+  /* Те же ветки темнее — для текста и для фона под белым текстом (контраст ≥ 5.6).
      Яркие цвета выше — для булавок, рамок и заливок. */
-  --branch-chronicle-ink: #765935;
-  --branch-image-ink: #436374;
-  --branch-speech-ink: #6c5581;
-  --branch-scouting-ink: #85515b;
-  --branch-hunt-ink: #3b664f;
+  --branch-chronicle-ink: #6a4d3b;
+  --branch-scouting-ink: #336394;
+  --branch-hunt-ink: #3c6c35;
+  --branch-call-ink: #814b98;
+  --branch-threads-ink: #a03e62;
+  --branch-prep-ink: #a3422e;
+  --branch-craft-ink: #7b5a19;
 
   /* Шрифты — src/fonts.css. */
   --font-body: 'Ubuntu Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -386,10 +391,12 @@ h2 {
    --branch — яркий цвет (булавка, подкраска бумаги, рамка окошка), --branch-ink — тёмный
    (текст и заливка под белым текстом). Компоненты читают только эти две переменные. */
 .chip--chronicle, .task--chronicle { --branch: var(--branch-chronicle); --branch-ink: var(--branch-chronicle-ink); }
-.chip--image, .task--image { --branch: var(--branch-image); --branch-ink: var(--branch-image-ink); }
-.chip--speech, .task--speech { --branch: var(--branch-speech); --branch-ink: var(--branch-speech-ink); }
 .chip--scouting, .task--scouting { --branch: var(--branch-scouting); --branch-ink: var(--branch-scouting-ink); }
 .chip--hunt, .task--hunt { --branch: var(--branch-hunt); --branch-ink: var(--branch-hunt-ink); }
+.chip--call, .task--call { --branch: var(--branch-call); --branch-ink: var(--branch-call-ink); }
+.chip--threads, .task--threads { --branch: var(--branch-threads); --branch-ink: var(--branch-threads-ink); }
+.chip--prep, .task--prep { --branch: var(--branch-prep); --branch-ink: var(--branch-prep-ink); }
+.chip--craft, .task--craft { --branch: var(--branch-craft); --branch-ink: var(--branch-craft-ink); }
 
 .progress {
   height: 8px;
@@ -2496,7 +2503,7 @@ textarea:focus {
 
 /* --tile — рамка и подкраска, --tile-text — название и фон числа под белым текстом. */
 .section-tile--chronicle { --tile: var(--branch-chronicle); --tile-text: var(--branch-chronicle-ink); }
-.section-tile--loft { --tile: var(--branch-hunt); --tile-text: var(--branch-hunt-ink); }
+.section-tile--loft { --tile: var(--branch-call); --tile-text: var(--branch-call-ink); }
 .section-tile--shop { --tile: var(--color-gold); --tile-text: var(--color-gold-ink); }
 
 .section-tile__open {

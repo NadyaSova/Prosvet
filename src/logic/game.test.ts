@@ -63,7 +63,7 @@ describe('доска', () => {
   });
 
   it('удалённое своё задание уходит с доски', () => {
-    const own: TaskTemplate = { id: 'own', branch: 'speech', kind: 'timed', minutes: 45, onBoard: true, title: 'Своё' };
+    const own: TaskTemplate = { id: 'own', branch: 'prep', kind: 'timed', minutes: 45, onBoard: true, title: 'Своё' };
     const g: GameState = { ...newGame(), board: { taskIds: ['own', 'image-one-line'], rerolls: null } };
     const next = ensureBoard(g, DEFAULT_TASKS, NOW, createRng(3));
     expect(next.board.taskIds).toHaveLength(3);
@@ -145,10 +145,10 @@ describe('таймерное задание', () => {
 
   it('разовое задание вне доски не меняет доску', () => {
     const g = newGame();
-    const started = startTimedTask(g, { templateId: 'once-1', title: 'Своё', branch: 'speech', minutes: 10 }, NOW);
+    const started = startTimedTask(g, { templateId: 'once-1', title: 'Своё', branch: 'prep', minutes: 10 }, NOW);
     const r = finishTimedTask(started, DEFAULT_TASKS, NOW + 10 * MIN, PHRASE)!;
     expect(r.state.board.taskIds).toEqual(g.board.taskIds);
-    expect(r.state.player.xp.speech).toBe(10);
+    expect(r.state.player.xp.prep).toBe(10);
     expect(r.done.title).toBe('Своё');
   });
 });
@@ -157,7 +157,7 @@ describe('открытие приложения', () => {
   it('время вышло, пока приложение было закрыто, — награда при открытии, день — когда время вышло', () => {
     // Таймер запущен поздно вечером, закончился до полуночи, приложение открыли утром.
     const evening = new Date(2026, 10, 23, 23, 0).getTime();
-    const g = startTimedTask(newGame(), { templateId: 'once', title: 'Вечернее', branch: 'image', minutes: 30 }, evening);
+    const g = startTimedTask(newGame(), { templateId: 'once', title: 'Вечернее', branch: 'call', minutes: 30 }, evening);
     const morning = new Date(2026, 10, 24, 8, 0).getTime();
     const r = onOpen(g, DEFAULT_TASKS, morning, PHRASE);
     expect(r.done?.whileAway).toBe(true);
@@ -174,7 +174,7 @@ describe('открытие приложения', () => {
   });
 
   it('сообщает о прерванной серии', () => {
-    const g = startTimedTask(newGame(), { templateId: 'once', title: 'x', branch: 'image', minutes: 5 }, NOW);
+    const g = startTimedTask(newGame(), { templateId: 'once', title: 'x', branch: 'call', minutes: 5 }, NOW);
     const after = finishTimedTask(g, DEFAULT_TASKS, NOW + 5 * MIN, PHRASE)!.state;
     const r = onOpen(after, DEFAULT_TASKS, NOW + 5 * DAY_MS, PHRASE);
     expect(r.news.broken).toBe(true);
@@ -194,7 +194,7 @@ describe('мгновенное задание', () => {
 
   it('не сбрасывает идущий таймер', () => {
     const journal = get('chronicle-achievement');
-    const g = startTimedTask(newGame(), { templateId: 'once', title: 'x', branch: 'image', minutes: 30 }, NOW);
+    const g = startTimedTask(newGame(), { templateId: 'once', title: 'x', branch: 'call', minutes: 30 }, NOW);
     expect(completeInstantTask(g, journal, DEFAULT_TASKS, NOW + MIN, PHRASE).state.timer).toBe(g.timer);
   });
 });

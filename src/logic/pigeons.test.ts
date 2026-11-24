@@ -177,10 +177,10 @@ describe('перья и плащ', () => {
     expect(thresholdsCrossed(5, 6)).toEqual([]);
   });
 
-  it('перо: опыт Охоте, без серии, золота и карты; золотое — звезда', () => {
+  it('перо: опыт Зову, без серии, золота и карты; золотое — звезда', () => {
     const plain = applyFeather(createPlayer(), false, 0);
     expect(plain.report).toMatchObject({ golden: false, xp: 10, gold: 0, stars: 0, thresholds: [] });
-    expect(plain.state.xp.hunt).toBe(10);
+    expect(plain.state.xp.call).toBe(10);
     expect(plain.state.streak).toEqual(createPlayer().streak);
     expect(plain.state.branchLastTouched).toEqual({});
     expect(plain.state.gold).toBe(0);
@@ -198,13 +198,13 @@ describe('перья и плащ', () => {
 });
 
 describe('голубятня в игре', () => {
-  it('отклик — мгновенное задание Охоты: опыт, золото, карта, серия', () => {
+  it('отклик — мгновенное задание Зова: опыт, золото, карта, серия', () => {
     const loft = createLoft(createRng(1));
     const r = sendPigeon(newGame(), loft, 0, 'Ромашка', NOW, PHRASE, 'id-1');
-    expect(r.done.report).toMatchObject({ branch: 'hunt', xp: 10, gold: 5 + BALANCE.loot.phraseGold });
+    expect(r.done.report).toMatchObject({ branch: 'call', xp: 10, gold: 5 + BALANCE.loot.phraseGold });
     expect(r.done.report.loot?.kind).toBe('phrase');
     expect(r.state.player.streak.lastActiveDay).toBe(dayOf(NOW));
-    expect(r.state.player.branchLastTouched.hunt).toBe(dayOf(NOW));
+    expect(r.state.player.branchLastTouched.call).toBe(dayOf(NOW));
     expect(r.pigeon.status).toBe('flying');
     expect(new Set(r.loft.perch.map(lookKey)).size).toBe(5);
   });
@@ -214,7 +214,7 @@ describe('голубятня в игре', () => {
     const r = answerPigeonAction(g, [pigeon()], 'p1', 'rejected', after(2));
     expect(r.pigeon.outcome).toBe('rejected');
     expect(r.feather.silent).toBe(false);
-    expect(r.state.player.xp.hunt).toBe(10);
+    expect(r.state.player.xp.call).toBe(10);
     expect(r.state.player.streak).toEqual(g.player.streak);
   });
 
@@ -231,7 +231,7 @@ describe('голубятня в игре', () => {
     expect(r.changed.map((p) => p.id)).toEqual(['y', 'x']);
     expect(r.feathers.map((f) => f.silent)).toEqual([true, true]);
     expect(r.feathers.map((f) => f.report.thresholds)).toEqual([[5], []]);
-    expect(r.state.player.xp.hunt).toBe(20);
+    expect(r.state.player.xp.call).toBe(20);
     expect(r.state.player.streak).toEqual(createPlayer().streak);
   });
 

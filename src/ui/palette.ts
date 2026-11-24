@@ -17,8 +17,9 @@ export const PALETTE = {
   gold: '#d9a441', // --color-gold
   paper: '#fffaf2', // --color-card-strong
   ink: '#3f3a34', // --color-text
-  chronicle: '#8c6a3f', // --branch-chronicle
-  hunt: '#3f6e55', // --branch-hunt
+  chronicle: '#86644f', // --branch-chronicle
+  call: '#9867ad', // --branch-call
+  callInk: '#814b98', // --branch-call-ink
 
   // Дерево: стволы, шесты, поленья, ткань палатки.
   bark: '#6b4a35',

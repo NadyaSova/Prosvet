@@ -12,7 +12,7 @@ describe('уровни', () => {
   });
 
   it('общий опыт — сумма веток', () => {
-    expect(totalXp({ chronicle: 10, image: 20, speech: 0, scouting: 5, hunt: 15 })).toBe(50);
+    expect(totalXp({ chronicle: 10, scouting: 5, hunt: 15, call: 20, threads: 0, prep: 0, craft: 0 })).toBe(50);
   });
 });
 

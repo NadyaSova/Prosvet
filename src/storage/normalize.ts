@@ -13,7 +13,9 @@ import {
   CAMP_KINDS,
   DECOR_KINDS,
   type Achievement,
+  type Branch,
   type Coupon,
+  type TaskTemplate,
   type Prize,
   type ShopState,
   PIGEON_COLORS,
@@ -42,19 +44,55 @@ export function createSettings(now: number): Settings {
   return { createdAt: now, lastBackupAt: null, hiddenTaskIds: [] };
 }
 
+/**
+ * Ветки фазы 1, которых больше нет (docs/phase2-plan.md §4.9): опыт и всё остальное Облика уходит в Летопись
+ * (резюме и LinkedIn теперь там), Речь переименована в Подготовку.
+ */
+const OLD_BRANCHES: Record<string, Branch> = { image: 'chronicle', speech: 'prep' };
+
+/** Ветка из базы или копии — с переносом старых веток. null — неизвестная ветка. */
+export function migrateBranch(raw: unknown): Branch | null {
+  if (typeof raw !== 'string') return null;
+  const b = OLD_BRANCHES[raw] ?? raw;
+  return BRANCHES.includes(b as Branch) ? (b as Branch) : null;
+}
+
 export function normalizePlayer(raw: unknown): PlayerState {
   const d = createPlayer();
   if (!isObject(raw)) return d;
   // Шрамы убраны на шаге 4 (их заменили голуби и перья) — старые поля отбрасываем.
   const { scars: _scars, scarsTotal: _scarsTotal, ...rest } = raw;
+  // Опыт старой ветки складывается с опытом новой; «трогали в последний раз» — самый поздний день.
+  const xp = { ...d.xp };
+  for (const [key, value] of Object.entries(isObject(raw.xp) ? raw.xp : {})) {
+    const b = migrateBranch(key);
+    if (b && typeof value === 'number' && Number.isFinite(value)) xp[b] += value;
+  }
+  const touched: PlayerState['branchLastTouched'] = {};
+  for (const [key, day] of Object.entries(isObject(raw.branchLastTouched) ? raw.branchLastTouched : {})) {
+    const b = migrateBranch(key);
+    if (b && typeof day === 'number') touched[b] = Math.max(touched[b] ?? day, day);
+  }
   return {
     ...d,
     ...rest,
-    xp: { ...d.xp, ...(isObject(raw.xp) ? raw.xp : {}) },
+    xp,
     streak: { ...d.streak, ...(isObject(raw.streak) ? raw.streak : {}) },
-    branchLastTouched: isObject(raw.branchLastTouched) ? raw.branchLastTouched : {},
+    branchLastTouched: touched,
     inventory: Array.isArray(raw.inventory) ? raw.inventory : [],
   } as PlayerState;
+}
+
+/** Своё задание из базы или копии. null — без id или с неизвестной веткой. */
+export function normalizeTask(raw: unknown): TaskTemplate | null {
+  if (!isObject(raw) || typeof raw.id !== 'string') return null;
+  const branch = migrateBranch(raw.branch);
+  if (!branch) return null;
+  return { ...raw, branch } as TaskTemplate;
+}
+
+export function normalizeTasks(raw: readonly unknown[]): TaskTemplate[] {
+  return raw.map(normalizeTask).filter((t) => t !== null);
 }
 
 export function normalizeSettings(raw: unknown, now: number): Settings {
@@ -82,11 +120,11 @@ export function normalizeTimer(raw: unknown): RunningTask | null {
     typeof raw.durationMs !== 'number' ||
     typeof raw.templateId !== 'string' ||
     typeof raw.title !== 'string' ||
-    !BRANCHES.includes(raw.branch as never)
+    !migrateBranch(raw.branch)
   ) {
     return null;
   }
-  return { pausedAt: null, pausedMs: 0, pausesUsed: 0, ...raw } as RunningTask;
+  return { pausedAt: null, pausedMs: 0, pausesUsed: 0, ...raw, branch: migrateBranch(raw.branch) } as RunningTask;
 }
 
 function normalizeLook(raw: unknown): PigeonLook | null {
@@ -183,7 +221,8 @@ function normalizePlant(raw: unknown): ValleyPlant | null {
     seed: typeof raw.seed === 'number' ? raw.seed >>> 0 : 0,
     plantedAt: typeof raw.plantedAt === 'number' ? raw.plantedAt : 0,
   };
-  if (BRANCHES.includes(raw.branch as never)) p.branch = raw.branch as ValleyPlant['branch'];
+  const branch = migrateBranch(raw.branch);
+  if (branch) p.branch = branch;
   return p;
 }
 

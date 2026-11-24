@@ -34,7 +34,7 @@ export function BranchChip({ branch }: { branch: TaskTemplate['branch'] }) {
   return <span class={`chip chip--${branch}`}>{BRANCH_NAMES[branch]}</span>;
 }
 
-/** Ветка и время задания: «Речь · 15 минут». */
+/** Ветка и время задания: «Подготовка · 15 минут». */
 export function TaskMeta({ task }: { task: TaskTemplate }) {
   return (
     <div class="task__meta small">
