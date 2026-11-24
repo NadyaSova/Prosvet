@@ -13,6 +13,7 @@ import { GoodArt } from '../ui/shop-art';
 import { PlantArt } from '../ui/valley/plant-art';
 import { BranchesSection } from './gallery-branches';
 import { DeerSection } from './gallery-deer';
+import { LandmarksSection } from './gallery-landmarks';
 import { RewardSection } from './gallery-reward';
 import { SectionIconsSection } from './gallery-sections';
 import { WillowSection } from './gallery-willow';
@@ -230,6 +231,8 @@ function Gallery() {
         <code>src/ui/cloak-art.tsx</code>{' '}
         видны здесь сразу, без перезагрузки.
       </p>
+
+      <LandmarksSection />
 
       <RewardSection />
 
