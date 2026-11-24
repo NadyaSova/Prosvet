@@ -42,9 +42,9 @@ export function LandmarksSection() {
     <section class="card">
       <h2>Сооружения боссов</h2>
       <p class="muted small">
-        Рисунок — только само сооружение, без тумана. Ещё не нарисованы: {waiting.map((k) => LANDMARK_NAMES[k].toLowerCase()).join(', ')}.
+        Рисунок — только само сооружение, без тумана. Новые — сверху. Ещё не нарисованы: {waiting.map((k) => LANDMARK_NAMES[k].toLowerCase()).join(', ')}.
       </p>
-      {DRAWN_LANDMARKS.map((kind) => (
+      {[...DRAWN_LANDMARKS].reverse().map((kind) => (
         <div key={kind}>
           <h3 class="gallery__row-title">{LANDMARK_NAMES[kind]}: три сида</h3>
           <div class="gallery__landmarks">
