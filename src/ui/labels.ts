@@ -6,6 +6,7 @@ import type {
   Branch,
   CampKind,
   DecorKind,
+  GardenKind,
   PigeonColor,
   PigeonSize,
   PlantKind,
@@ -109,6 +110,22 @@ export const GOOD_LABELS: Record<GoodId, { name: string; note: string }> = {
 export function goodLabel(good: Good): { name: string; note: string } {
   return GOOD_LABELS[good.id as GoodId] ?? { name: good.id, note: '' };
 }
+
+/** Элементы места бесконечного босса: одна, две, пять (рыбка, рыбки, рыбок). */
+export const GARDEN_ELEMENTS: Record<GardenKind, readonly [string, string, string]> = {
+  pond: ['рыбка', 'рыбки', 'рыбок'],
+  flowerbed: ['цветок', 'цветка', 'цветов'],
+  apiary: ['улей', 'улья', 'ульев'],
+  meadow: ['бабочка', 'бабочки', 'бабочек'],
+};
+
+/** Что изменилось в месте после подхода — строка на экране награды. */
+export const GARDEN_GROWTH: Record<GardenKind, Record<'element' | 'special' | 'bloom', string>> = {
+  pond: { element: 'В пруду новая рыбка', special: 'В пруду появилось что-то особенное', bloom: 'Пруд стал пышнее' },
+  flowerbed: { element: 'В цветнике новый цветок', special: 'В цветнике расцвёл редкий цветок', bloom: 'Цветник стал пышнее' },
+  apiary: { element: 'На пасеке новый улей', special: 'На пасеке — соломенный улей', bloom: 'Пасека стала пышнее' },
+  meadow: { element: 'На лугу новая бабочка', special: 'На лугу — голубая бабочка', bloom: 'Луг стал пышнее' },
+};
 
 /** Что появилось в долине: растение или редкость. */
 export function valleyObjectName(o: ValleyPlant | ValleyDecor): string {

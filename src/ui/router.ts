@@ -1,4 +1,5 @@
 // Экраны по адресу после #: #/settings, #/custom, #/loft, #/hero (героиня и ветки), #/journal (Летопись), #/valley (долина крупно), #/shop (лавка),
+// #/bosses (боссы),
 // #/note/<id> (записка, снятая с доски, поверх главного экрана).
 // Главный экран — без #.
 // Переход вперёд добавляет запись в историю, поэтому системная кнопка «Назад» на Android возвращает на главный.
@@ -59,6 +60,16 @@ export function shopRoute(route: string): ShopRoute | null {
   if (route.startsWith('shop/prize/')) return { view: 'prize', id: decodeURIComponent(route.slice('shop/prize/'.length)) };
   if (route === 'shop/coupon') return { view: 'own' };
   if (route.startsWith('coupon/')) return { view: 'coupon', id: decodeURIComponent(route.slice('coupon/'.length)) };
+  return null;
+}
+
+/** Боссы: #/bosses — список, #/bosses/new — новый босс, #/boss/<id> — босс (во время подхода — секундомер). */
+export type BossRoute = { view: 'list' } | { view: 'new' } | { view: 'boss'; id: string };
+
+export function bossRoute(route: string): BossRoute | null {
+  if (route === 'bosses') return { view: 'list' };
+  if (route === 'bosses/new') return { view: 'new' };
+  if (route.startsWith('boss/')) return { view: 'boss', id: decodeURIComponent(route.slice('boss/'.length)) };
   return null;
 }
 

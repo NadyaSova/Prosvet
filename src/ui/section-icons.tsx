@@ -1,7 +1,8 @@
-// Иконки разделов на главном экране: Летопись (книга с пером), Голубятня (домик на столбе с голубем),
-// Лавка (прилавок под полосатым навесом). Рисунки отдельно от логики, как вся графика.
+// Иконки разделов на главном экране: Летопись (книга с пером), Боссы (ротонда),
+// Голубятня (домик на столбе с голубем), Лавка (прилавок под полосатым навесом). Рисунки отдельно от логики, как вся графика.
 
 import { PALETTE } from './palette';
+import { LandmarkArt } from './valley/landmark-art';
 
 const INK = PALETTE.chronicle;
 const PAPER = PALETTE.paper;
@@ -51,6 +52,18 @@ export function LoftIcon({ class: className }: { class?: string }) {
       <path d="M38.2 8.6 Q40 10 41.8 8.6" stroke="#8fb39a" stroke-width="1.2" fill="none" />
       <path d="M42.8 6.3 L45.2 7 L42.8 7.7 Z" fill="#e0a85a" />
       <circle cx="40.8" cy="5.8" r="0.7" fill={PALETTE.ink} />
+    </svg>
+  );
+}
+
+/**
+ * Боссы: ротонда из сооружений конечных боссов (valley/landmark-art.tsx) — тот же рисунок, что в долине.
+ * Сид выбирает купол и розу на колонне: 11 — медный купол, роза справа (выбор пользователя, 25.11.2026).
+ */
+export function BossesIcon({ class: className }: { class?: string }) {
+  return (
+    <svg class={className} viewBox="-45 -87 90 90" aria-hidden="true">
+      <LandmarkArt kind="rotunda" seed={11} size={100} />
     </svg>
   );
 }

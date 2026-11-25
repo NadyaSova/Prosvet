@@ -13,6 +13,7 @@ import {
   daysSinceLast,
   fogDensity,
   gardenView,
+  lastGrowth,
   measuredMinutes,
   releaseBoss,
   runningBoss,
@@ -193,6 +194,15 @@ describe('вид в долине', () => {
     });
   });
 
+  it('что изменилось после подхода: туман, элемент, особый каждый 5-й, сверх ёмкости — пышнее', () => {
+    const cap = BALANCE.bosses.gardenCapacity;
+    expect(lastGrowth(withSessions(finite(), 3))).toBe('fog');
+    expect(lastGrowth(withSessions(endless(), 1))).toBe('element');
+    expect(lastGrowth(withSessions(endless(), 5))).toBe('special');
+    expect(lastGrowth(withSessions(endless(), cap + 1))).toBe('bloom');
+    expect(lastGrowth(withSessions(endless(), cap + 5))).toBe('special');
+  });
+
   it('звезда — за каждый 5-й подход к бесконечному боссу; у конечного — нет', () => {
     expect(sessionStars(withSessions(endless(), 3))).toBe(0);
     expect(sessionStars(withSessions(endless(), 4))).toBe(1);
@@ -255,6 +265,16 @@ describe('подход как игровое действие', () => {
     expect(r.done.minutes).toBe(50);
     expect(r.state.player.xp.prep).toBe(50);
     expect(r.boss.sessions[0]).toEqual({ startedAt: NOW, minutes: 50, note: 'изучила продукт' });
+    expect(r.done.boss).toEqual({ id: boss.id, kind: 'finite', growth: 'fog', note: 'изучила продукт', capped: false });
+  });
+
+  it('забытый секундомер: засчитан предел, на экране награды об этом сказано', () => {
+    const boss = startStopwatch(endless(), NOW);
+    const max = BALANCE.bosses.maxSessionMinutes;
+    const r = finishBossSession(game(), [boss], boss.id, NOW + (max + 1) * MIN, PHRASE)!;
+    expect(r.done.minutes).toBe(max);
+    expect(r.done.boss).toMatchObject({ kind: 'endless', garden: boss.place.garden, growth: 'element', capped: true });
+    expect(finishBossSession(game(), [boss], boss.id, NOW + max * MIN, PHRASE)!.done.boss?.capped).toBe(false);
   });
 
   it('правка с тем же сидом даёт ту же карту добычи', () => {

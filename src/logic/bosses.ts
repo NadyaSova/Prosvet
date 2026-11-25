@@ -107,6 +107,11 @@ export function measuredMinutes(boss: Boss, now: number): number | null {
   return Math.min(BALANCE.bosses.maxSessionMinutes, minutes);
 }
 
+/** Секундомер шёл дольше BALANCE.bosses.maxSessionMinutes: скорее всего, его забыли остановить. */
+export function isForgotten(boss: Boss, now: number): boolean {
+  return Math.floor(stopwatchMs(boss, now) / MS_PER_MINUTE) > BALANCE.bosses.maxSessionMinutes;
+}
+
 /** Секундомер остановлен: подход записан. */
 export function addSession(boss: Boss, minutes: number, note?: string): Boss {
   if (!boss.stopwatch) throw new Error('Секундомер не идёт');
@@ -183,6 +188,21 @@ export function gardenView(boss: Boss): GardenView {
     specials: Math.floor(n / specialEvery),
     bloom: Math.max(0, n - gardenCapacity),
   };
+}
+
+/**
+ * Что изменилось в долине после последнего подхода: fog — туман над сооружением стал тоньше;
+ * element — в месте новый элемент; special — особый элемент (каждый specialEvery-й подход);
+ * bloom — место уже полно, элементы стали крупнее и ярче.
+ */
+export type BossGrowth = 'fog' | 'element' | 'special' | 'bloom';
+
+export function lastGrowth(boss: Boss): BossGrowth {
+  if (boss.kind === 'finite') return 'fog';
+  const n = boss.sessions.length;
+  const { gardenCapacity, specialEvery } = BALANCE.bosses;
+  if (n > 0 && n % specialEvery === 0) return 'special';
+  return n > gardenCapacity ? 'bloom' : 'element';
 }
 
 // Журнал подходов

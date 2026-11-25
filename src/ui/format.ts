@@ -25,6 +25,30 @@ export function clockText(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** Секундомер босса: «0:00», «12:05», «1:02:05». Секунды вниз — секундомер считает прошедшее. */
+export function stopwatchText(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+/** Длительность в минутах: «40 минут», «2 ч 15 мин», «3 ч». */
+export function durationText(minutes: number): string {
+  if (minutes < 60) return minutesText(minutes);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
+}
+
+/** Сколько дней назад: «сегодня», «вчера», «5 дней назад». */
+export function agoText(days: number): string {
+  if (days <= 0) return 'сегодня';
+  if (days === 1) return 'вчера';
+  return `${daysText(days)} назад`;
+}
+
 const WEEKDAY_GENITIVE = ['воскресенья', 'понедельника', 'вторника', 'среды', 'четверга', 'пятницы', 'субботы'];
 const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 

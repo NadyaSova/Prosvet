@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { DEFAULT_TASKS } from './data/default-tasks';
 import { PHRASES, type PhraseContext } from './data/phrases';
+import { archiveBoss, cancelStopwatch, createBoss, measuredMinutes, releaseBoss, runningBoss, type NewBoss } from './logic/bosses';
 import {
   answerPigeonAction,
   cancelTask,
   completeDoneTask,
   completeInstantTask,
   ensureBoard,
+  finishBossSession,
   finishTimedTask,
   lateInviteAction,
   onOpen,
@@ -16,8 +18,10 @@ import {
   resumeTask,
   returnOverduePigeons,
   sendPigeon,
+  startBossSession,
   startTimedTask,
   tinyTask,
+  winBossAction,
   type CompletedTask,
   type GameState,
   type ReturnedFeather,
@@ -33,7 +37,7 @@ import { mergeTemplates } from './logic/tasks';
 import { createRng, randomSeed } from './logic/rng';
 import { dayOf } from './logic/time';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
-import type { Achievement, Branch, Finding, LoftState, Pigeon, Settings, ShopState, StopAnswer, TaskTemplate } from './model/types';
+import type { Achievement, Boss, Branch, Finding, LoftState, Pigeon, Settings, ShopState, StopAnswer, TaskTemplate } from './model/types';
 import { requestPersistence, type Persistence } from './storage/browser';
 import { openProsvetDb, type ProsvetDb } from './storage/db';
 import {
@@ -48,6 +52,10 @@ import {
   type AppData,
   type SaveExtras,
 } from './storage/repo';
+import { BossesScreen } from './ui/BossesScreen';
+import { BossFormScreen } from './ui/BossFormScreen';
+import { BossScreen } from './ui/BossScreen';
+import { BossVictoryScreen, type ShownVictory } from './ui/BossVictoryScreen';
 import { CustomTaskScreen, type CustomTaskInput, type DoneTaskInput } from './ui/CustomTaskScreen';
 import { FeatherScreen, type ShownFeather } from './ui/FeatherScreen';
 import { minutesText } from './ui/format';
@@ -60,9 +68,10 @@ import { askNotificationPermission, signalTimerEnd } from './ui/notify';
 import { RewardScreen, type ShownReward } from './ui/RewardScreen';
 import { CouponScreen } from './ui/CouponScreen';
 import { PrizeScreen } from './ui/PrizeScreen';
-import { go, goHome, journalRoute, replaceRoute, shopRoute, useRoute, valleyRoute } from './ui/router';
+import { bossRoute, go, goHome, journalRoute, replaceRoute, shopRoute, useRoute, valleyRoute } from './ui/router';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { ShopScreen } from './ui/ShopScreen';
+import { StopwatchScreen } from './ui/StopwatchScreen';
 import { TimerScreen } from './ui/TimerScreen';
 import { ValleyScreen } from './ui/ValleyScreen';
 import { ask } from './ui/confirm';
@@ -138,7 +147,8 @@ function useNow(interval: number): number {
  * (docs/phase2-plan.md §3, §4): то же действие на состоянии до завершения, с тем же сидом генератора —
  * карта добычи и место растения те же, если они остаются.
  */
-interface Redo {
+interface TimerRedo {
+  kind: 'timer';
   before: GameState;
   /** Состояние после завершения. Править можно, пока игра с тех пор не менялась. */
   after: GameState;
@@ -148,11 +158,29 @@ interface Redo {
   open: boolean;
 }
 
+/** То же для подхода к боссу: поправить время или записать заметку (docs/phase2-plan.md §5.1). */
+interface BossRedo {
+  kind: 'boss';
+  before: GameState;
+  after: GameState;
+  /** Боссы до остановки секундомера и после. */
+  bossesBefore: readonly Boss[];
+  bossesAfter: readonly Boss[];
+  id: string;
+  seed: number;
+  now: number;
+}
+
+type Redo = TimerRedo | BossRedo;
+
+/** Что поправлено на экране награды: минуты, ответ на вопрос при остановке, заметка к подходу. */
+type RewardFix = TimerFix & { note?: string };
+
 type QueuedReward = ShownReward & {
   seq: number;
   redo?: Redo;
-  /** Что уже поправлено: минуты и ответ на вопрос. */
-  fix?: TimerFix;
+  /** Что уже поправлено: минуты, ответ на вопрос, заметка. */
+  fix?: RewardFix;
   /** Id находки, записанной с этого экрана: при пересчёте она перезаписывается, а не дублируется. */
   findingId?: string;
   /** Куда улетел голубь, отправленный с этого экрана. */
@@ -160,12 +188,30 @@ type QueuedReward = ShownReward & {
 };
 
 /** Завершение таймера: по концу времени или «закончила раньше» — или при открытии приложения. */
-function settleTimed(redo: Omit<Redo, 'after'>, templates: readonly TaskTemplate[], fix: TimerFix = {}) {
+function settleTimed(redo: Omit<TimerRedo, 'after'>, templates: readonly TaskTemplate[], fix: TimerFix = {}) {
   const rng = createRng(redo.seed);
   if (!redo.open) return finishTimedTask(redo.before, templates, redo.now, rng, fix);
   const r = onOpen(redo.before, templates, redo.now, rng, fix);
   return r.done ? { state: r.state, done: r.done } : null;
 }
+
+/** Остановка секундомера босса. */
+function settleBoss(redo: Omit<BossRedo, 'after' | 'bossesAfter'>, fix: RewardFix = {}) {
+  return finishBossSession(redo.before, redo.bossesBefore, redo.id, redo.now, createRng(redo.seed), {
+    minutes: fix.minutes,
+    note: fix.note,
+  });
+}
+
+/** Новые и изменённые боссы поверх списка; по порядку создания. */
+function mergeBosses(list: readonly Boss[], changed: readonly Boss[]): Boss[] {
+  const byId = new Map(list.map((b) => [b.id, b]));
+  for (const b of changed) byId.set(b.id, b);
+  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/** Босс Летописи (например, послужной список): во время подхода можно открыть Летопись. */
+const bossOpensJournal = (b: Boss) => b.branch === 'chronicle';
 
 interface GameProps {
   db: ProsvetDb;
@@ -194,6 +240,10 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const [shop, setShop] = useState<ShopState>(initial.shop);
   /** Экраны вернувшихся перьев — по очереди. */
   const [feathers, setFeathers] = useState<ShownFeather[]>([]);
+  /** Боссы во всех состояниях, по порядку создания. */
+  const [bosses, setBosses] = useState<Boss[]>(initial.bosses);
+  /** Экраны побед над боссами — по очереди. */
+  const [victories, setVictories] = useState<ShownVictory[]>([]);
   const [news, setNews] = useState<StreakNews | null>(null);
   const [idlePhrase, setIdlePhrase] = useState('');
   const [startPhrase, setStartPhrase] = useState('');
@@ -201,7 +251,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   /** Только что выросшее в долине: главный экран покажет, как оно растёт. */
   const [fresh, setFresh] = useState<string | null>(null);
   const route = useRoute();
-  const now = useNow(game.timer ? 1000 : 30_000);
+  const running = runningBoss(bosses);
+  const now = useNow(game.timer || running ? 1000 : 30_000);
 
   const templates = useMemo(
     () => mergeTemplates(DEFAULT_TASKS, custom, settings.hiddenTaskIds),
@@ -216,10 +267,16 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const pigeonsRef = useRef(initial.pigeons);
   const loftRef = useRef(initial.loft);
   const shopRef = useRef(initial.shop);
+  const bossesRef = useRef<readonly Boss[]>(initial.bosses);
 
   function commit(next: GameState, extras: SaveExtras = {}) {
     gameRef.current = next;
     setGame(next);
+    if (extras.bosses?.length) {
+      const merged = mergeBosses(bossesRef.current, extras.bosses);
+      bossesRef.current = merged;
+      setBosses(merged);
+    }
     if (extras.shop) {
       shopRef.current = extras.shop;
       setShop(extras.shop);
@@ -265,7 +322,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
 
   /** Завершает идущий таймер (сейчас) и показывает награду, которую можно будет поправить. */
   function finishTimer(): CompletedTask | null {
-    const redo = { before: gameRef.current, seed: randomSeed(), now: Date.now(), open: false };
+    const redo = { kind: 'timer' as const, before: gameRef.current, seed: randomSeed(), now: Date.now(), open: false };
     const r = settleTimed(redo, templatesRef.current);
     if (!r) return null;
     commit(r.state);
@@ -277,15 +334,19 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
    * «Поправить время» или ответ на вопрос при остановке: пересчитать задание с новыми минутами или ответом.
    * Находка пишется вместе с наградой за неё.
    */
-  function redoReward(item: QueuedReward, fix: TimerFix) {
+  function redoReward(item: QueuedReward, fix: RewardFix) {
     const redo = item.redo;
-    if (!redo || gameRef.current !== redo.after) return;
-    const r = settleTimed(redo, templatesRef.current, fix);
+    if (!redo || !canRedo(redo)) return;
+    const bossDone = redo.kind === 'boss' ? settleBoss(redo, fix) : null;
+    const r = redo.kind === 'boss' ? bossDone : settleTimed(redo, templatesRef.current, fix);
     if (!r) return;
     const a = r.done.answer;
     const finding: Finding | undefined =
       a?.ask === 'finding' ? { id: item.findingId ?? crypto.randomUUID(), createdAt: redo.now, text: a.text } : undefined;
-    commit(r.state, finding ? { finding } : {});
+    const extras: SaveExtras = {};
+    if (finding) extras.finding = finding;
+    if (bossDone) extras.bosses = [bossDone.boss];
+    commit(r.state, extras);
     if (r.done.planted) setFresh(r.done.planted.id);
     const loot = r.done.report.loot;
     const shown: QueuedReward = {
@@ -296,9 +357,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       findingId: finding?.id ?? item.findingId,
       cardPhrase: loot?.kind === 'phrase' ? (item.cardPhrase ?? (r.done.report.comeback ? takePhrase('finish') : item.phrase)) : undefined,
       streakPhrase: r.done.report.streakMilestones.length > 0 ? (item.streakPhrase ?? takePhrase('streak')) : undefined,
-      redo: { ...redo, after: r.state },
+      redo: redo.kind === 'boss' ? { ...redo, after: r.state, bossesAfter: bossesRef.current } : { ...redo, after: r.state },
     };
     setRewards((q) => q.map((x) => (x.seq === item.seq ? shown : x)));
+  }
+
+  /** Пересчитать награду можно, пока игра (и боссы — для подхода) с тех пор не менялись. */
+  function canRedo(redo: Redo): boolean {
+    return gameRef.current === redo.after && (redo.kind !== 'boss' || bossesRef.current === redo.bossesAfter);
   }
 
   /** Открытие приложения и возвращение в него: таймер, серия, доска, голуби, которые вернулись сами. */
@@ -310,7 +376,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     const back = returnOverduePigeons(r.state, pigeonsRef.current, now);
     if (back.state !== gameRef.current) commit(back.state, { pigeons: back.changed });
     // Если заодно вернулись голуби, пересчитать награду таймера отдельно от них нельзя — тогда без правки.
-    if (r.done) showReward(r.done, back.changed.length === 0 ? { before, after: back.state, seed, now, open: true } : undefined);
+    if (r.done) showReward(r.done, back.changed.length === 0 ? { kind: 'timer', before, after: back.state, seed, now, open: true } : undefined);
     back.feathers.forEach(showFeather);
     if (r.news.logsBurned > 0 || r.news.broken) setNews(r.news);
   }
@@ -318,7 +384,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   useEffect(() => {
     refresh();
     setIdlePhrase(takePhrase('idle'));
-    if (gameRef.current.timer) setStartPhrase(takePhrase('start'));
+    if (gameRef.current.timer || runningBoss(bossesRef.current)) setStartPhrase(takePhrase('start'));
     const onVisible = () => {
       if (document.visibilityState === 'visible') refresh();
     };
@@ -341,9 +407,9 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   }, [game.timer]);
 
   function startTimed(task: { templateId: string; title: string; branch: Branch; minutes: number }) {
-    if (gameRef.current.timer) return;
+    if (gameRef.current.timer || runningBoss(bossesRef.current)) return;
     void askNotificationPermission();
-    commit(startTimedTask(gameRef.current, task, Date.now()));
+    commit(startTimedTask(gameRef.current, task, Date.now(), bossesRef.current));
     setStartPhrase(takePhrase('start'));
     goHome();
   }
@@ -431,6 +497,60 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     const r = lateInviteAction(gameRef.current, pigeonsRef.current, id);
     commit(r.state, { pigeons: [r.pigeon] });
     showFeather(r.feather);
+  }
+
+  // Боссы. docs/phase2-plan.md §5.
+
+  function findBoss(id: string): Boss | undefined {
+    return bossesRef.current.find((b) => b.id === id);
+  }
+
+  /** Новый босс; форма заменяется экраном босса, чтобы «Назад» вела в список. */
+  function createBossAction(input: NewBoss) {
+    const boss = createBoss(bossesRef.current, input, Date.now(), Math.random, crypto.randomUUID());
+    commit(gameRef.current, { bosses: [boss] });
+    replaceRoute(`boss/${encodeURIComponent(boss.id)}`);
+  }
+
+  function startSession(id: string) {
+    if (gameRef.current.timer || runningBoss(bossesRef.current)) return;
+    commit(gameRef.current, { bosses: [startBossSession(gameRef.current, bossesRef.current, id, Date.now())] });
+    setStartPhrase(takePhrase('start'));
+  }
+
+  async function cancelSession(id: string) {
+    const yes = await ask('Отменить подход? Награды не будет, но и ничего не потеряешь.', { ok: 'Отменить', cancel: 'Продолжить' });
+    const boss = findBoss(id);
+    if (yes && boss?.stopwatch) commit(gameRef.current, { bosses: [cancelStopwatch(boss)] });
+  }
+
+  /** Остановка секундомера: подход и награда за него — одной транзакцией; на экране награды можно поправить время и записать заметку. */
+  async function stopSession(id: string) {
+    const boss = findBoss(id);
+    if (!boss?.stopwatch) return;
+    if (measuredMinutes(boss, Date.now()) === null) {
+      if (await ask('Прошло меньше минуты — засчитывать пока нечего. Отменить подход?', { ok: 'Отменить', cancel: 'Продолжить' })) {
+        const current = findBoss(id);
+        if (current?.stopwatch) commit(gameRef.current, { bosses: [cancelStopwatch(current)] });
+      }
+      return;
+    }
+    const redo = { kind: 'boss' as const, before: gameRef.current, bossesBefore: bossesRef.current, id, seed: randomSeed(), now: Date.now() };
+    const r = settleBoss(redo);
+    if (!r) return;
+    commit(r.state, { bosses: [r.boss] });
+    showReward(r.done, { ...redo, after: r.state, bossesAfter: bossesRef.current });
+  }
+
+  function winBossNow(id: string, note: string) {
+    const r = winBossAction(gameRef.current, bossesRef.current, id, Date.now(), note);
+    commit(r.state, { bosses: [r.boss] });
+    setVictories((q) => [...q, { boss: r.boss, report: r.report, phrase: takePhrase('finish') }]);
+  }
+
+  function endBoss(id: string, end: typeof releaseBoss) {
+    const boss = findBoss(id);
+    if (boss) commit(gameRef.current, { bosses: [end(boss, Date.now())] });
   }
 
   /** Поставить редкость из запаса или посадить семя на выбранное место (slot). */
@@ -554,6 +674,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     pigeonsRef.current = data.pigeons;
     loftRef.current = data.loft;
     shopRef.current = data.shop;
+    bossesRef.current = data.bosses;
+    setBosses(data.bosses);
     setGame(loaded);
     setPigeons(data.pigeons);
     setLoft(data.loft);
@@ -572,14 +694,37 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const writing = journal?.view === 'new' || editing !== undefined;
   const reward = writing ? undefined : rewards[0];
   const feather = writing ? undefined : feathers[0];
+  const victory = writing ? undefined : victories[0];
   const knownSkills = useMemo(() => allSkills(entries), [entries]);
 
   const flying = pigeons.filter((p) => p.status === 'flying');
   const feathersList = useMemo(() => feathersOf(pigeons), [pigeons]);
   const valleyView = valleyRoute(route);
   const shopView = shopRoute(route);
+  const bossView = bossRoute(route);
   const onMain =
-    !reward && !feather && !game.timer && !journal && !valleyView && !shopView && !['loft', 'hero', 'settings', 'custom'].includes(route);
+    !reward &&
+    !feather &&
+    !victory &&
+    !game.timer &&
+    !running &&
+    !journal &&
+    !valleyView &&
+    !shopView &&
+    !bossView &&
+    !['loft', 'hero', 'settings', 'custom'].includes(route);
+
+  const stopwatchScreen = (boss: Boss, back: boolean) => (
+    <StopwatchScreen
+      boss={boss}
+      now={now}
+      phrase={startPhrase}
+      back={back}
+      onFinish={() => void stopSession(boss.id)}
+      onCancel={() => void cancelSession(boss.id)}
+      onJournal={bossOpensJournal(boss) ? () => go('journal') : undefined}
+    />
+  );
 
   // Анимация роста показывается один раз: через несколько секунд на главном экране или на экране «Долина»
   // растение считается обычным.
@@ -597,7 +742,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     // Своё задание Зова — ссылка в голубятню; у Отклика вместо неё вопрос «Отправила?».
     const callTask = reward.branch === 'call' && reward.minutes !== undefined && reward.ask !== 'pigeon';
     const close = () => setRewards((q) => q.slice(1));
-    const canRedo = reward.redo?.after === game;
+    const redo = reward.redo;
+    const canRedo = redo !== undefined && redo.after === game && (redo.kind !== 'boss' || redo.bossesAfter === bosses);
     screen = (
       <RewardScreen
         key={reward.seq}
@@ -606,6 +752,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         onLoft={callTask ? () => { close(); go('loft'); } : undefined}
         onCorrect={canRedo ? (minutes) => redoReward(reward, { ...reward.fix, minutes }) : undefined}
         onAnswer={canRedo ? (answer: StopAnswer) => redoReward(reward, { ...reward.fix, answer }) : undefined}
+        onNote={canRedo && reward.boss ? (note) => redoReward(reward, { ...reward.fix, note }) : undefined}
         pigeon={
           reward.ask === 'pigeon'
             ? {
@@ -622,6 +769,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     );
   } else if (feather) {
     screen = <FeatherScreen feather={feather} onClose={() => setFeathers((q) => q.slice(1))} />;
+  } else if (victory) {
+    screen = <BossVictoryScreen key={victory.boss.id} victory={victory} onClose={() => setVictories((q) => q.slice(1))} />;
   } else if (journal) {
     // Летопись открывается и во время таймера — например, чтобы дополнить черновик за 10 минут задания.
     screen =
@@ -637,6 +786,31 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       ) : (
         <JournalScreen entries={entries} drafts={journal.view === 'list' && journal.drafts} />
       );
+  } else if (bossView) {
+    const boss = bossView.view === 'boss' ? bosses.find((b) => b.id === bossView.id) : undefined;
+    if (bossView.view === 'new') {
+      screen = <BossFormScreen onCreate={createBossAction} />;
+    } else if (boss?.stopwatch) {
+      screen = stopwatchScreen(boss, true);
+    } else if (boss) {
+      let blocked: string | null = null;
+      if (game.timer) blocked = 'Сейчас идёт таймер задания — подход можно начать, когда он закончится.';
+      else if (running) blocked = `Идёт подход к «${running.title}».`;
+      screen = (
+        <BossScreen
+          key={boss.id}
+          boss={boss}
+          now={now}
+          blocked={blocked}
+          onStart={() => startSession(boss.id)}
+          onWin={(note) => winBossNow(boss.id, note)}
+          onRelease={() => endBoss(boss.id, releaseBoss)}
+          onArchive={() => endBoss(boss.id, archiveBoss)}
+        />
+      );
+    } else {
+      screen = <BossesScreen bosses={bosses} now={now} />;
+    }
   } else if (route === 'loft') {
     screen = (
       <LoftScreen
@@ -710,6 +884,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         onDataChange={(data) => void dataChanged(data)}
       />
     );
+  } else if (running) {
+    screen = stopwatchScreen(running, false);
   } else if (game.timer) {
     const timerTask = templates.find((t) => t.id === game.timer!.templateId);
     screen = (
@@ -754,6 +930,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         fresh={fresh}
         onPlant={(item) => plant(item)}
         coupons={shop.coupons.filter((c) => c.status === 'bought').length}
+        bosses={bosses.filter((b) => b.status === 'active').length}
       />
     );
   }

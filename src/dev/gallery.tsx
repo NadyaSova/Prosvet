@@ -4,6 +4,7 @@
 
 import { render } from 'preact';
 import '../styles.css';
+import { BossesSection } from './gallery-bosses';
 import { GardensSection } from './gallery-gardens';
 import { StopQuestionsSection, XpIconSection } from './gallery-reward';
 
@@ -12,6 +13,8 @@ function Gallery() {
     <main class="gallery">
       <h1>Галерея рисунков</h1>
       <p class="muted">Страница только для разработки. Правки рисунков видны здесь сразу, без перезагрузки.</p>
+
+      <BossesSection />
 
       <GardensSection />
 

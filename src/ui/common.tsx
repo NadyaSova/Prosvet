@@ -1,23 +1,61 @@
 // Мелкие общие элементы экранов.
 
 import type { ComponentChildren } from 'preact';
+import { useState } from 'preact/hooks';
 import type { TaskTemplate } from '../model/types';
 import { minutesText } from './format';
 import { BRANCH_NAMES } from './labels';
 import { goHome } from './router';
 
-/** Шапка экрана: «Назад», заголовок и, если есть, кнопки справа. */
-export function BackBar({ title, children }: { title: string; children?: ComponentChildren }) {
+/**
+ * Шапка экрана: «Назад», заголовок и, если есть, кнопки справа.
+ * info — пояснение к экрану: справа кнопка «i», по нажатию под шапкой — записка с этим текстом.
+ */
+export function BackBar({ title, children, info }: { title: string; children?: ComponentChildren; info?: ComponentChildren }) {
+  const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <header class="backbar">
-      <button type="button" class="icon-button" aria-label="Назад" onClick={goHome}>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </button>
-      <h1>{title}</h1>
-      {children && <div class="backbar__end">{children}</div>}
-    </header>
+    <>
+      <header class="backbar">
+        <button type="button" class="icon-button" aria-label="Назад" onClick={goHome}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <h1>{title}</h1>
+        {(children || info) && (
+          <div class="backbar__end">
+            {children}
+            {info && <InfoButton open={infoOpen} onToggle={() => setInfoOpen(!infoOpen)} />}
+          </div>
+        )}
+      </header>
+      {info && infoOpen && <InfoNote>{info}</InfoNote>}
+    </>
+  );
+}
+
+/**
+ * Кнопка пояснения: буква «i» в тонком круге чернилами; открыта — круг залит, буква цвета бумаги.
+ * Сама ничего не показывает: текст — в InfoNote рядом, состояние держит тот, кто её ставит.
+ */
+export function InfoButton({ open, onToggle, label = 'Пояснение' }: { open: boolean; onToggle: () => void; label?: string }) {
+  return (
+    <button type="button" class={`info-button${open ? ' info-button--open' : ''}`} aria-label={label} aria-expanded={open} onClick={onToggle}>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle class="info-button__ring" cx="12" cy="12" r="10.25" />
+        <circle class="info-button__glyph" cx="12" cy="7.4" r="1.55" />
+        <path class="info-button__glyph" d="M10.1 10.6 H12.9 V16.3 H14.2 V17.8 H9.8 V16.3 H11.1 V12.1 H10.1 Z" />
+      </svg>
+    </button>
+  );
+}
+
+/** Записка с пояснением под кнопкой «i»: лист бумаги с уголком, указывающим на кнопку справа сверху. */
+export function InfoNote({ children }: { children: ComponentChildren }) {
+  return (
+    <div class="info-note" role="note">
+      {children}
+    </div>
   );
 }
 

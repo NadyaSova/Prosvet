@@ -5,15 +5,14 @@
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { BALANCE } from '../config/balance';
-import type { CompletedTask } from '../logic/game';
+import type { BossSessionDone, CompletedTask } from '../logic/game';
 import type { LootCard as Loot } from '../logic/loot';
 import { titleFor } from '../logic/progression';
-import { cleanFinding } from '../logic/stop-questions';
 import { CORRECTION_MAX, CORRECTION_MIN, nudgeMinutes } from '../logic/timer';
 import type { LoftState, StopAnswer, Verdict } from '../model/types';
 import { daysText, minutesText, plural } from './format';
 import { GoldIcon, XpIcon } from './common';
-import { BRANCH_NAMES, itemName, plantName } from './labels';
+import { BRANCH_NAMES, GARDEN_GROWTH, itemName, plantName } from './labels';
 import { PigeonSend } from './PigeonSend';
 
 export interface ShownReward extends CompletedTask {
@@ -81,7 +80,24 @@ function LootFace({ loot, converted, phrase }: { loot: Loot; converted: boolean;
 
 /** Строка над названием: «Засчитано» — и что время вышло без тебя. */
 function kickerOf(reward: ShownReward): string {
+  if (reward.boss) return 'Подход засчитан';
   return reward.whileAway ? 'Время вышло, пока тебя не было. Засчитано' : 'Засчитано';
+}
+
+/** Что изменилось у босса после подхода: туман или место. */
+function growthText(boss: BossSessionDone): string {
+  if (boss.kind === 'finite' || !boss.garden || boss.growth === 'fog') return 'Туман над боссом стал тоньше';
+  return GARDEN_GROWTH[boss.garden][boss.growth];
+}
+
+/** Подсказка в правке времени: что будет с картой добычи. */
+function correctionHint(reward: ShownReward, minutes: number): string {
+  if (reward.boss) {
+    const from = BALANCE.bosses.lootFromMinutes;
+    return minutes >= from ? 'С картой добычи.' : `Меньше ${minutesText(from)} — без карты добычи.`;
+  }
+  const planned = reward.plannedMinutes ?? 0;
+  return `Задание было на ${minutesText(planned)}. ${minutes >= planned ? 'Засчитается полностью, с картой добычи.' : 'Меньше — без карты добычи.'}`;
 }
 
 /** Засчитанное время под названием: «25 минут», «12 минут из 30». Без таймера — ничего. */
@@ -97,7 +113,6 @@ function timeOf(reward: ShownReward): string | undefined {
  */
 function TimeCorrection({ reward, onCorrect, onClose }: { reward: ShownReward; onCorrect: (minutes: number) => void; onClose: () => void }) {
   const [minutes, setMinutes] = useState(reward.minutes ?? 0);
-  const planned = reward.plannedMinutes ?? 0;
   return (
     <div class="card reward__correct">
       <span class="field__label">Сколько засчитать</span>
@@ -124,10 +139,7 @@ function TimeCorrection({ reward, onCorrect, onClose }: { reward: ShownReward; o
           +
         </button>
       </div>
-      <p class="muted small">
-        Задание было на {minutesText(planned)}.{' '}
-        {minutes >= planned ? 'Засчитается полностью, с картой добычи.' : 'Меньше — без карты добычи.'}
-      </p>
+      <p class="muted small">{correctionHint(reward, minutes)}</p>
       <div class="reward__correct-buttons">
         <button type="button" class="button button--secondary" onClick={onClose}>
           Отмена
@@ -317,35 +329,51 @@ function VerdictAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: 
 }
 
 /**
- * Находка: строка на линии для письма. Записанный текст остаётся на линии, кнопки нет;
- * под линией слева «✓ записано», справа — метка бонуса. Поправила текст — отметка пропадает, бонус остаётся,
- * снова кнопка «Записать находку».
+ * Строка на линии для письма: находка после чтения сообществ, заметка к подходу к боссу.
+ * Записанный текст остаётся на линии, кнопки нет; под линией слева «✓ записано», справа — tag (метка бонуса).
+ * Поправила текст — отметка пропадает, снова кнопка. onSave нет — записать уже нельзя: только показать записанное.
  */
-function FindingAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: StopAnswer) => void }) {
-  const saved = reward.answer?.ask === 'finding' ? reward.answer.text : undefined;
+function InkLine({
+  question,
+  hint,
+  saved,
+  maxLength,
+  button,
+  onSave,
+  tag,
+}: {
+  question: string;
+  hint: string;
+  saved?: string;
+  maxLength: number;
+  button: string;
+  onSave?: (text: string) => void;
+  tag?: ComponentChildren;
+}) {
   const [text, setText] = useState(saved ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
-  if (!saved && !onAnswer) return null;
-  const clean = cleanFinding(text);
+  if (!saved && !onSave) return null;
+  // Как находка (cleanFinding): пробелы по краям и повторы убраны, длина ограничена.
+  const clean = text.trim().replace(/\s+/g, ' ').slice(0, maxLength).trim();
   const isSaved = saved !== undefined && clean === saved;
   function save(e: Event) {
     e.preventDefault();
-    if (!clean || isSaved || !onAnswer) return;
+    if (!clean || isSaved || !onSave) return;
     // Как в голубятне: сначала отпустить поле, чтобы клавиатура Android дописала слово.
     inputRef.current?.blur();
-    onAnswer({ ask: 'finding', text: clean });
+    onSave(clean);
   }
   return (
     <form class="reward-note__form" onSubmit={save}>
       <label class="field">
-        <span class="reward-note__question">Нашлось что-то новое?</span>
-        <span class="reward-note__hint small">Мероприятие, компания, человек, роль, ресурс — одной строкой. Можно и пропустить.</span>
+        <span class="reward-note__question">{question}</span>
+        <span class="reward-note__hint small">{hint}</span>
         <input
           type="text"
           class="ink-input"
           ref={inputRef}
-          maxLength={BALANCE.tasks.findingMaxLength}
-          readOnly={!onAnswer}
+          maxLength={maxLength}
+          readOnly={!onSave}
           value={text}
           onInput={(e) => setText(e.currentTarget.value)}
         />
@@ -360,17 +388,53 @@ function FindingAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: 
               записано
             </span>
           )}
-          <BonusTag reward={reward} />
+          {tag}
         </div>
       )}
-      {onAnswer && !isSaved && (
+      {onSave && !isSaved && (
         <div class="ink-actions">
           <button type="submit" class="ink-button ink-actions__main" disabled={!clean}>
-            Записать находку
+            {button}
           </button>
         </div>
       )}
     </form>
+  );
+}
+
+/** Находка после чтения сообществ — бонус за неё меткой под линией. */
+function FindingAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: StopAnswer) => void }) {
+  return (
+    <InkLine
+      question="Нашлось что-то новое?"
+      hint="Мероприятие, компания, человек, роль, ресурс — одной строкой. Можно и пропустить."
+      saved={reward.answer?.ask === 'finding' ? reward.answer.text : undefined}
+      maxLength={BALANCE.tasks.findingMaxLength}
+      button="Записать находку"
+      onSave={onAnswer && ((text) => onAnswer({ ask: 'finding', text }))}
+      tag={<BonusTag reward={reward} />}
+    />
+  );
+}
+
+/**
+ * Заметка к подходу к боссу (docs/phase2-plan.md §5.1) — записка внизу экрана награды, как вопрос при остановке.
+ * Бонуса нет: заметку потом видно в журнале подходов и при следующем подходе.
+ */
+function BossNote({ reward, onNote }: { reward: ShownReward; onNote?: (note: string) => void }) {
+  const boss = reward.boss;
+  if (!boss || (!onNote && !boss.note)) return null;
+  return (
+    <section class={`reward-note task--${reward.branch}`}>
+      <InkLine
+        question="Что было в этот раз?"
+        hint="Что нашла, что сделала, с чего начать в следующий раз — одной строкой. Можно и пропустить."
+        saved={boss.note}
+        maxLength={BALANCE.bosses.sessionNoteMaxLength}
+        button="Записать"
+        onSave={onNote}
+      />
+    </section>
   );
 }
 
@@ -410,9 +474,11 @@ interface Props {
   onAnswer?: (answer: StopAnswer) => void;
   /** «Отправила отклик?» — отправка голубя. */
   pigeon?: PigeonQuestion;
+  /** Подход к боссу: записать заметку к подходу; нет — записать уже нельзя. */
+  onNote?: (note: string) => void;
 }
 
-export function RewardScreen({ reward, onClose, onLoft, onCorrect, onAnswer, pigeon }: Props) {
+export function RewardScreen({ reward, onClose, onLoft, onCorrect, onAnswer, pigeon, onNote }: Props) {
   const [flipped, setFlipped] = useState(false);
   const [correcting, setCorrecting] = useState(false);
   const r = reward.report;
@@ -437,6 +503,11 @@ export function RewardScreen({ reward, onClose, onLoft, onCorrect, onAnswer, pig
                 <InlineLink onClick={() => setCorrecting(true)}>поправить</InlineLink>
               </>
             )}
+          </p>
+        )}
+        {reward.boss?.capped && (
+          <p class="reward__time small muted">
+            Секундомер шёл дольше {minutesText(BALANCE.bosses.maxSessionMinutes)} — засчитано столько. Если было иначе, поправь.
           </p>
         )}
       </div>
@@ -478,10 +549,13 @@ export function RewardScreen({ reward, onClose, onLoft, onCorrect, onAnswer, pig
           </div>
         </button>
       ) : (
-        <p class="muted small">Карта добычи — за полное время.</p>
+        <p class="muted small">
+          {reward.boss ? `Карта добычи — за подход от ${minutesText(BALANCE.bosses.lootFromMinutes)}.` : 'Карта добычи — за полное время.'}
+        </p>
       )}
 
       <ul class="reward__news">
+        {reward.boss && <li>{growthText(reward.boss)}</li>}
         {reward.planted && <li>Новое в долине: {plantName(reward.planted)}</li>}
         {reward.districtOpened && <li>Туман ушёл из долины целиком. Долина открыта.</li>}
         {r.newLevel !== null && (
@@ -513,6 +587,7 @@ export function RewardScreen({ reward, onClose, onLoft, onCorrect, onAnswer, pig
       {reward.phrase !== reward.cardPhrase && <p class="phrase">{reward.phrase}</p>}
 
       <StopAsk reward={reward} onAnswer={onAnswer} pigeon={pigeon} />
+      <BossNote reward={reward} onNote={onNote} />
 
       <button type="button" class="button reward__next" onClick={onClose}>
         Дальше

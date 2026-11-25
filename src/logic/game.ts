@@ -6,6 +6,7 @@ import type {
   BoardState,
   Boss,
   Branch,
+  GardenKind,
   LoftState,
   Pigeon,
   PlayerState,
@@ -20,11 +21,14 @@ import { buildBoard, canReroll, pickTinyTask, refillSlot, repairBoard, type Boar
 import {
   addSession,
   clampSessionMinutes,
+  isForgotten,
+  lastGrowth,
   measuredMinutes,
   runningBoss,
   sessionStars,
   startStopwatch,
   winBoss,
+  type BossGrowth,
 } from './bosses';
 import { answerPigeon, feathersOf, isOverdue, lateInvite, launchPigeon, returnSilent } from './pigeons';
 import {
@@ -87,6 +91,20 @@ export interface CompletedTask {
   ask?: StopQuestion;
   /** Ответ на вопрос, с которым посчитана награда. */
   answer?: StopAnswer;
+  /** Подход к боссу (docs/phase2-plan.md §5). */
+  boss?: BossSessionDone;
+}
+
+/** Подход к боссу на экране награды: что изменилось в долине, заметка, забытый ли секундомер. */
+export interface BossSessionDone {
+  id: string;
+  kind: Boss['kind'];
+  garden?: GardenKind;
+  growth: BossGrowth;
+  /** Заметка к подходу, если записана. */
+  note?: string;
+  /** Секундомер шёл дольше BALANCE.bosses.maxSessionMinutes, а время не поправлено: засчитан предел. */
+  capped: boolean;
 }
 
 /**
@@ -499,9 +517,11 @@ export function finishBossSession(
     stars: sessionStars(boss),
   };
   const { state: player, report } = applyCompletion(state.player, completion, now, rng);
+  const updated = addSession(boss, minutes, options.note);
+  const note = updated.sessions.at(-1)!.note;
   return {
     state: { ...state, player },
-    boss: addSession(boss, minutes, options.note),
+    boss: updated,
     done: {
       title: boss.title,
       branch: boss.branch,
@@ -511,6 +531,14 @@ export function finishBossSession(
       whileAway: false,
       planted: null,
       districtOpened: false,
+      boss: {
+        id: boss.id,
+        kind: boss.kind,
+        ...(boss.place.garden && { garden: boss.place.garden }),
+        growth: lastGrowth(updated),
+        ...(note && { note }),
+        capped: options.minutes === undefined && isForgotten(boss, now),
+      },
     },
   };
 }

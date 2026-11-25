@@ -24,6 +24,8 @@
   --color-fire-ink: #995626; /* текст цвета огня: напоминания, черновики */
   --color-gold-ink: #765822; /* текст цвета золота: цены, уровень, «Лавка» */
   --color-field-border: #789a72; /* рамка поля ввода: контраст ≥ 3 */
+  --color-boss: #7d8aa0; /* раздел «Боссы»: сизый, как туман над сооружением */
+  --color-boss-ink: #525e75; /* текст цвета раздела: контраст 4.8 на подкрашенной плитке */
 
   /* Ветки (docs/phase2-plan.md §4.9). Семь хорошо различимых цветов: оттенки разнесены по кругу,
      яркость и насыщенность близкие. Назначила пользователь (24.11.2026). */
@@ -2811,12 +2813,12 @@ textarea:focus {
   background: var(--color-card-strong);
 }
 
-/* Разделы на главном: Летопись, Голубятня, Лавка — иконка и название */
+/* Разделы на главном: Летопись, Боссы, Голубятня, Лавка — иконка и название */
 
 .sections {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
 }
 
 .section-tile {
@@ -2825,7 +2827,7 @@ textarea:focus {
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-2);
+  padding: var(--space-3) var(--space-1);
   border-radius: var(--radius-lg);
   /* Подкраска цветом раздела вместо белого. */
   background: color-mix(in srgb, var(--tile) 12%, var(--color-sky));
@@ -2834,6 +2836,7 @@ textarea:focus {
 
 /* --tile — рамка и подкраска, --tile-text — название и фон числа под белым текстом. */
 .section-tile--chronicle { --tile: var(--branch-chronicle); --tile-text: var(--branch-chronicle-ink); }
+.section-tile--bosses { --tile: var(--color-boss); --tile-text: var(--color-boss-ink); }
 .section-tile--loft { --tile: var(--branch-call); --tile-text: var(--branch-call-ink); }
 .section-tile--shop { --tile: var(--color-gold); --tile-text: var(--color-gold-ink); }
 
@@ -2854,12 +2857,19 @@ textarea:focus {
 }
 
 .section-tile__icon {
-  width: 60px;
-  height: 60px;
+  width: 52px;
+  height: 52px;
+}
+
+/* Четыре плитки в ряд: на узком телефоне «Голубятня» иначе не помещается — название чуть мельче.
+   Размер считается от ширины ряда плиток (cqi), а не окна. */
+.sections {
+  container-type: inline-size;
 }
 
 .section-tile__name {
-  font-size: var(--title-sm);
+  font-size: min(var(--title-sm), calc(5cqi - 2.8px));
+  white-space: nowrap;
 }
 
 .section-tile__badge {
@@ -2932,6 +2942,400 @@ textarea:focus {
 
 @media (prefers-reduced-motion: reduce) {
   .confirm[open] {
+    animation: none;
+  }
+}
+
+/* Боссы (docs/phase2-plan.md §5): список, экран босса, секундомер, победа */
+
+.bosses__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.bosses__hint {
+  margin: calc(-1 * var(--space-2)) 0 0;
+}
+
+.bosses__archive {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Босс в списке — листок бумаги, подкрашенный цветом ветки, как записка: рисунок слева, название справа. */
+.boss-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--branch) 8%, var(--color-paper));
+  box-shadow: var(--shadow-paper);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.08s;
+}
+
+.bosses__group .boss-row:nth-of-type(odd) { transform: rotate(-0.4deg); }
+.bosses__group .boss-row:nth-of-type(even) { transform: rotate(0.3deg); }
+
+.boss-row:active {
+  transform: translateY(1px);
+}
+
+.boss-row__art {
+  flex: none;
+  width: 84px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+}
+
+.boss-row__art--empty {
+  background: color-mix(in srgb, var(--color-mist) 30%, var(--color-sky));
+}
+
+.boss-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.boss-row__title {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.boss-row .task__branch {
+  color: var(--branch-ink);
+  font-weight: 550;
+}
+
+.boss-row__running {
+  color: var(--color-accent);
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Рисунок босса: небо и холм рамки рисует сам SVG. */
+.boss-art {
+  display: block;
+}
+
+/* Победа: туман рассеивается, сооружение проявляется. Конечное состояние задано без анимации,
+   поэтому при «уменьшить движение» сразу видно сооружение без тумана. */
+.boss-art__lift {
+  animation: boss-mist-lift 2.6s ease-in 0.4s both;
+}
+
+.boss-art__show {
+  animation: boss-landmark-show 2.6s ease-in 0.4s both;
+}
+
+@keyframes boss-mist-lift {
+  from { opacity: var(--from); transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+@keyframes boss-landmark-show {
+  from { opacity: var(--from); }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boss-art__lift,
+  .boss-art__show {
+    animation: none;
+  }
+}
+
+/* Экран босса */
+
+.boss__picture {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.boss__art {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.boss__place {
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+}
+
+.boss__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.boss__note {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Заметка о победе (разбор интервью) — как запись от руки на полях. */
+.boss__note--victory {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--branch);
+  font-style: italic;
+}
+
+.boss__stats,
+.boss__ended {
+  margin: 0;
+}
+
+.boss__ended {
+  font-weight: 550;
+}
+
+.boss__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.boss__blocked {
+  margin: 0;
+  text-align: center;
+}
+
+.boss__end-links {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.boss__win {
+  max-width: none;
+}
+
+/* Поле в несколько строк на записке — строки разлинованы, как на листке. */
+.ink-area {
+  width: 100%;
+  padding: 0 2px;
+  border: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 23px, color-mix(in srgb, var(--color-text) 40%, transparent) 23px 24px);
+  background-attachment: local;
+  color: var(--color-text);
+  caret-color: var(--branch-ink, var(--color-accent));
+  font: inherit;
+  line-height: 24px;
+  resize: vertical;
+}
+
+.ink-area:focus {
+  outline: none;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 22px, var(--branch-ink, var(--color-accent)) 22px 24px);
+}
+
+.boss__sessions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boss__session {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-track);
+}
+
+.boss__session:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.boss__session-note {
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+/* Секундомер — как экран таймера; вместо кольца — рисунок босса. */
+
+.stopwatch {
+  position: relative;
+  gap: var(--space-3);
+}
+
+.stopwatch__back {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+}
+
+.stopwatch__kicker {
+  margin: 0;
+  color: var(--color-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stopwatch__art {
+  width: min(64vw, 240px);
+  height: auto;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sheet);
+}
+
+.stopwatch__last {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 32ch;
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.stopwatch__last-note {
+  color: var(--color-text);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+/* Победа */
+
+.victory__picture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 340px;
+  padding: var(--space-3);
+}
+
+.victory__picture p {
+  margin: 0;
+}
+
+.victory__art {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.victory__name {
+  font-family: var(--font-head);
+  font-size: var(--title-lg);
+  font-weight: 700;
+}
+
+.victory__note {
+  align-self: stretch;
+  max-width: 340px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+/* Кнопка пояснения «i» (InfoButton в src/ui/common.tsx) и записка с пояснением (InfoNote).
+   Кнопка — тонкий круг чернилами с буквой «i» с засечками, как в книжном шрифте; открыта — круг залит,
+   буква цвета бумаги. Нажимается в области 44 px. Записка — лист бумаги под шапкой, уголок смотрит на кнопку. */
+
+.info-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-knob-ink);
+  cursor: pointer;
+  transition: background-color 0.12s, transform 0.08s;
+}
+
+.info-button svg {
+  width: 26px;
+  height: 26px;
+}
+
+.info-button__ring {
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: fill 0.15s;
+}
+
+.info-button__glyph {
+  fill: currentColor;
+  transition: fill 0.15s;
+}
+
+.info-button--open .info-button__ring {
+  fill: currentColor;
+}
+
+.info-button--open .info-button__glyph {
+  fill: var(--color-paper);
+}
+
+.info-button:active {
+  transform: scale(0.94);
+}
+
+@media (hover: hover) {
+  .info-button:hover {
+    background-color: rgba(90, 55, 25, 0.08);
+  }
+}
+
+.info-note {
+  position: relative;
+  margin-top: calc(-1 * var(--space-2));
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-sheet);
+  font-size: var(--text-sm);
+  animation: info-note-in 0.18s ease-out;
+}
+
+/* Уголок над правым краем — под кнопкой «i», которая стоит в конце шапки (её середина — 22 px от края). */
+.info-note::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 16px;
+  width: 12px;
+  height: 12px;
+  background: var(--color-paper);
+  box-shadow: -1px -1px 1px rgba(60, 35, 15, 0.08);
+  transform: rotate(45deg);
+}
+
+.info-note p {
+  margin: 0;
+}
+
+@keyframes info-note-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .info-note {
     animation: none;
   }
 }

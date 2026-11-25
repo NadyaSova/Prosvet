@@ -166,6 +166,11 @@ export const BALANCE = {
     /** Каждые столько подходов к бесконечному боссу — звезда и особый элемент. */
     specialEvery: 5,
     starsPerSpecial: 1,
+    /** Длина текстов босса: название, заметка при создании, заметка к подходу, заметка при победе (разбор интервью). */
+    titleMaxLength: 120,
+    noteMaxLength: 500,
+    sessionNoteMaxLength: 300,
+    victoryNoteMaxLength: 1000,
   },
 
   board: {

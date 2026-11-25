@@ -1,7 +1,7 @@
 // Галерея: иконки разделов главного экрана — крупно и ряд плиток, как на главном (с числами и без).
 
 import { SectionTiles } from '../ui/SectionTiles';
-import { ChronicleIcon, LoftIcon, ShopIcon } from '../ui/section-icons';
+import { BossesIcon, ChronicleIcon, LoftIcon, ShopIcon } from '../ui/section-icons';
 
 export function SectionIconsSection() {
   return (
@@ -10,6 +10,7 @@ export function SectionIconsSection() {
       <div class="gallery__shop">
         {[
           { Icon: ChronicleIcon, name: 'Летопись' },
+          { Icon: BossesIcon, name: 'Боссы' },
           { Icon: LoftIcon, name: 'Голубятня' },
           { Icon: ShopIcon, name: 'Лавка' },
         ].map(({ Icon, name }) => (
@@ -21,11 +22,11 @@ export function SectionIconsSection() {
       </div>
       <h3 class="gallery__row-title">На главном экране (ширина телефона)</h3>
       <div class="gallery__phone">
-        <SectionTiles pigeonsInFlight={0} coupons={0} />
+        <SectionTiles bosses={0} pigeonsInFlight={0} coupons={0} />
       </div>
-      <h3 class="gallery__row-title">С числами: 3 голубя в пути, 1 купон ждёт выдачи</h3>
+      <h3 class="gallery__row-title">С числами: 2 босса в работе, 3 голубя в пути, 1 купон ждёт выдачи</h3>
       <div class="gallery__phone">
-        <SectionTiles pigeonsInFlight={3} coupons={1} />
+        <SectionTiles bosses={2} pigeonsInFlight={3} coupons={1} />
       </div>
     </section>
   );

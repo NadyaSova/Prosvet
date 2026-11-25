@@ -47,6 +47,8 @@ interface Props {
   onPlant: (item: string) => void;
   /** Сколько купонов куплено и ещё не выдано. */
   coupons: number;
+  /** Сколько боссов в работе. */
+  bosses: number;
 }
 
 function newsText(news: StreakNews): string {
@@ -74,6 +76,7 @@ export function MainScreen({
   fresh,
   onPlant,
   coupons,
+  bosses,
 }: Props) {
   const [tiny, setTiny] = useState<TaskTemplate | null>(null);
   const [streakOpen, setStreakOpen] = useState(false);
@@ -248,7 +251,7 @@ export function MainScreen({
         {rerollHint && !canReroll && <p class="muted small board__hint">Сменить задания можно завтра.</p>}
       </section>
 
-      <SectionTiles pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
+      <SectionTiles bosses={bosses} pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
 
       {note && <TaskNote task={note} valley={game.valley} onStart={onStart} />}
     </main>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dayOf } from '../logic/time';
-import { clockText, daysText, fireText, minutesText } from './format';
+import { agoText, clockText, daysText, durationText, fireText, minutesText, stopwatchText } from './format';
 
 describe('склонение', () => {
   it('минуты и дни', () => {
@@ -21,6 +21,24 @@ describe('часы таймера', () => {
     expect(clockText(59_001)).toBe('1:00');
     expect(clockText(500)).toBe('0:01');
     expect(clockText(0)).toBe('0:00');
+  });
+});
+
+describe('секундомер и длительности боссов', () => {
+  it('секундомер: минуты и секунды, с часа — часы', () => {
+    expect(stopwatchText(0)).toBe('0:00');
+    expect(stopwatchText(59_999)).toBe('0:59');
+    expect(stopwatchText(12 * 60_000 + 5_000)).toBe('12:05');
+    expect(stopwatchText(3_600_000 + 2 * 60_000 + 5_000)).toBe('1:02:05');
+  });
+
+  it('длительность и «сколько дней назад»', () => {
+    expect(durationText(40)).toBe('40 минут');
+    expect(durationText(135)).toBe('2 ч 15 мин');
+    expect(durationText(180)).toBe('3 ч');
+    expect(agoText(0)).toBe('сегодня');
+    expect(agoText(1)).toBe('вчера');
+    expect(agoText(5)).toBe('5 дней назад');
   });
 });
 
