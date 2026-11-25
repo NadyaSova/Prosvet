@@ -63,12 +63,17 @@ export function shopRoute(route: string): ShopRoute | null {
   return null;
 }
 
-/** Боссы: #/bosses — список, #/bosses/new — новый босс, #/boss/<id> — босс (во время подхода — секундомер). */
-export type BossRoute = { view: 'list' } | { view: 'new' } | { view: 'boss'; id: string };
+/**
+ * Боссы: #/bosses — список, #/bosses/new — новый босс: свой или шаблон, #/bosses/new/own — свой,
+ * #/bosses/new/<шаблон> — из шаблона, #/boss/<id> — босс (во время подхода — секундомер).
+ */
+export type BossRoute = { view: 'list' } | { view: 'new' } | { view: 'form'; template: string | null } | { view: 'boss'; id: string };
 
 export function bossRoute(route: string): BossRoute | null {
   if (route === 'bosses') return { view: 'list' };
   if (route === 'bosses/new') return { view: 'new' };
+  if (route === 'bosses/new/own') return { view: 'form', template: null };
+  if (route.startsWith('bosses/new/')) return { view: 'form', template: decodeURIComponent(route.slice('bosses/new/'.length)) };
   if (route.startsWith('boss/')) return { view: 'boss', id: decodeURIComponent(route.slice('boss/'.length)) };
   return null;
 }

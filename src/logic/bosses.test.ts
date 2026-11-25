@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../config/balance';
 import { createPlayer } from '../model/player';
 import { LANDMARK_KINDS, type Boss } from '../model/types';
+import { BOSS_TEMPLATES, findBossTemplate, OWN_SCOUTING, type BossTemplate } from '../data/boss-templates';
 import {
   addSession,
   archiveBoss,
+  bossFromTemplate,
+  templateBoss,
   cancelStopwatch,
   chooseGarden,
   chooseLandmark,
@@ -101,6 +104,52 @@ describe('создание босса', () => {
       ...endless(`e${i}`), place: { garden, seed: 0 },
     }));
     expect(chooseGarden(bosses, createRng(3))).toBe('meadow');
+  });
+});
+
+describe('шаблоны боссов', () => {
+  const record = findBossTemplate('chronicle-record')!;
+  const interview = findBossTemplate('prep-interview')!;
+  const fromTemplate = (t: BossTemplate, title: string, id: string) =>
+    createBoss([], bossFromTemplate(t, { title }), NOW, createRng(1), id);
+
+  it('у всех шаблонов разные id, у каждого — название и пояснение', () => {
+    const all = [...BOSS_TEMPLATES, OWN_SCOUTING];
+    expect(new Set(all.map((t) => t.id)).size).toBe(all.length);
+    for (const t of all) expect(t.title && t.hint).toBeTruthy();
+  });
+
+  it('босс из шаблона — вид и ветка шаблона, отметка templateId', () => {
+    const b = fromTemplate(record, 'Послужной список', 'r');
+    expect(b).toMatchObject({ kind: 'finite', branch: 'chronicle', templateId: 'chronicle-record', title: 'Послужной список' });
+    expect(fromTemplate(findBossTemplate('scouting-money')!, 'Деньги', 'm').place.garden).toBeDefined();
+  });
+
+  it('у интервью название собирается из компании; пустая компания — пустое название', () => {
+    expect(bossFromTemplate(interview, { title: ' Ромашка ' }).title).toBe('Интервью в компании «Ромашка»');
+    expect(bossFromTemplate(interview, { title: '«Ромашка»' }).title).toBe('Интервью в компании «Ромашка»');
+    expect(bossFromTemplate(interview, { title: '  ' }).title).toBe('');
+  });
+
+  it('разовый шаблон ведёт к боссу в работе или побеждённому; отпущенный — нет', () => {
+    const b = fromTemplate(record, 'Послужной список', 'r');
+    expect(templateBoss([b], record)).toBe(b);
+    const won = winBoss(b, NOW);
+    expect(templateBoss([won], record)).toBe(won);
+    expect(templateBoss([releaseBoss(b, NOW)], record)).toBeUndefined();
+    expect(templateBoss([], record)).toBeUndefined();
+  });
+
+  it('бесконечный разовый: свёрнутый в архив не мешает завести тему снова', () => {
+    const roles = findBossTemplate('scouting-roles')!;
+    const b = fromTemplate(roles, 'Соседние роли', 'e');
+    expect(templateBoss([b], roles)).toBe(b);
+    expect(templateBoss([archiveBoss(b, NOW)], roles)).toBeUndefined();
+  });
+
+  it('интервью и тестовое повторяются', () => {
+    const b = fromTemplate(interview, 'Ромашка', 'i');
+    expect(templateBoss([b], interview)).toBeUndefined();
   });
 });
 

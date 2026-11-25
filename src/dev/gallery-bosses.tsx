@@ -12,7 +12,9 @@ import { GARDEN_KINDS, LANDMARK_KINDS, type Boss, type Branch, type GardenKind, 
 import { GardenArt, GARDEN_NAMES } from '../ui/valley/garden-art';
 import { LandmarkArt, LANDMARK_NAMES } from '../ui/valley/landmark-art';
 import { BossesScreen } from '../ui/BossesScreen';
+import { findBossTemplate } from '../data/boss-templates';
 import { BossFormScreen } from '../ui/BossFormScreen';
+import { BossTemplatesScreen } from '../ui/BossTemplatesScreen';
 import { BossScreen } from '../ui/BossScreen';
 import { BossVictoryScreen } from '../ui/BossVictoryScreen';
 import { RewardScreen } from '../ui/RewardScreen';
@@ -86,6 +88,10 @@ const ROTUNDA_VARIANTS: { seed: number; label: string }[] = (() => {
 })();
 
 const RUNNING = startStopwatch(INTERVIEW, NOW - 23 * MIN - 14_000);
+
+const TEMPLATE_RECORD: Boss = { ...RECORD, templateId: 'chronicle-record' };
+const TEMPLATE_ROLES: Boss = { ...ROLES, templateId: 'scouting-roles' };
+const TEMPLATE_INTERVIEW: Boss = { ...INTERVIEW, templateId: 'prep-interview', title: 'Интервью в компании «Ромашка»' };
 
 const LIST: Boss[] = [INTERVIEW, FRESH, RECORD, ROLES, MONEY, WON, RELEASED, ARCHIVED];
 
@@ -214,8 +220,30 @@ export function BossesSection() {
         <Phone caption="Боссы в работе, идёт подход к интервью; внизу — архив (нажми)">
           <BossesScreen bosses={LIST.map((b) => (b.id === RUNNING.id ? RUNNING : b))} now={NOW} />
         </Phone>
-        <Phone caption="Новый босс">
+        <Phone caption="Свой босс">
           <BossFormScreen onCreate={noop} />
+        </Phone>
+      </div>
+
+      <h3 class="gallery__row-title">Шаблоны боссов (шаг 9)</h3>
+      <div class="gallery__phones">
+        <Phone caption="Новый босс: свой или шаблон. Пока ни одного не заведено">
+          <BossTemplatesScreen bosses={[]} />
+        </Phone>
+        <Phone caption="Послужной список в работе, «Соседние роли» — тоже: шаблоны ведут к ним">
+          <BossTemplatesScreen bosses={[TEMPLATE_RECORD, TEMPLATE_ROLES]} />
+        </Phone>
+        <Phone caption="Из шаблона: название подставлено, ветка и вид готовы">
+          <BossFormScreen template={findBossTemplate('chronicle-record')} onCreate={noop} />
+        </Phone>
+        <Phone caption="Интервью: вписать только компанию">
+          <BossFormScreen template={findBossTemplate('prep-interview')} onCreate={noop} />
+        </Phone>
+        <Phone caption="Своя тема Разведки">
+          <BossFormScreen template={findBossTemplate('scouting-own')} onCreate={noop} />
+        </Phone>
+        <Phone caption="Интервью из шаблона: «Победа» — подсказка про разбор">
+          <BossScreen boss={TEMPLATE_INTERVIEW} now={NOW} blocked={null} onStart={noop} onWin={noop} onRelease={noop} onArchive={noop} />
         </Phone>
       </div>
 

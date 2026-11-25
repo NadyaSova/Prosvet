@@ -65,6 +65,34 @@ export function createBoss(bosses: readonly Boss[], input: NewBoss, now: number,
   return boss;
 }
 
+// Шаблоны (src/data/boss-templates.ts)
+
+/**
+ * Босс из разового шаблона, который в работе или побеждён: вместо нового шаблон ведёт к нему.
+ * Отпущенный или свёрнутый в архив не считается — такой шаблон снова заводит нового.
+ * У повторяемых шаблонов (интервью, тестовое) — всегда undefined.
+ */
+export function templateBoss(bosses: readonly Boss[], template: { id: string; once?: boolean }): Boss | undefined {
+  if (!template.once) return undefined;
+  return bosses.find((b) => b.templateId === template.id && (b.status === 'active' || b.status === 'won'));
+}
+
+/** Новый босс из шаблона: вид и ветка — шаблона; название — вписанное, а у шаблона с компанией — собранное из неё. */
+export function bossFromTemplate(
+  template: { id: string; kind: Boss['kind']; branch: Branch; company?: { title: (company: string) => string } },
+  fields: { title: string; note?: string },
+): NewBoss {
+  // Кавычки вокруг компании ставит шаблон: «"Ромашка"» → «Ромашка».
+  const title = template.company ? fields.title.replace(/["«»“”„]/g, '').trim() : fields.title.trim();
+  return {
+    title: template.company && title ? template.company.title(title) : title,
+    note: fields.note,
+    kind: template.kind,
+    branch: template.branch,
+    templateId: template.id,
+  };
+}
+
 // Секундомер
 
 /** Босс, у которого идёт секундомер. Секундомер идёт не больше чем у одного босса. */

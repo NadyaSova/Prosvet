@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { findBossTemplate } from './data/boss-templates';
 import { DEFAULT_TASKS } from './data/default-tasks';
 import { PHRASES, type PhraseContext } from './data/phrases';
 import { archiveBoss, cancelStopwatch, createBoss, measuredMinutes, releaseBoss, runningBoss, type NewBoss } from './logic/bosses';
@@ -55,6 +56,7 @@ import {
 } from './storage/repo';
 import { BossesScreen } from './ui/BossesScreen';
 import { BossFormScreen } from './ui/BossFormScreen';
+import { BossTemplatesScreen } from './ui/BossTemplatesScreen';
 import { BossScreen } from './ui/BossScreen';
 import { BossVictoryScreen, type ShownVictory } from './ui/BossVictoryScreen';
 import { CustomTaskScreen, type CustomTaskInput, type DoneTaskInput } from './ui/CustomTaskScreen';
@@ -800,8 +802,11 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       );
   } else if (bossView) {
     const boss = bossView.view === 'boss' ? bosses.find((b) => b.id === bossView.id) : undefined;
-    if (bossView.view === 'new') {
-      screen = <BossFormScreen onCreate={createBossAction} />;
+    const template = bossView.view === 'form' ? findBossTemplate(bossView.template ?? undefined) : undefined;
+    if (bossView.view === 'new' || (bossView.view === 'form' && bossView.template !== null && !template)) {
+      screen = <BossTemplatesScreen bosses={bosses} />;
+    } else if (bossView.view === 'form') {
+      screen = <BossFormScreen key={bossView.template ?? 'own'} template={template} onCreate={createBossAction} />;
     } else if (boss?.stopwatch) {
       screen = stopwatchScreen(boss, true);
     } else if (boss) {

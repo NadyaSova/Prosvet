@@ -4,6 +4,7 @@
 
 import { useState } from 'preact/hooks';
 import { BALANCE } from '../config/balance';
+import { findBossTemplate } from '../data/boss-templates';
 import { daysSinceLast, fogDensity, gardenView, totalMinutes } from '../logic/bosses';
 import type { Boss } from '../model/types';
 import { BossArt, landmarkVisibility } from './boss-art';
@@ -50,7 +51,9 @@ function VictoryNote({ boss, onWin, onCancel }: { boss: Boss; onWin: (note: stri
       }}
     >
       <p class="reward-note__question">Победа над боссом?</p>
-      <p class="reward-note__hint small">Туман рассеется, сооружение останется в долине. Можно оставить заметку — например, что спрашивали и что подтянуть.</p>
+      <p class="reward-note__hint small">
+        Туман рассеется, сооружение останется в долине. {findBossTemplate(boss.templateId)?.victoryHint ?? 'Можно оставить заметку.'}
+      </p>
       <textarea
         class="ink-area"
         rows={3}

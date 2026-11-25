@@ -3018,6 +3018,37 @@ textarea:focus {
   font-weight: 550;
 }
 
+/* Шаблон босса (новый босс, шаг 9): тот же листок, без рисунка. */
+.boss-row--template {
+  padding: var(--space-3);
+}
+
+.boss-row__existing {
+  color: var(--branch-ink);
+  font-weight: 550;
+}
+
+/* Форма из шаблона: ветка, вид и пояснение шаблона — на листке цвета ветки. */
+.boss-form__template {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--branch) 8%, var(--color-paper));
+  box-shadow: var(--shadow-paper);
+}
+
+.boss-form__template p {
+  margin: 0;
+}
+
+.boss-form__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .boss-row__running {
   color: var(--color-accent);
   font-weight: 550;
