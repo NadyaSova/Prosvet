@@ -183,11 +183,22 @@ export interface ValleyDecor {
 export const CAMP_KINDS = ['tent', 'lantern', 'kettle'] as const;
 export type CampKind = (typeof CAMP_KINDS)[number];
 
+/**
+ * Сооружение конечного босса в долине (docs/phase2-plan.md §5.2): на каком месте (logic/valley-district.ts,
+ * LANDMARK_SITES) стоит сооружение какого босса. Вид, сид и туман — у самого босса.
+ */
+export interface ValleyLandmark {
+  bossId: string;
+  site: number;
+}
+
 export interface ValleyState {
   plants: ValleyPlant[];
   decor: ValleyDecor[];
   /** Купленные вещи лагеря; каждая — не больше одной. */
   camp: CampKind[];
+  /** Сооружения боссов: под туманом и открытые победой. Места растений под ними заняты. */
+  landmarks: ValleyLandmark[];
 }
 
 /**
@@ -273,7 +284,7 @@ export interface Boss {
   status: 'active' | 'won' | 'released' | 'archived';
   /**
    * Что стоит в долине: у конечного — сооружение, у бесконечного — место. seed — разброс рисунка.
-   * Где именно в долине — выбирается на шагах 7 и 8 фазы 2.
+   * Где стоит сооружение — в долине (ValleyState.landmarks); где место бесконечного — шаг 8 фазы 2.
    */
   place: { landmark?: LandmarkKind; garden?: GardenKind; seed: number };
   /** Подходы по порядку. */

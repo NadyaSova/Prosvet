@@ -12,7 +12,7 @@ import { levelInfo, titleFor, totalXp } from '../logic/progression';
 import { viewStreak } from '../logic/streak';
 import { dayOf } from '../logic/time';
 import { isDistrictOpen } from '../logic/valley';
-import type { Pigeon, TaskTemplate } from '../model/types';
+import type { Boss, Pigeon, TaskTemplate } from '../model/types';
 import { Progress, TaskCard } from './common';
 import { daysText, fireText, plural } from './format';
 import { PigeonArt } from './pigeon-art';
@@ -47,8 +47,8 @@ interface Props {
   onPlant: (item: string) => void;
   /** Сколько купонов куплено и ещё не выдано. */
   coupons: number;
-  /** Сколько боссов в работе. */
-  bosses: number;
+  /** Боссы во всех состояниях: в плитке — сколько в работе, в долине — их сооружения. */
+  bosses: readonly Boss[];
 }
 
 function newsText(news: StreakNews): string {
@@ -119,7 +119,7 @@ export function MainScreen({
 
       <section class="valley-card">
         <div class="valley-card__frame">
-          <ValleyView valley={game.valley} fire={streak.fire} feathers={feathers} cloakStage={cloakStage} fresh={fresh} />
+          <ValleyView valley={game.valley} bosses={bosses} fire={streak.fire} feathers={feathers} cloakStage={cloakStage} fresh={fresh} />
           <button
             type="button"
             class="icon-button valley-card__expand"
@@ -251,7 +251,7 @@ export function MainScreen({
         {rerollHint && !canReroll && <p class="muted small board__hint">Сменить задания можно завтра.</p>}
       </section>
 
-      <SectionTiles bosses={bosses} pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
+      <SectionTiles bosses={bosses.filter((b) => b.status === 'active').length}pigeonsInFlight={pigeonsInFlight} coupons={coupons} />
 
       {note && <TaskNote task={note} valley={game.valley} onStart={onStart} />}
     </main>

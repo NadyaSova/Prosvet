@@ -10,9 +10,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Feather } from '../logic/pigeons';
 import type { FireLevel } from '../logic/streak';
-import { canPlantItem, CAPACITY, isPlantItem, plantChoices, sceneOf } from '../logic/valley';
+import { canPlantItem, districtCapacity, isPlantItem, plantChoices, sceneOf } from '../logic/valley';
 import { VIEW_WIDTH, WORLD } from '../logic/valley-district';
-import type { PlantKind, ValleyState } from '../model/types';
+import type { Boss, PlantKind, ValleyState } from '../model/types';
 import { BackBar } from './common';
 import { plural } from './format';
 import { plantName } from './labels';
@@ -21,6 +21,8 @@ import { focusOf, SCENE_HEIGHT, ValleyScene } from './valley/ValleyView';
 
 interface Props {
   valley: ValleyState;
+  /** Боссы — для сооружений в долине. */
+  bosses: readonly Boss[];
   fire: FireLevel;
   feathers: readonly Feather[];
   cloakStage: number;
@@ -61,7 +63,7 @@ function useTurned(): boolean {
   return turned;
 }
 
-export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, inventory, onPlant, onPlantAt, choosing }: Props) {
+export function ValleyScreen({ valley, bosses, fire, feathers, cloakStage, fresh, inventory, onPlant, onPlantAt, choosing }: Props) {
   // Семя или саженец, которому выбирают место; null — просто смотрим.
   const [item, setItem] = useState<string | null>(() =>
     choosing && inventory.includes(choosing) && canPlantItem(valley, choosing) ? choosing : null,
@@ -308,7 +310,7 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, invent
         ) : (
           <>
             <p class="muted small valley-screen__note">
-              {scene.open ? `Выросло ${grown}. Тумана больше нет.` : `Выросло ${grown} из ${CAPACITY}.`} Размер — двумя
+              {scene.open ? `Выросло ${grown}. Тумана больше нет.` : `Выросло ${grown} из ${districtCapacity(valley)}.`} Размер — двумя
               пальцами или кнопками.
             </p>
             <PlantRow valley={valley} inventory={inventory} onPlant={onPlant} onChoose={setItem} />
@@ -319,6 +321,7 @@ export function ValleyScreen({ valley, fire, feathers, cloakStage, fresh, invent
         {scale !== null && (
           <ValleyScene
             valley={valley}
+            bosses={bosses}
             fire={fire}
             feathers={feathers}
             cloakStage={cloakStage}

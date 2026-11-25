@@ -9,24 +9,64 @@ import {
   PLANT_KINDS,
   type Branch,
   type BranchXp,
+  type Boss,
   type CampKind,
   type DecorKind,
+  type LandmarkKind,
   type PlantKind,
   type PlantSize,
   type ValleyDecor,
   type ValleyPlant,
   type ValleyState,
 } from '../model/types';
+import { fogDensity } from './bosses';
 import type { Completion } from './rewards';
 import type { Rng } from './rng';
-import { CAMP_SPOTS, DECOR_ANCHORS, depthScale, MIST_START_X, riverX, SLOTS, WORLD, type Band } from './valley-district';
+import {
+  CAMP_SPOTS,
+  DECOR_ANCHORS,
+  depthScale,
+  LANDMARK_SITES,
+  landmarkHalfWidth,
+  MIST_START_X,
+  riverX,
+  slotsUnder,
+  SLOTS,
+  WORLD,
+  type Band,
+  type LandmarkSite,
+} from './valley-district';
 
 export function emptyValley(): ValleyState {
-  return { plants: [], decor: [], camp: [] };
+  return { plants: [], decor: [], camp: [], landmarks: [] };
 }
 
-/** Сколько растений помещается в район. */
+/** Сколько мест для растений в районе. Часть из них может занять сооружение босса (blockedSlots). */
 export const CAPACITY = SLOTS.length;
+
+/** Места растений под сооружениями боссов: туда не сажают. */
+export function blockedSlots(v: ValleyState): Set<number> {
+  const blocked = new Set<number>();
+  for (const l of v.landmarks) {
+    const site = LANDMARK_SITES[l.site];
+    if (site) for (const i of slotsUnder(site)) blocked.add(i);
+  }
+  return blocked;
+}
+
+/** Свободные места для растений: не заняты растением и не под сооружением. По порядку открытия. */
+function freeSlots(v: ValleyState): number[] {
+  const taken = new Set(v.plants.map((p) => p.slot));
+  const blocked = blockedSlots(v);
+  const free: number[] = [];
+  for (let i = 0; i < SLOTS.length; i++) if (!taken.has(i) && !blocked.has(i)) free.push(i);
+  return free;
+}
+
+/** Сколько растений поместится в район всего: уже выросшие и свободные места. */
+export function districtCapacity(v: ValleyState): number {
+  return v.plants.length + freeSlots(v).length;
+}
 
 /**
  * Порода по ветке (SPEC.md §6, docs/phase2-plan.md §4.9). Разведка растит цветы и кусты.
@@ -56,7 +96,7 @@ export function plantSize(c: Completion): PlantSize {
 }
 
 export function isDistrictOpen(v: ValleyState): boolean {
-  return v.plants.length >= CAPACITY;
+  return freeSlots(v).length === 0;
 }
 
 /** Какие слои любит растение. Чем больше число, тем охотнее. */
@@ -90,11 +130,7 @@ function slotScore(kind: PlantKind, slot: number): number {
  * null — район полон.
  */
 export function chooseSlot(v: ValleyState, kind: PlantKind): number | null {
-  const taken = new Set(v.plants.map((p) => p.slot));
-  const candidates: number[] = [];
-  for (let i = 0; i < SLOTS.length && candidates.length < BALANCE.valley.slotChoice; i++) {
-    if (!taken.has(i)) candidates.push(i);
-  }
+  const candidates = freeSlots(v).slice(0, BALANCE.valley.slotChoice);
   if (candidates.length === 0) return null;
   let best = candidates[0]!;
   for (const c of candidates) if (slotScore(kind, c) > slotScore(kind, best)) best = c;
@@ -110,16 +146,14 @@ function newSeed(rng: Rng): number {
  * а если их там мало — ещё ближайшие свободные у края тумана. Пусто — район полон.
  */
 export function plantChoices(v: ValleyState): number[] {
-  const taken = new Set(v.plants.map((p) => p.slot));
   // Место у самого края тумана видно плохо — оставляем запас.
   const edge = mistFrontier(v) - 20;
   const open: number[] = [];
   const beyond: number[] = [];
-  SLOTS.forEach((s, i) => {
-    if (taken.has(i)) return;
-    if (s.x < edge) open.push(i);
+  for (const i of freeSlots(v)) {
+    if (SLOTS[i]!.x < edge) open.push(i);
     else beyond.push(i);
-  });
+  }
   return [...open, ...beyond.slice(0, Math.max(0, BALANCE.valley.minChoices - open.length))].sort((a, b) => a - b);
 }
 
@@ -225,7 +259,57 @@ export function mistFrontier(v: ValleyState): number {
   if (isDistrictOpen(v)) return WORLD.width + 200;
   let x = MIST_START_X;
   for (const p of v.plants) x = Math.max(x, SLOTS[p.slot]!.x + 36);
+  // Сооружение босса стоит на открытой земле, под своим туманом: общий туман за ним.
+  for (const l of v.landmarks) {
+    const site = LANDMARK_SITES[l.site];
+    if (site) x = Math.max(x, site.x + landmarkHalfWidth(site) + 30);
+  }
   return x;
+}
+
+/** У каких боссов сооружение стоит в долине: конечные в работе и победы. Отпущенные уходят вместе с туманом. */
+function hasLandmark(b: Boss): boolean {
+  return b.kind === 'finite' && b.place.landmark !== undefined && (b.status === 'active' || b.status === 'won');
+}
+
+/**
+ * Сколько мест растений, уже занятых растениями, закрыло бы сооружение на этом месте.
+ * Сооружение ставится туда, где таких меньше всего.
+ */
+function plantsUnder(v: ValleyState, site: number): number {
+  const taken = new Set(v.plants.map((p) => p.slot));
+  return slotsUnder(LANDMARK_SITES[site]!).filter((i) => taken.has(i)).length;
+}
+
+/**
+ * Сооружения в долине — по боссам: новому конечному боссу — место, отпущенному — убрать.
+ * Место — свободное, где меньше всего растений, из таких — ближайшее к лагерю. Все места заняты —
+ * сооружение ждёт, пока место освободится (босс работает и без него). Ничего не изменилось — та же долина.
+ */
+export function syncLandmarks(v: ValleyState, bosses: readonly Boss[]): ValleyState {
+  const wanted = new Map(bosses.filter(hasLandmark).map((b) => [b.id, b]));
+  const kept = v.landmarks.filter((l) => wanted.has(l.bossId) && LANDMARK_SITES[l.site]);
+  const placed = new Set(kept.map((l) => l.bossId));
+  const missing = [...wanted.values()].filter((b) => !placed.has(b.id)).sort((a, b) => a.createdAt - b.createdAt);
+  if (missing.length === 0 && kept.length === v.landmarks.length) return v;
+  const landmarks = [...kept];
+  for (const b of missing) {
+    const used = new Set(landmarks.map((l) => l.site));
+    let best: number | null = null;
+    for (let i = 0; i < LANDMARK_SITES.length; i++) {
+      if (used.has(i)) continue;
+      if (best === null || plantsUnder(v, i) < plantsUnder(v, best)) best = i;
+    }
+    if (best === null) break;
+    landmarks.push({ bossId: b.id, site: best });
+  }
+  return { ...v, landmarks };
+}
+
+/** Где в долине сооружение босса. undefined — не стоит (отпущен, бесконечный или все места заняты). */
+export function landmarkSite(v: ValleyState, bossId: string): LandmarkSite | undefined {
+  const l = v.landmarks.find((x) => x.bossId === bossId);
+  return l && LANDMARK_SITES[l.site];
 }
 
 export interface ScenePlant extends ValleyPlant {
@@ -247,16 +331,50 @@ export interface SceneCamp {
   y: number;
 }
 
+/** Сооружение босса для рисунка: где, какое и сколько над ним тумана. */
+export interface SceneLandmark extends LandmarkSite {
+  bossId: string;
+  kind: LandmarkKind;
+  seed: number;
+  /** Плотность тумана сейчас: 1 — сплошной, 0 — нет (победа). */
+  fog: number;
+  /** Плотность до последнего подхода или до победы — от неё туман редеет в анимации. */
+  fogBefore: number;
+  won: boolean;
+  /** Сколько подходов было. 0 — босс только что заведён. */
+  sessions: number;
+}
+
 export interface ValleyScene {
   plants: ScenePlant[];
   decor: SceneDecor[];
   camp: SceneCamp[];
+  landmarks: SceneLandmark[];
   mistX: number;
   open: boolean;
 }
 
-/** Всё, что нужно рисунку: объекты с мировыми координатами (дальние раньше ближних) и граница тумана. */
-export function sceneOf(v: ValleyState): ValleyScene {
+function sceneLandmarks(v: ValleyState, bosses: readonly Boss[]): SceneLandmark[] {
+  const out: SceneLandmark[] = [];
+  for (const l of v.landmarks) {
+    const site = LANDMARK_SITES[l.site];
+    const b = bosses.find((x) => x.id === l.bossId);
+    if (!site || !b || !hasLandmark(b)) continue;
+    const won = b.status === 'won';
+    const active = { ...b, status: 'active' as const };
+    const fogBefore = won
+      ? fogDensity(active)
+      : fogDensity({ ...active, sessions: b.sessions.slice(0, Math.max(0, b.sessions.length - 1)) });
+    out.push({ ...site, bossId: b.id, kind: b.place.landmark!, seed: b.place.seed, fog: fogDensity(b), fogBefore, won, sessions: b.sessions.length });
+  }
+  return out;
+}
+
+/**
+ * Всё, что нужно рисунку: объекты с мировыми координатами (дальние раньше ближних), сооружения боссов
+ * и граница тумана.
+ */
+export function sceneOf(v: ValleyState, bosses: readonly Boss[] = []): ValleyScene {
   const plants = v.plants
     .filter((p) => SLOTS[p.slot])
     .map((p) => {
@@ -274,7 +392,7 @@ export function sceneOf(v: ValleyState): ValleyScene {
     return { ...d, x: a.x, y: a.y, layer };
   });
   const camp = v.camp.map((kind) => ({ kind, ...CAMP_SPOTS[kind] }));
-  return { plants, decor, camp, mistX: mistFrontier(v), open: isDistrictOpen(v) };
+  return { plants, decor, camp, landmarks: sceneLandmarks(v, bosses), mistX: mistFrontier(v), open: isDistrictOpen(v) };
 }
 
 /** Последнее посаженное растение — к нему прокручивается панорама. */

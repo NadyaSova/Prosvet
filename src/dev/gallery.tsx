@@ -7,12 +7,15 @@ import '../styles.css';
 import { BossesSection } from './gallery-bosses';
 import { GardensSection } from './gallery-gardens';
 import { StopQuestionsSection, XpIconSection } from './gallery-reward';
+import { ValleyLandmarksSection } from './gallery-valley-landmarks';
 
 function Gallery() {
   return (
     <main class="gallery">
       <h1>Галерея рисунков</h1>
       <p class="muted">Страница только для разработки. Правки рисунков видны здесь сразу, без перезагрузки.</p>
+
+      <ValleyLandmarksSection />
 
       <BossesSection />
 
@@ -32,6 +35,8 @@ style.textContent = `
   .gallery { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
   .gallery figure { margin: 0; text-align: center; }
   .gallery svg { display: block; width: 100%; height: auto; }
+  .gallery .valley .valley__scene { width: calc(100% * 960 / 380); height: 100%; }
+  .gallery svg.valley__scene[style] { max-width: none; }
   .gallery__row-title { margin: 8px 0 4px; font-size: 16px; }
   .gallery__phones { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
   .gallery__phone { width: 380px; }

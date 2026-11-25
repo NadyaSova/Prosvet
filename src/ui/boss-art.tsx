@@ -1,5 +1,5 @@
 // Рисунок босса на его экранах (docs/phase2-plan.md §5): конечный — сооружение под туманом, бесконечный — место,
-// которое наполняется. В долину боссы встают на шагах 7 и 8 фазы 2; здесь — картинка для списка и экрана босса.
+// которое наполняется. Здесь — картинка для списка и экрана босса; в долине сооружение рисует valley/landmark-scene.tsx.
 // Сами сооружения и места рисует дорожка «Рисунки» (valley/landmark-art.tsx, valley/garden-art.tsx).
 
 import { useId } from 'preact/hooks';
@@ -18,8 +18,8 @@ export function landmarkVisibility(density: number): number {
   return Math.min(1, ((1 - density) / 0.9) ** 1.3);
 }
 
-/** Клочья тумана: середина и радиусы, в единицах рамки сооружения (120 × 100). */
-const MIST = [
+/** Клочья тумана: середина и радиусы, в единицах рамки сооружения (120 × 100). Те же клочья — над сооружением в долине. */
+export const LANDMARK_MIST = [
   { cx: -32, cy: -62, rx: 52, ry: 40 },
   { cx: 28, cy: -48, rx: 56, ry: 42 },
   { cx: 0, cy: -18, rx: 74, ry: 30 },
@@ -82,7 +82,7 @@ export function BossArt({ boss, class: className, still = false, reveal = false 
       {(density > 0 || reveal) && (
         <g class={reveal ? 'boss-art__lift' : undefined} style={reveal ? { '--from': before } : undefined} opacity={reveal ? 0 : density}>
           <rect x="-66" y="-106" width="132" height="112" rx="5" fill={PALETTE.mist} opacity="0.3" />
-          {MIST.map((m, i) => (
+          {LANDMARK_MIST.map((m, i) => (
             <ellipse key={i} {...m} fill={`url(#${id}-mist)`} />
           ))}
         </g>

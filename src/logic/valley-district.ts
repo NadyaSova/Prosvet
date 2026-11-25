@@ -100,6 +100,51 @@ function buildSlots(): Slot[] {
 /** Места для растений, по порядку открытия. Номер места — индекс в этом списке. */
 export const SLOTS: readonly Slot[] = buildSlots();
 
+/**
+ * Сооружения конечных боссов (docs/phase2-plan.md §5.2): высота рамки рисунка у самого переднего края;
+ * дальше — меньше, по depthScale. Рамка — 120 × 100, так что ширина — 1,2 высоты.
+ */
+export const LANDMARK_SIZE = 64;
+
+export interface LandmarkSite {
+  x: number;
+  y: number;
+  /** Высота рамки рисунка на этом месте, в единицах мира. */
+  size: number;
+}
+
+/**
+ * Места сооружений: по очереди на средних и ближних холмах, слева направо, в стороне от реки и лагеря.
+ * Соседние места не перекрываются. Номер места — индекс в этом списке.
+ */
+export const LANDMARK_SITES: readonly LandmarkSite[] = (
+  [
+    [108, 'mid'], [172, 'near'], [300, 'mid'], [368, 'near'], [436, 'mid'], [504, 'near'],
+    [572, 'mid'], [640, 'near'], [708, 'mid'], [776, 'near'], [844, 'mid'], [912, 'near'],
+  ] as const
+).map(([x, band]) => {
+  const y = Math.round((hillTop(band, x) + (band === 'mid' ? 12 : 9)) * 10) / 10;
+  return { x, y, size: Math.round(LANDMARK_SIZE * depthScale(y) * 10) / 10 };
+});
+
+/** Половина ширины сооружения на месте: столько по x от середины заняты места растений. */
+export function landmarkHalfWidth(site: LandmarkSite): number {
+  return site.size * 0.55;
+}
+
+/**
+ * Какие места растений занимает сооружение: под ним и сразу за ним (то, что позади, оно бы закрыло).
+ * Растения чуть впереди остаются — в пейзаже дерево перед мельницей выглядит естественно.
+ */
+export function slotsUnder(site: LandmarkSite): number[] {
+  const half = landmarkHalfWidth(site);
+  const out: number[] = [];
+  SLOTS.forEach((s, i) => {
+    if (Math.abs(s.x - site.x) < half + 4 && s.y > site.y - site.size * 0.4 && s.y < site.y + 6) out.push(i);
+  });
+  return out;
+}
+
 /** Места редкостей. Вторая редкость того же вида встаёт на следующее место. */
 export const DECOR_ANCHORS = {
   deer: [

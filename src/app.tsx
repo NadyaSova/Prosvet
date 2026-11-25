@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { DEFAULT_TASKS } from './data/default-tasks';
 import { PHRASES, type PhraseContext } from './data/phrases';
 import { archiveBoss, cancelStopwatch, createBoss, measuredMinutes, releaseBoss, runningBoss, type NewBoss } from './logic/bosses';
+import { syncLandmarks } from './logic/valley';
 import {
   answerPigeonAction,
   cancelTask,
@@ -225,7 +226,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     player: initial.player,
     board: initial.board,
     timer: initial.timer,
-    valley: initial.valley,
+    // Боссы, заведённые до шага 7 фазы 2, встают в долину при первом запуске.
+    valley: syncLandmarks(initial.valley, initial.bosses),
   });
   const [settings, setSettings] = useState<Settings>(initial.settings);
   const [custom, setCustom] = useState<TaskTemplate[]>(initialCustom);
@@ -269,14 +271,18 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const shopRef = useRef(initial.shop);
   const bossesRef = useRef<readonly Boss[]>(initial.bosses);
 
-  function commit(next: GameState, extras: SaveExtras = {}) {
-    gameRef.current = next;
-    setGame(next);
+  function commit(state: GameState, extras: SaveExtras = {}) {
+    let next = state;
     if (extras.bosses?.length) {
       const merged = mergeBosses(bossesRef.current, extras.bosses);
       bossesRef.current = merged;
       setBosses(merged);
+      // Новый конечный босс встаёт в долину, отпущенный уходит. Подход место не меняет — тогда долина та же.
+      const valley = syncLandmarks(next.valley, merged);
+      if (valley !== next.valley) next = { ...next, valley };
     }
+    gameRef.current = next;
+    setGame(next);
     if (extras.shop) {
       shopRef.current = extras.shop;
       setShop(extras.shop);
@@ -509,6 +515,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   function createBossAction(input: NewBoss) {
     const boss = createBoss(bossesRef.current, input, Date.now(), Math.random, crypto.randomUUID());
     commit(gameRef.current, { bosses: [boss] });
+    // В долине панорама откроется у нового сооружения под туманом.
+    if (boss.kind === 'finite') setFresh(boss.id);
     replaceRoute(`boss/${encodeURIComponent(boss.id)}`);
   }
 
@@ -540,11 +548,15 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     if (!r) return;
     commit(r.state, { bosses: [r.boss] });
     showReward(r.done, { ...redo, after: r.state, bossesAfter: bossesRef.current });
+    // В долине туман над сооружением редеет с анимацией.
+    if (r.boss.kind === 'finite') setFresh(r.boss.id);
   }
 
   function winBossNow(id: string, note: string) {
     const r = winBossAction(gameRef.current, bossesRef.current, id, Date.now(), note);
     commit(r.state, { bosses: [r.boss] });
+    // В долине туман над сооружением рассеется.
+    setFresh(r.boss.id);
     setVictories((q) => [...q, { boss: r.boss, report: r.report, phrase: takePhrase('finish') }]);
   }
 
@@ -668,7 +680,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   /** После резервной копии (новая дата копии) или восстановления из неё (новые данные целиком). */
   async function dataChanged(data: AppData) {
     const nextCustom = await listCustomTasks(db);
-    const loaded: GameState = { player: data.player, board: data.board, timer: data.timer, valley: data.valley };
+    const loaded: GameState = { player: data.player, board: data.board, timer: data.timer, valley: syncLandmarks(data.valley, data.bosses) };
     gameRef.current = loaded;
     phrasesRef.current = data.phrases.recent;
     pigeonsRef.current = data.pigeons;
@@ -828,6 +840,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     screen = (
       <ValleyScreen
         valley={game.valley}
+        bosses={bosses}
         fire={viewStreak(game.player.streak, dayOf(now)).fire}
         feathers={feathersList}
         cloakStage={cloakView(feathersList.length).stage}
@@ -930,7 +943,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
         fresh={fresh}
         onPlant={(item) => plant(item)}
         coupons={shop.coupons.filter((c) => c.status === 'bought').length}
-        bosses={bosses.filter((b) => b.status === 'active').length}
+        bosses={bosses}
       />
     );
   }

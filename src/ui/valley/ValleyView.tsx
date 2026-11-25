@@ -6,7 +6,15 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import type { Feather } from '../../logic/pigeons';
 import { createRng } from '../../logic/rng';
 import type { FireLevel } from '../../logic/streak';
-import { CAPACITY, latestPlant, mistFrontier, sceneOf } from '../../logic/valley';
+import {
+  districtCapacity,
+  landmarkSite,
+  latestPlant,
+  mistFrontier,
+  sceneOf,
+  type SceneLandmark,
+  type ScenePlant,
+} from '../../logic/valley';
 import {
   BANDS,
   CAMP,
@@ -20,11 +28,12 @@ import {
   WORLD,
   type Band,
 } from '../../logic/valley-district';
-import type { ValleyState } from '../../model/types';
+import type { Boss, ValleyState } from '../../model/types';
 import { plural } from '../format';
 import { CampArt } from './camp-art';
 import { CampfireArt } from './campfire-art';
 import { DecorArt } from './decor-art';
+import { LandmarkMistGradient, ValleyLandmarkArt } from './landmark-scene';
 import { PlantArt, sways } from './plant-art';
 import { WandererArt } from './wanderer-art';
 import { PALETTE } from '../palette';
@@ -85,11 +94,22 @@ const STATIC_LAYERS = {
 
 export interface SceneProps {
   valley: ValleyState;
+  /** Боссы — для сооружений в долине: вид, сид, туман. */
+  bosses?: readonly Boss[];
   fire: FireLevel;
   feathers: readonly Feather[];
   cloakStage: number;
   /** Только что посаженное растение или редкость — для анимации роста. */
   fresh: string | null;
+}
+
+const NO_BOSSES: readonly Boss[] = [];
+
+/** Растение или сооружение — для рисования по глубине. */
+interface DepthItem {
+  y: number;
+  plant?: ScenePlant;
+  landmark?: SceneLandmark;
 }
 
 /** Высота кадра в единицах мира (верх неба обрезан). */
@@ -103,8 +123,9 @@ export function focusOf(valley: ValleyState, fresh: string | null): { x: number;
   const scene = sceneOf(valley);
   const latest = latestPlant(valley);
   const p =
-    (fresh ? (scene.plants.find((q) => q.id === fresh) ?? scene.decor.find((d) => d.id === fresh)) : undefined) ??
-    (latest ? SLOTS[latest.slot]! : { x: 0, y: CAMP.y });
+    (fresh
+      ? (scene.plants.find((q) => q.id === fresh) ?? scene.decor.find((d) => d.id === fresh) ?? landmarkSite(valley, fresh))
+      : undefined) ?? (latest ? SLOTS[latest.slot]! : { x: 0, y: CAMP.y });
   return { x: p.x, y: p.y - VIEW_TOP };
 }
 
@@ -130,6 +151,7 @@ export function ValleyView(props: SceneProps) {
 /** Сама картина долины. Размер задаёт обёртка (style или CSS класса valley__scene). */
 export function ValleyScene({
   valley,
+  bosses = NO_BOSSES,
   fire,
   feathers,
   cloakStage,
@@ -141,12 +163,27 @@ export function ValleyScene({
   /** Выбор места для семени или саженца: свободные места кружками, нажатие — посадить сюда. */
   pick?: { slots: readonly number[]; onPick: (slot: number) => void };
 }) {
-  const scene = useMemo(() => sceneOf(valley), [valley]);
+  const scene = useMemo(() => sceneOf(valley, bosses), [valley, bosses]);
 
-  // Туман отходит медленно: сначала там, где был до нового растения, потом на новом месте.
-  const before = useMemo(
-    () => (fresh ? mistFrontier({ ...valley, plants: valley.plants.filter((p) => p.id !== fresh) }) : scene.mistX),
-    [valley, fresh, scene.mistX],
+  // Туман отходит медленно: сначала там, где был до нового растения или нового сооружения босса, потом на новом месте.
+  const before = useMemo(() => {
+    if (!fresh) return scene.mistX;
+    const newLandmark = scene.landmarks.some((l) => l.bossId === fresh && !l.won && l.sessions === 0);
+    return mistFrontier({
+      ...valley,
+      plants: valley.plants.filter((p) => p.id !== fresh),
+      landmarks: newLandmark ? valley.landmarks.filter((l) => l.bossId !== fresh) : valley.landmarks,
+    });
+  }, [valley, fresh, scene]);
+
+  // Растения и сооружения — вперемешку по глубине: дальние раньше ближних.
+  const objects = useMemo(
+    () =>
+      [
+        ...scene.plants.map((p): DepthItem => ({ y: p.y, plant: p })),
+        ...scene.landmarks.map((l): DepthItem => ({ y: l.y, landmark: l })),
+      ].sort((a, b) => a.y - b.y),
+    [scene],
   );
   const [mistX, setMistX] = useState(before);
   useEffect(() => {
@@ -159,7 +196,7 @@ export function ValleyScene({
   const plants = `${n} ${plural(n, ['растение', 'растения', 'растений'])}`;
   const label = scene.open
     ? `Долина открыта: ${plants}, тумана больше нет`
-    : `Долина: ${plants} из ${CAPACITY}, остальное пока в тумане`;
+    : `Долина: ${plants} из ${districtCapacity(valley)}, остальное пока в тумане`;
 
   return (
     <svg
@@ -174,6 +211,7 @@ export function ValleyScene({
           <stop offset="0" stop-color="#cfcfd3" stop-opacity="0" />
           <stop offset="1" stop-color="#cfcfd3" stop-opacity="0.9" />
         </linearGradient>
+        {scene.landmarks.length > 0 && <LandmarkMistGradient />}
       </defs>
       <rect x="0" y="0" width={W} height={H} fill="var(--color-sky)" />
       <circle cx="292" cy="50" r="22" fill="var(--color-sun)" />
@@ -200,18 +238,22 @@ export function ValleyScene({
       ))}
       <path d={STATIC_LAYERS.river} fill="var(--color-river)" />
 
-      {scene.plants.map((p) => (
-        <g key={p.id} transform={`translate(${p.x} ${p.y}) scale(${p.scale.toFixed(3)})`}>
-          <g class={p.id === fresh ? 'plant plant--new' : 'plant'}>
-            <g
-              class={sways(p.kind, p.size) ? 'plant__sway' : undefined}
-              style={{ animationDelay: `${-((p.seed % 6000) / 1000).toFixed(2)}s` }}
-            >
-              <PlantArt kind={p.kind} size={p.size} seed={p.seed} />
+      {objects.map(({ plant: p, landmark: l }) =>
+        l ? (
+          <ValleyLandmarkArt key={`boss-${l.bossId}`} l={l} fresh={l.bossId === fresh} />
+        ) : (
+          <g key={p!.id} transform={`translate(${p!.x} ${p!.y}) scale(${p!.scale.toFixed(3)})`}>
+            <g class={p!.id === fresh ? 'plant plant--new' : 'plant'}>
+              <g
+                class={sways(p!.kind, p!.size) ? 'plant__sway' : undefined}
+                style={{ animationDelay: `${-((p!.seed % 6000) / 1000).toFixed(2)}s` }}
+              >
+                <PlantArt kind={p!.kind} size={p!.size} seed={p!.seed} />
+              </g>
             </g>
           </g>
-        </g>
-      ))}
+        ),
+      )}
       {scene.decor.filter((d) => d.kind === 'deer').map((d) => (
         <g key={d.id} class={d.id === fresh ? 'decor--new' : undefined}>
           <DecorArt d={d} />
