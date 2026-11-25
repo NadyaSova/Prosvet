@@ -55,16 +55,24 @@ const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long
 /** «23 ноября». */
 export const dateText = (timestamp: number) => dayMonth.format(new Date(timestamp));
 
-export const feathersText = (n: number) => `${n} ${plural(n, ['перо', 'пера', 'перьев'])}`;
+/** Неделя с первого по седьмой день: «22–28 ноября», «29 ноября – 5 декабря». */
+export function weekRangeText(first: Day): string {
+  const a = new Date(dayStart(first));
+  const b = new Date(dayStart(first + 6));
+  if (a.getMonth() === b.getMonth()) return `${a.getDate()}–${dayMonth.format(b)}`;
+  return `${dayMonth.format(a)} – ${dayMonth.format(b)}`;
+}
 
-/** Подпись под числом серии: до какого дня горит огонь. */
-export function fireText(view: StreakView, today: Day, everActive: boolean): string {
+export const feathersText =(n: number) => `${n} ${plural(n, ['перо', 'пера', 'перьев'])}`;
+
+/** Подпись под числом серии: до какого дня горит огонь. what — что горит: «Огонь» (шапка) или «Костёр» (итоги недели). */
+export function fireText(view: StreakView, today: Day, everActive: boolean, what = 'Огонь'): string {
   if (view.deadlineDay === null) {
     return everActive ? 'Костёр погас. Любое задание разожжёт его снова.' : 'Костёр ждёт первого задания.';
   }
   const left = view.deadlineDay - today;
   if (left <= 0) return 'Угли тлеют: сегодня последний день, чтобы сохранить серию.';
-  if (left === 1) return 'Огонь горит до конца завтрашнего дня.';
+  if (left === 1) return `${what} горит до конца завтрашнего дня.`;
   const date = new Date(dayStart(view.deadlineDay));
-  return `Огонь горит до конца ${WEEKDAY_GENITIVE[date.getDay()]}, ${dayMonth.format(date)}.`;
+  return `${what} горит до конца ${WEEKDAY_GENITIVE[date.getDay()]}, ${dayMonth.format(date)}.`;
 }

@@ -8,8 +8,10 @@ import { BALANCE } from '../config/balance';
 import { BRANCHES, type PlayerState } from '../model/types';
 import { CloakArt } from './cloak-art';
 import { BackBar, BranchChip, Progress } from './common';
+import { go } from './router';
 
-export function HeroScreen({ player, feathers }: { player: PlayerState; feathers: readonly Feather[] }) {
+/** lastWeek — на прошлой неделе было что подводить: внизу ссылка на её итоги. */
+export function HeroScreen({ player, feathers, lastWeek = false }: { player: PlayerState; feathers: readonly Feather[]; lastWeek?: boolean }) {
   const xp = totalXp(player.xp);
   const level = levelInfo(xp);
   const nextTitle = BALANCE.level.titles.find((t) => t.fromLevel > level.level);
@@ -70,6 +72,12 @@ export function HeroScreen({ player, feathers }: { player: PlayerState; feathers
           );
         })}
       </section>
+
+      {lastWeek && (
+        <button type="button" class="link-button hero-screen__week" onClick={() => go('week')}>
+          Итоги прошлой недели
+        </button>
+      )}
     </main>
   );
 }

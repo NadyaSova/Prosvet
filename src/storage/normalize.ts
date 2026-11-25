@@ -8,6 +8,7 @@ import { ENTRY_PARTS, normalizeSkills } from '../logic/journal';
 import { lookKey } from '../logic/pigeons';
 import { cleanFinding } from '../logic/stop-questions';
 import { CAPACITY } from '../logic/valley';
+import { cleanWish, createWeekState } from '../logic/week';
 import { GARDEN_SITES, LANDMARK_SITES } from '../logic/valley-district';
 import { createPlayer } from '../model/player';
 import {
@@ -20,6 +21,8 @@ import {
   type Boss,
   type BossSession,
   type Branch,
+  type DayLog,
+  type WeekState,
   type GardenKind,
   type LandmarkKind,
   type Coupon,
@@ -89,7 +92,49 @@ export function normalizePlayer(raw: unknown): PlayerState {
     streak: { ...d.streak, ...(isObject(raw.streak) ? raw.streak : {}) },
     branchLastTouched: touched,
     inventory: Array.isArray(raw.inventory) ? raw.inventory : [],
+    days: normalizeDays(raw.days),
   } as PlayerState;
+}
+
+/** Ветка → неотрицательное целое; ветки фазы 1 складываются с новыми. */
+function branchCounts(raw: unknown): Partial<Record<Branch, number>> {
+  const out: Partial<Record<Branch, number>> = {};
+  for (const [key, value] of Object.entries(isObject(raw) ? raw : {})) {
+    const b = migrateBranch(key);
+    if (b && Number.isInteger(value) && (value as number) > 0) out[b] = (out[b] ?? 0) + (value as number);
+  }
+  return out;
+}
+
+/** Журнал дней (появился на шаге 10 фазы 2; в старых данных его нет). По порядку дней, повторы дня — вместе. */
+function normalizeDays(raw: unknown): DayLog[] {
+  const byDay = new Map<number, DayLog>();
+  for (const item of Array.isArray(raw) ? raw : []) {
+    if (!isObject(item) || !Number.isInteger(item.day)) continue;
+    const day = item.day as number;
+    const log: DayLog = { day, minutes: branchCounts(item.minutes), done: branchCounts(item.done) };
+    const prev = byDay.get(day);
+    if (prev) {
+      for (const b of BRANCHES) {
+        if (log.minutes[b]) prev.minutes[b] = (prev.minutes[b] ?? 0) + log.minutes[b];
+        if (log.done[b]) prev.done[b] = (prev.done[b] ?? 0) + log.done[b];
+      }
+    } else byDay.set(day, log);
+  }
+  return [...byDay.values()].filter((d) => Object.keys(d.done).length > 0).sort((a, b) => a.day - b.day);
+}
+
+/** Итоги недели. Записи нет — первые итоги в следующую неделю (createWeekState). */
+export function normalizeWeek(raw: unknown, today: number): WeekState {
+  const d = createWeekState(today);
+  if (!isObject(raw) || !Number.isInteger(raw.seen)) return d;
+  const wishes: WeekState['wishes'] = [];
+  for (const w of Array.isArray(raw.wishes) ? raw.wishes : []) {
+    if (!isObject(w) || !Number.isInteger(w.week) || typeof w.text !== 'string') continue;
+    const text = cleanWish(w.text);
+    if (text && !wishes.some((x) => x.week === w.week)) wishes.push({ week: w.week as number, text });
+  }
+  return { seen: raw.seen as number, wishes: wishes.sort((a, b) => a.week - b.week) };
 }
 
 /** Своё задание из базы или копии. null — без id или с неизвестной веткой. */

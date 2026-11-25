@@ -8,12 +8,15 @@ import { BossesSection } from './gallery-bosses';
 import { GardensSection } from './gallery-gardens';
 import { StopQuestionsSection, XpIconSection } from './gallery-reward';
 import { ValleyGardensSection } from './gallery-valley-gardens';
+import { WeekSection } from './gallery-week';
 
 function Gallery() {
   return (
     <main class="gallery">
       <h1>Галерея рисунков</h1>
       <p class="muted">Страница только для разработки. Правки рисунков видны здесь сразу, без перезагрузки.</p>
+
+      <WeekSection />
 
       <ValleyGardensSection />
 
@@ -40,6 +43,8 @@ style.textContent = `
   .gallery__row-title { margin: 8px 0 4px; font-size: 16px; }
   .gallery__phones { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
   .gallery__phone { width: 380px; }
+  /* Экран телефона — с выравниванием, как в приложении, а не по центру, как подписи рисунков галереи. */
+  .gallery .gallery__phone { text-align: left; }
   .gallery__phone .screen { min-height: 780px; border: 1px solid var(--color-field-border); border-radius: 12px; }
   .gallery__phone .loot svg { width: auto; }
   .gallery__xp { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }

@@ -10,6 +10,7 @@ import type { Rng } from './rng';
 import { addLog, recordActivity, resolveStreak } from './streak';
 import type { StopBonus } from './stop-questions';
 import { dayOf } from './time';
+import { logDay } from './week';
 
 /**
  * factor — множитель опыта и золота за минуты (BALANCE.tasks.rewardFactor); нет — 1.
@@ -124,6 +125,7 @@ export function applyCompletion(
     streak,
     branchLastTouched: { ...state.branchLastTouched, [c.branch]: today },
     inventory,
+    days: logDay(state.days, today, c.branch, c.kind === 'timed' ? c.minutes : 0),
   };
 
   return {

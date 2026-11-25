@@ -17,7 +17,9 @@ import type {
   ShopState,
   TaskTemplate,
   ValleyState,
+  WeekState,
 } from '../model/types';
+import { dayOf } from '../logic/time';
 import type { KvKey, KvMap, PhraseHistory, ProsvetDb } from './db';
 import {
   createSettings,
@@ -34,6 +36,7 @@ import {
   normalizeTasks,
   normalizeTimer,
   normalizeValley,
+  normalizeWeek,
 } from './normalize';
 
 export async function getKv<K extends KvKey>(db: ProsvetDb, key: K): Promise<unknown> {
@@ -59,6 +62,8 @@ export interface AppData {
   shop: ShopState;
   /** Боссы во всех состояниях, по порядку создания. */
   bosses: Boss[];
+  /** Итоги недели: когда показаны и «что хочется». */
+  week: WeekState;
 }
 
 /**
@@ -66,7 +71,7 @@ export interface AppData {
  * Долины нет (база или копия старше шага 6) — она вырастает по уже накопленному опыту веток.
  */
 export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.random): Promise<AppData> {
-  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley, rawAchievements, rawShop, rawBosses] =
+  const [rawPlayer, rawSettings, rawBoard, rawTimer, rawPhrases, rawLoft, rawPigeons, rawValley, rawAchievements, rawShop, rawBosses, rawWeek] =
     await Promise.all([
       getKv(db, 'player'),
       getKv(db, 'settings'),
@@ -79,6 +84,7 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
       db.getAll('achievements') as Promise<unknown[]>,
       getKv(db, 'shop'),
       db.getAll('bosses') as Promise<unknown[]>,
+      getKv(db, 'week'),
     ]);
   const player = normalizePlayer(rawPlayer);
   const storedLoft = normalizeLoft(rawLoft);
@@ -97,7 +103,9 @@ export async function loadAppData(db: ProsvetDb, now: number, rng: Rng = Math.ra
     achievements: sortEntries(normalizeAchievements(rawAchievements)),
     shop: normalizeShop(rawShop),
     bosses: sortBosses(normalizeBosses(rawBosses)),
+    week: normalizeWeek(rawWeek, dayOf(now)),
   };
+  if (rawWeek === undefined) await setKv(db, 'week', data.week);
   if (rawPlayer === undefined) await setKv(db, 'player', data.player);
   if (rawSettings === undefined) await setKv(db, 'settings', data.settings);
   if (!storedLoft) await setKv(db, 'loft', data.loft);

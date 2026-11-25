@@ -333,7 +333,7 @@ function VerdictAsk({ reward, onAnswer }: { reward: ShownReward; onAnswer?: (a: 
  * Записанный текст остаётся на линии, кнопки нет; под линией слева «✓ записано», справа — tag (метка бонуса).
  * Поправила текст — отметка пропадает, снова кнопка. onSave нет — записать уже нельзя: только показать записанное.
  */
-function InkLine({
+export function InkLine({
   question,
   hint,
   saved,

@@ -8,5 +8,6 @@ export function createPlayer(): PlayerState {
     streak: { startDay: null, lastActiveDay: null, extraDays: 0, logs: 0, milestoneReached: 0 },
     branchLastTouched: {},
     inventory: [],
+    days: [],
   };
 }

@@ -35,11 +35,12 @@ import { pickPhrase } from './logic/phrases';
 import { buyCoupon, buyGood, removePrize, savePrize, setCouponGiven, type Good, type PrizeInput } from './logic/shop';
 import { cloakView, dueQuestion, feathersOf, markAsked } from './logic/pigeons';
 import { viewStreak } from './logic/streak';
+import { dueWeek, hasContent, setWish, weekStart, weekSummary, wishFor, WEEK_DAYS } from './logic/week';
 import { mergeTemplates } from './logic/tasks';
 import { createRng, randomSeed } from './logic/rng';
 import { dayOf } from './logic/time';
 import { endsAt, isFinished, settleTimer } from './logic/timer';
-import type { Achievement, Boss, Branch, Finding, LoftState, Pigeon, Settings, ShopState, StopAnswer, TaskTemplate } from './model/types';
+import type { Achievement, Boss, Branch, Day, Finding, LoftState, Pigeon, Settings, ShopState, StopAnswer, TaskTemplate, WeekState } from './model/types';
 import { requestPersistence, type Persistence } from './storage/browser';
 import { openProsvetDb, type ProsvetDb } from './storage/db';
 import {
@@ -77,6 +78,7 @@ import { ShopScreen } from './ui/ShopScreen';
 import { StopwatchScreen } from './ui/StopwatchScreen';
 import { TimerScreen } from './ui/TimerScreen';
 import { ValleyScreen } from './ui/ValleyScreen';
+import { WeekScreen } from './ui/WeekScreen';
 import { ask } from './ui/confirm';
 
 type LoadState =
@@ -248,6 +250,11 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const [bosses, setBosses] = useState<Boss[]>(initial.bosses);
   /** Экраны побед над боссами — по очереди. */
   const [victories, setVictories] = useState<ShownVictory[]>([]);
+  /** Итоги недели: когда показаны и «что хочется». */
+  const [week, setWeek] = useState<WeekState>(initial.week);
+  const weekRef = useRef(initial.week);
+  /** Итоги какой недели приложение показало само при открытии; null — не показаны или уже закрыты. */
+  const [weekly, setWeekly] = useState<Day | null>(null);
   const [news, setNews] = useState<StreakNews | null>(null);
   const [idlePhrase, setIdlePhrase] = useState('');
   const [startPhrase, setStartPhrase] = useState('');
@@ -387,6 +394,24 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     if (r.done) showReward(r.done, back.changed.length === 0 ? { kind: 'timer', before, after: back.state, seed, now, open: true } : undefined);
     back.feathers.forEach(showFeather);
     if (r.news.logsBurned > 0 || r.news.broken) setNews(r.news);
+    // Первое открытие в новой неделе — итоги прошлой. Пустую неделю пропускаем.
+    const due = dueWeek(weekRef.current, dayOf(now));
+    if (due) {
+      saveWeek(due.state);
+      const data = { player: back.state.player, valley: back.state.valley, bosses: bossesRef.current, pigeons: pigeonsRef.current, achievements: [] };
+      if (hasContent(weekSummary(data, due.week, dayOf(now)))) setWeekly(due.week);
+    }
+  }
+
+  function saveWeek(next: WeekState) {
+    weekRef.current = next;
+    setWeek(next);
+    setKv(db, 'week', next).catch((e: unknown) => setSaveError(String(e)));
+  }
+
+  /** «Чего хочется на этой неделе» — к неделе, которая идёт сейчас. */
+  function saveWish(text: string) {
+    saveWeek(setWish(weekRef.current, weekStart(dayOf(Date.now())), text));
   }
 
   useEffect(() => {
@@ -696,6 +721,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     setShop(data.shop);
     setEntries(data.achievements);
     setSettings(data.settings);
+    weekRef.current = data.week;
+    setWeek(data.week);
     setCustom(nextCustom);
     templatesRef.current = mergeTemplates(DEFAULT_TASKS, nextCustom, data.settings.hiddenTaskIds);
     refresh();
@@ -709,6 +736,7 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   const reward = writing ? undefined : rewards[0];
   const feather = writing ? undefined : feathers[0];
   const victory = writing ? undefined : victories[0];
+  const weeklyShown = writing ? null : weekly;
   const knownSkills = useMemo(() => allSkills(entries), [entries]);
 
   const flying = pigeons.filter((p) => p.status === 'flying');
@@ -720,13 +748,14 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     !reward &&
     !feather &&
     !victory &&
+    weeklyShown === null &&
     !game.timer &&
     !running &&
     !journal &&
     !valleyView &&
     !shopView &&
     !bossView &&
-    !['loft', 'hero', 'settings', 'custom'].includes(route);
+    !['loft', 'hero', 'settings', 'custom', 'week'].includes(route);
 
   const stopwatchScreen = (boss: Boss, back: boolean) => (
     <StopwatchScreen
@@ -751,6 +780,23 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   // Спрашивает самый давний голубь, которому пора.
   const asking = [...flying].reverse().find((p) => dueQuestion(p, now) !== null);
   const question = asking ? { pigeon: asking, day: dueQuestion(asking, now)! } : null;
+
+  const today = dayOf(now);
+  const thisWeek = weekStart(today);
+  const weekScreen = (first: Day, onClose: () => void) => (
+    <WeekScreen
+      summary={weekSummary({ player: game.player, valley: game.valley, bosses, pigeons, achievements: entries }, first, today)}
+      today={today}
+      pastWish={wishFor(week, first)}
+      wish={wishFor(week, thisWeek)}
+      onWish={saveWish}
+      onClose={onClose}
+    />
+  );
+  // Ссылка на итоги прошлой недели на экране героини — если было что подводить.
+  const lastWeekShown =
+    route === 'hero' &&
+    hasContent(weekSummary({ player: game.player, valley: game.valley, bosses, pigeons, achievements: entries }, thisWeek - WEEK_DAYS, today));
 
   if (reward) {
     // Своё задание Зова — ссылка в голубятню; у Отклика вместо неё вопрос «Отправила?».
@@ -785,6 +831,8 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
     screen = <FeatherScreen feather={feather} onClose={() => setFeathers((q) => q.slice(1))} />;
   } else if (victory) {
     screen = <BossVictoryScreen key={victory.boss.id} victory={victory} onClose={() => setVictories((q) => q.slice(1))} />;
+  } else if (weeklyShown !== null) {
+    screen = weekScreen(weeklyShown, () => setWeekly(null));
   } else if (journal) {
     // Летопись открывается и во время таймера — например, чтобы дополнить черновик за 10 минут задания.
     screen =
@@ -840,7 +888,9 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
       />
     );
   } else if (route === 'hero') {
-    screen = <HeroScreen player={game.player} feathers={feathersList} />;
+    screen = <HeroScreen player={game.player} feathers={feathersList} lastWeek={lastWeekShown} />;
+  } else if (route === 'week') {
+    screen = weekScreen(thisWeek - WEEK_DAYS, goHome);
   } else if (valleyView) {
     screen = (
       <ValleyScreen

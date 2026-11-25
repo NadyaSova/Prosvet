@@ -14,6 +14,7 @@ import type {
   ShopState,
   TaskTemplate,
   ValleyState,
+  WeekState,
 } from '../model/types';
 
 export const DB_NAME = 'prosvet';
@@ -39,13 +40,15 @@ export interface KvMap {
   valley: ValleyState;
   /** Внешние призы и купоны. Появилось на шаге 8; в старых базах и копиях записи нет. */
   shop: ShopState;
+  /** Итоги недели: когда показаны и «что хочется». Появилось на шаге 10 фазы 2; в старых базах и копиях записи нет. */
+  week: WeekState;
 }
 
 export interface PhraseHistory {
   recent: string[];
 }
 export type KvKey = keyof KvMap;
-export const KV_KEYS: readonly KvKey[] = ['player', 'settings', 'board', 'timer', 'phrases', 'loft', 'valley', 'shop'];
+export const KV_KEYS: readonly KvKey[] = ['player', 'settings', 'board', 'timer', 'phrases', 'loft', 'valley', 'shop', 'week'];
 
 export interface ProsvetSchema extends DBSchema {
   kv: { key: string; value: unknown };

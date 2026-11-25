@@ -3391,3 +3391,237 @@ textarea:focus {
     animation: none;
   }
 }
+
+/* Итоги недели (docs/phase2-plan.md §6): листы бумаги, как на экране героини. Без награды. */
+
+.week__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding-top: var(--space-4);
+  text-align: center;
+}
+
+.week__past-wish {
+  margin: 0 var(--space-1);
+  font-style: italic;
+  text-align: center;
+}
+
+.week__past-wish .muted {
+  display: block;
+  font-style: normal;
+}
+
+.week__card h2 {
+  margin-bottom: var(--space-2);
+}
+
+.week__line,
+.week__total {
+  margin: 0;
+}
+
+.week__total {
+  margin-bottom: var(--space-3);
+}
+
+.week__total b {
+  font-size: var(--text-lg);
+  font-weight: 550;
+}
+
+/* Время по веткам: название цветом ветки, полоса — доля от самой длинной ветки недели, справа время. */
+.week__bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.week__bar-row {
+  display: grid;
+  grid-template-columns: 6.5em 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.week__bar-name {
+  color: var(--branch-ink);
+  font-weight: 550;
+}
+
+.week__bar-track {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--branch) 14%, transparent);
+  overflow: hidden;
+}
+
+.week__bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--branch);
+}
+
+.week__bar-value {
+  min-width: 4.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.week__bars + .week__line {
+  margin-top: var(--space-3);
+}
+
+/* Что выросло: сами растения из долины, мелко и в одну строку, на полоске травы во всю ширину листа.
+   Что не поместилось — не рисуется (решение пользователя 25.11.2026). */
+.week__plants {
+  margin-top: var(--space-2);
+}
+
+/* Размеры рисунков — с .week впереди: иначе их перебивает общее правило галереи для svg. Высота — в разметке. */
+.week .week__strip {
+  display: block;
+  width: 100%;
+}
+
+.week__plants + .week__line {
+  margin-top: var(--space-3);
+}
+
+.week__bosses {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Строка босса — тот же листок, что в списке боссов, только не нажимается. */
+.week__boss:active {
+  transform: none;
+}
+
+.week__won {
+  color: var(--branch-ink);
+  font-weight: 550;
+}
+
+/* Голуби: итог крупными числами, группы «Улетели» и «Вернулись» мелкими подписями, строки, прогресс плаща. */
+.week__totals {
+  margin: 0 0 var(--space-3);
+}
+
+/* Итог — обычный текст: числа того же размера, что строка, только жирнее. */
+.week__totals b {
+  font-weight: 550;
+}
+
+.week__gold {
+  color: var(--color-gold-ink);
+}
+
+.week__pigeons + .week__pigeons {
+  margin-top: var(--space-3);
+}
+
+.week__group {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 550;
+}
+
+/* Строка: значок → компания → справа серым дата или исход. */
+.week__pigeon {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+}
+
+.week__pigeon-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 40px;
+}
+
+/* С .week впереди: иначе размер перебивает общее правило галереи для svg. */
+.week .week__pigeon-icon svg {
+  width: 44px;
+  height: 40px;
+}
+
+.week .week__pigeon-icon .week__feather-icon {
+  width: 24px;
+  height: 30px;
+}
+
+.week__pigeon-company {
+  flex: 1;
+  min-width: 0;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.week__pigeon-note {
+  flex: none;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.week__pigeon-note--gold {
+  color: var(--color-gold-ink);
+  font-weight: 550;
+}
+
+.week__cloak {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* Костёр: в заголовке — только огонёк и число дней серии, под ним — до какого дня горит. */
+.week__streak {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+}
+
+.week__fire {
+  text-align: center;
+}
+
+.week__fire .week__streak {
+  margin-bottom: var(--space-1);
+}
+
+.week .week__flame {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  /* Сам огонёк занимает середину иконки (6–18 из 24): без пустых полей по бокам заголовок центрируется
+     по видимому, а не по рамке иконки, и промежуток до числа не кажется шире. */
+  margin: 0 -2px 0 -6px;
+}
+
+/* Заголовок костра — на 3 px левее середины: так он смотрится по центру (решение пользователя 25.11.2026). */
+.week__fire .week__streak {
+  transform: translateX(-3px);
+}
+
+/* «Чего хочется» — записка, как вопрос на экране награды; бумага и булавка — зелёные, без ветки. */
+.week__wish {
+  --branch: var(--color-hill-near);
+  --branch-ink: var(--color-accent);
+  align-self: center;
+}
+
+.hero-screen__week {
+  align-self: center;
+}

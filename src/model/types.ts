@@ -81,6 +81,26 @@ export interface PlayerState {
   branchLastTouched: Partial<Record<Branch, Day>>;
   /** Выпавший декор (семена, редкости), который ещё не посажен в долину. */
   inventory: string[];
+  /** Что засчитано по дням — для итогов недели (docs/phase2-plan.md §6). По порядку дней, только активные дни. */
+  days: DayLog[];
+}
+
+/**
+ * Засчитанное за один день: минуты и число дел по веткам. Дело — задание, подход к боссу, отправленный голубь,
+ * запись в Летопись. У мгновенных дел минут нет. Ведётся с шага 10 фазы 2; раньше дни не записывались.
+ */
+export interface DayLog {
+  day: Day;
+  minutes: Partial<Record<Branch, number>>;
+  done: Partial<Record<Branch, number>>;
+}
+
+/** Итоги недели (docs/phase2-plan.md §6). */
+export interface WeekState {
+  /** Начало недели (воскресенье), в которую итоги прошлой недели уже показаны или пропущены. */
+  seen: Day;
+  /** «Что хочется на этой неделе»: week — начало недели, к которой строка относится. */
+  wishes: { week: Day; text: string }[];
 }
 
 /** Запись Летописи — журнала достижений. SPEC.md §10.2. */

@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { openDB } from 'idb';
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../logic/rng';
+import { dayOf } from '../logic/time';
 import { emptyValley, plantForCompletion } from '../logic/valley';
 import { createPlayer } from '../model/player';
 import type { Achievement, Boss, Finding, Pigeon, TaskTemplate } from '../model/types';
@@ -587,5 +588,29 @@ describe('напоминание о копии', () => {
     const s = { ...settings, lastBackupAt: NOW + 20 * DAY_MS };
     expect(needsBackupReminder(s, NOW + 30 * DAY_MS)).toBe(false);
     expect(needsBackupReminder(s, NOW + 34 * DAY_MS)).toBe(true);
+  });
+});
+
+describe('итоги недели', () => {
+  it('первый запуск создаёт запись: эта неделя считается увиденной', async () => {
+    const db = await freshDb();
+    const data = await loadAppData(db, NOW);
+    // 23 ноября 2026 — понедельник, неделя началась в воскресенье 22-го.
+    const sunday = dayOf(new Date(2026, 10, 22).getTime());
+    expect(data.week).toEqual({ seen: sunday, wishes: [] });
+    expect(await getKv(db, 'week')).toEqual(data.week);
+  });
+
+  it('журнал дней и «что хочется» попадают в резервную копию и возвращаются из неё', async () => {
+    const db = await freshDb();
+    const player = { ...createPlayer(), days: [{ day: 20_000, minutes: { craft: 30 }, done: { craft: 1 } }] };
+    await setKv(db, 'player', player);
+    await setKv(db, 'week', { seen: 20_000, wishes: [{ week: 20_000, text: 'Тестовое' }] });
+    const snapshot = parseSnapshot(serializeSnapshot(await exportSnapshot(db, NOW)));
+    const other = await freshDb();
+    await importSnapshot(other, snapshot);
+    const data = await loadAppData(other, NOW);
+    expect(data.player.days).toEqual(player.days);
+    expect(data.week.wishes).toEqual([{ week: 20_000, text: 'Тестовое' }]);
   });
 });
