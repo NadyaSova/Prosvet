@@ -145,6 +145,91 @@ export function slotsUnder(site: LandmarkSite): number[] {
   return out;
 }
 
+/**
+ * Места бесконечных боссов (docs/phase2-plan.md §5.3): высота рамки рисунка у самого переднего края — 80,
+ * одобрено пользователем (24.11.2026); дальше — меньше, по depthScale. Рамка — 120 × 60 (garden-art.tsx).
+ */
+export const GARDEN_SIZE = 80;
+
+/** Пятно земли места в единицах рамки (120 × 60): середина и полуоси, с травой по краю. Из garden-art.tsx. */
+const GARDEN_PATCH = { cy: -14, rx: 57, ry: 13 } as const;
+
+export interface GardenSite {
+  x: number;
+  y: number;
+  /** Высота рамки рисунка на этом месте, в единицах мира. */
+  size: number;
+}
+
+/**
+ * Места бесконечных боссов. Сначала четыре на ближней полосе земли, перед сооружениями и в стороне от реки,
+ * оленя у воды и лагеря: они не мешают ни сооружениям, ни друг другу. Потом шесть на средних холмах — там они
+ * делят землю с сооружениями (gardenBlocksLandmark). Номер места — индекс в этом списке.
+ */
+export const GARDEN_SITES: readonly GardenSite[] = [
+  ...[370, 530, 690, 850].map((x) => ({ x, y: 232 })),
+  // На холме пятно не заходит за гребень ближнего холма.
+  ...[130, 320, 450, 640, 760, 880].map((x) => ({ x, y: Math.round(Math.min(hillTop('mid', x) + 30, hillTop('near', x)) * 10) / 10 })),
+].map((s) => ({ ...s, size: Math.round(GARDEN_SIZE * depthScale(s.y) * 10) / 10 }));
+
+/** Сколько первых мест — на ближней полосе. Они занимаются раньше мест на холмах. */
+export const FRONT_GARDEN_SITES = 4;
+
+/** Пятно земли места в мировых координатах. */
+export function gardenPatch(site: GardenSite): { cx: number; cy: number; rx: number; ry: number } {
+  const k = site.size / 60;
+  return { cx: site.x, cy: site.y + GARDEN_PATCH.cy * k, rx: GARDEN_PATCH.rx * k, ry: GARDEN_PATCH.ry * k };
+}
+
+/** Половина ширины места: столько по x от середины оно закрывает. */
+export function gardenHalfWidth(site: GardenSite): number {
+  return gardenPatch(site).rx;
+}
+
+/** Места растений на пятне земли места: там не сажают. Растения позади и впереди пятна остаются. */
+export function slotsUnderGarden(site: GardenSite): number[] {
+  const p = gardenPatch(site);
+  const out: number[] = [];
+  SLOTS.forEach((s, i) => {
+    if (((s.x - p.cx) / (p.rx + 3)) ** 2 + ((s.y - p.cy) / (p.ry + 3)) ** 2 < 1) out.push(i);
+  });
+  return out;
+}
+
+interface Box {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/** Земля под сооружением: от основания немного вглубь (что позади, оно закрывает). */
+function landmarkBox(s: LandmarkSite): Box {
+  const half = s.size * 0.6;
+  return { x0: s.x - half, x1: s.x + half, y0: s.y - s.size * 0.4, y1: s.y + 2 };
+}
+
+function gardenBox(s: GardenSite): Box {
+  const p = gardenPatch(s);
+  return { x0: p.cx - p.rx, x1: p.cx + p.rx, y0: p.cy - p.ry, y1: p.cy + p.ry };
+}
+
+/** Место и сооружение не могут стоять вместе: их земля перекрывается. */
+export function gardenBlocksLandmark(garden: number, landmark: number): boolean {
+  const g = GARDEN_SITES[garden];
+  const l = LANDMARK_SITES[landmark];
+  return !!g && !!l && overlaps(gardenBox(g), landmarkBox(l));
+}
+
+/** Два места не могут стоять вместе. */
+export function gardensOverlap(a: number, b: number): boolean {
+  const ga = GARDEN_SITES[a];
+  const gb = GARDEN_SITES[b];
+  return a !== b && !!ga && !!gb && overlaps(gardenBox(ga), gardenBox(gb));
+}
+
 /** Места редкостей. Вторая редкость того же вида встаёт на следующее место. */
 export const DECOR_ANCHORS = {
   deer: [

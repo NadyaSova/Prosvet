@@ -199,6 +199,17 @@ export interface ValleyState {
   camp: CampKind[];
   /** Сооружения боссов: под туманом и открытые победой. Места растений под ними заняты. */
   landmarks: ValleyLandmark[];
+  /** Места бесконечных боссов: в работе и в архиве. Места растений под ними заняты. */
+  gardens: ValleyGarden[];
+}
+
+/**
+ * Место бесконечного босса в долине (docs/phase2-plan.md §5.3): на каком месте (logic/valley-district.ts,
+ * GARDEN_SITES) растёт место какого босса. Вид, сид и число элементов — у самого босса.
+ */
+export interface ValleyGarden {
+  bossId: string;
+  site: number;
 }
 
 /**
@@ -284,7 +295,7 @@ export interface Boss {
   status: 'active' | 'won' | 'released' | 'archived';
   /**
    * Что стоит в долине: у конечного — сооружение, у бесконечного — место. seed — разброс рисунка.
-   * Где стоит сооружение — в долине (ValleyState.landmarks); где место бесконечного — шаг 8 фазы 2.
+   * Где стоит сооружение или место — в долине (ValleyState.landmarks и ValleyState.gardens).
    */
   place: { landmark?: LandmarkKind; garden?: GardenKind; seed: number };
   /** Подходы по порядку. */

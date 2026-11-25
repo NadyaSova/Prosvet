@@ -7,7 +7,7 @@ import '../styles.css';
 import { BossesSection } from './gallery-bosses';
 import { GardensSection } from './gallery-gardens';
 import { StopQuestionsSection, XpIconSection } from './gallery-reward';
-import { ValleyLandmarksSection } from './gallery-valley-landmarks';
+import { ValleyGardensSection } from './gallery-valley-gardens';
 
 function Gallery() {
   return (
@@ -15,7 +15,7 @@ function Gallery() {
       <h1>Галерея рисунков</h1>
       <p class="muted">Страница только для разработки. Правки рисунков видны здесь сразу, без перезагрузки.</p>
 
-      <ValleyLandmarksSection />
+      <ValleyGardensSection />
 
       <BossesSection />
 

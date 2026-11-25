@@ -8,10 +8,12 @@ import { createRng } from '../../logic/rng';
 import type { FireLevel } from '../../logic/streak';
 import {
   districtCapacity,
+  gardenSite,
   landmarkSite,
   latestPlant,
   mistFrontier,
   sceneOf,
+  type SceneGarden,
   type SceneLandmark,
   type ScenePlant,
 } from '../../logic/valley';
@@ -33,6 +35,7 @@ import { plural } from '../format';
 import { CampArt } from './camp-art';
 import { CampfireArt } from './campfire-art';
 import { DecorArt } from './decor-art';
+import { ValleyGardenArt } from './garden-scene';
 import { LandmarkMistGradient, ValleyLandmarkArt } from './landmark-scene';
 import { PlantArt, sways } from './plant-art';
 import { WandererArt } from './wanderer-art';
@@ -94,7 +97,7 @@ const STATIC_LAYERS = {
 
 export interface SceneProps {
   valley: ValleyState;
-  /** Боссы — для сооружений в долине: вид, сид, туман. */
+  /** Боссы — для сооружений и мест в долине: вид, сид, туман, число элементов. */
   bosses?: readonly Boss[];
   fire: FireLevel;
   feathers: readonly Feather[];
@@ -105,11 +108,12 @@ export interface SceneProps {
 
 const NO_BOSSES: readonly Boss[] = [];
 
-/** Растение или сооружение — для рисования по глубине. */
+/** Растение, сооружение или место босса — для рисования по глубине. */
 interface DepthItem {
   y: number;
   plant?: ScenePlant;
   landmark?: SceneLandmark;
+  garden?: SceneGarden;
 }
 
 /** Высота кадра в единицах мира (верх неба обрезан). */
@@ -124,7 +128,7 @@ export function focusOf(valley: ValleyState, fresh: string | null): { x: number;
   const latest = latestPlant(valley);
   const p =
     (fresh
-      ? (scene.plants.find((q) => q.id === fresh) ?? scene.decor.find((d) => d.id === fresh) ?? landmarkSite(valley, fresh))
+      ? (scene.plants.find((q) => q.id === fresh) ?? scene.decor.find((d) => d.id === fresh) ?? landmarkSite(valley, fresh) ?? gardenSite(valley, fresh))
       : undefined) ?? (latest ? SLOTS[latest.slot]! : { x: 0, y: CAMP.y });
   return { x: p.x, y: p.y - VIEW_TOP };
 }
@@ -165,23 +169,26 @@ export function ValleyScene({
 }) {
   const scene = useMemo(() => sceneOf(valley, bosses), [valley, bosses]);
 
-  // Туман отходит медленно: сначала там, где был до нового растения или нового сооружения босса, потом на новом месте.
+  // Туман отходит медленно: сначала там, где был до нового растения, сооружения или места босса, потом на новом месте.
   const before = useMemo(() => {
     if (!fresh) return scene.mistX;
     const newLandmark = scene.landmarks.some((l) => l.bossId === fresh && !l.won && l.sessions === 0);
+    const newGarden = scene.gardens.some((g) => g.bossId === fresh && g.sessions === 0);
     return mistFrontier({
       ...valley,
       plants: valley.plants.filter((p) => p.id !== fresh),
       landmarks: newLandmark ? valley.landmarks.filter((l) => l.bossId !== fresh) : valley.landmarks,
+      gardens: newGarden ? valley.gardens.filter((g) => g.bossId !== fresh) : valley.gardens,
     });
   }, [valley, fresh, scene]);
 
-  // Растения и сооружения — вперемешку по глубине: дальние раньше ближних.
+  // Растения, сооружения и места — вперемешку по глубине: дальние раньше ближних.
   const objects = useMemo(
     () =>
       [
-        ...scene.plants.map((p): DepthItem => ({ y: p.y, plant: p })),
+        ...scene.plants.map((p): DepthItem => ({ y: p.depth, plant: p })),
         ...scene.landmarks.map((l): DepthItem => ({ y: l.y, landmark: l })),
+        ...scene.gardens.map((g): DepthItem => ({ y: g.y, garden: g })),
       ].sort((a, b) => a.y - b.y),
     [scene],
   );
@@ -238,8 +245,11 @@ export function ValleyScene({
       ))}
       <path d={STATIC_LAYERS.river} fill="var(--color-river)" />
 
-      {objects.map(({ plant: p, landmark: l }) =>
-        l ? (
+      {objects.map(({ plant: p, landmark: l, garden: g }) =>
+        g ? (
+          // Новый подход — новый ключ: проявление нового элемента начинается заново.
+          <ValleyGardenArt key={`garden-${g.bossId}-${g.sessions}`} g={g} fresh={g.bossId === fresh} />
+        ) : l ? (
           <ValleyLandmarkArt key={`boss-${l.bossId}`} l={l} fresh={l.bossId === fresh} />
         ) : (
           <g key={p!.id} transform={`translate(${p!.x} ${p!.y}) scale(${p!.scale.toFixed(3)})`}>

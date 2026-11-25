@@ -12,6 +12,7 @@ import {
   type Boss,
   type CampKind,
   type DecorKind,
+  type GardenKind,
   type LandmarkKind,
   type PlantKind,
   type PlantSize,
@@ -19,37 +20,49 @@ import {
   type ValleyPlant,
   type ValleyState,
 } from '../model/types';
-import { fogDensity } from './bosses';
+import { fogDensity, gardenView, type GardenView } from './bosses';
 import type { Completion } from './rewards';
 import type { Rng } from './rng';
 import {
   CAMP_SPOTS,
   DECOR_ANCHORS,
   depthScale,
+  FRONT_GARDEN_SITES,
+  GARDEN_SITES,
+  gardenBlocksLandmark,
+  gardenHalfWidth,
+  gardenPatch,
+  gardensOverlap,
   LANDMARK_SITES,
   landmarkHalfWidth,
   MIST_START_X,
   riverX,
   slotsUnder,
+  slotsUnderGarden,
   SLOTS,
   WORLD,
   type Band,
+  type GardenSite,
   type LandmarkSite,
 } from './valley-district';
 
 export function emptyValley(): ValleyState {
-  return { plants: [], decor: [], camp: [], landmarks: [] };
+  return { plants: [], decor: [], camp: [], landmarks: [], gardens: [] };
 }
 
 /** Сколько мест для растений в районе. Часть из них может занять сооружение босса (blockedSlots). */
 export const CAPACITY = SLOTS.length;
 
-/** Места растений под сооружениями боссов: туда не сажают. */
+/** Места растений под сооружениями и местами боссов: туда не сажают. */
 export function blockedSlots(v: ValleyState): Set<number> {
   const blocked = new Set<number>();
   for (const l of v.landmarks) {
     const site = LANDMARK_SITES[l.site];
     if (site) for (const i of slotsUnder(site)) blocked.add(i);
+  }
+  for (const g of v.gardens) {
+    const site = GARDEN_SITES[g.site];
+    if (site) for (const i of slotsUnderGarden(site)) blocked.add(i);
   }
   return blocked;
 }
@@ -264,6 +277,11 @@ export function mistFrontier(v: ValleyState): number {
     const site = LANDMARK_SITES[l.site];
     if (site) x = Math.max(x, site.x + landmarkHalfWidth(site) + 30);
   }
+  // Место бесконечного босса — тоже на открытой земле.
+  for (const g of v.gardens) {
+    const site = GARDEN_SITES[g.site];
+    if (site) x = Math.max(x, site.x + gardenHalfWidth(site) + 30);
+  }
   return x;
 }
 
@@ -272,38 +290,94 @@ function hasLandmark(b: Boss): boolean {
   return b.kind === 'finite' && b.place.landmark !== undefined && (b.status === 'active' || b.status === 'won');
 }
 
-/**
- * Сколько мест растений, уже занятых растениями, закрыло бы сооружение на этом месте.
- * Сооружение ставится туда, где таких меньше всего.
- */
-function plantsUnder(v: ValleyState, site: number): number {
+/** У каких боссов место растёт в долине: бесконечные в работе и в архиве (место и элементы остаются). */
+function hasGarden(b: Boss): boolean {
+  return b.kind === 'endless' && b.place.garden !== undefined && (b.status === 'active' || b.status === 'archived');
+}
+
+/** Сколько из этих мест растений уже заняты растениями. Сооружение и место ставятся туда, где таких меньше всего. */
+function plantsOn(v: ValleyState, slots: readonly number[]): number {
   const taken = new Set(v.plants.map((p) => p.slot));
-  return slotsUnder(LANDMARK_SITES[site]!).filter((i) => taken.has(i)).length;
+  return slots.filter((i) => taken.has(i)).length;
+}
+
+/** Свободное место для сооружения: не занято и не под местом бесконечного босса. Меньше растений, ближе к лагерю. */
+function chooseLandmarkSite(v: ValleyState): number | null {
+  const used = new Set(v.landmarks.map((l) => l.site));
+  let best: number | null = null;
+  let bestUnder = Infinity;
+  for (let i = 0; i < LANDMARK_SITES.length; i++) {
+    if (used.has(i) || v.gardens.some((g) => gardenBlocksLandmark(g.site, i))) continue;
+    const under = plantsOn(v, slotsUnder(LANDMARK_SITES[i]!));
+    if (under < bestUnder) [best, bestUnder] = [i, under];
+  }
+  return best;
 }
 
 /**
- * Сооружения в долине — по боссам: новому конечному боссу — место, отпущенному — убрать.
- * Место — свободное, где меньше всего растений, из таких — ближайшее к лагерю. Все места заняты —
- * сооружение ждёт, пока место освободится (босс работает и без него). Ничего не изменилось — та же долина.
+ * Свободное место для бесконечного босса: сначала на ближней полосе (там оно не мешает сооружениям), потом
+ * на холмах. Из свободных — где меньше растений, из таких — ближе к лагерю.
  */
-export function syncLandmarks(v: ValleyState, bosses: readonly Boss[]): ValleyState {
-  const wanted = new Map(bosses.filter(hasLandmark).map((b) => [b.id, b]));
-  const kept = v.landmarks.filter((l) => wanted.has(l.bossId) && LANDMARK_SITES[l.site]);
-  const placed = new Set(kept.map((l) => l.bossId));
-  const missing = [...wanted.values()].filter((b) => !placed.has(b.id)).sort((a, b) => a.createdAt - b.createdAt);
-  if (missing.length === 0 && kept.length === v.landmarks.length) return v;
-  const landmarks = [...kept];
-  for (const b of missing) {
-    const used = new Set(landmarks.map((l) => l.site));
+function chooseGardenSite(v: ValleyState): number | null {
+  const free = (i: number) =>
+    !v.gardens.some((g) => g.site === i || gardensOverlap(g.site, i)) && !v.landmarks.some((l) => gardenBlocksLandmark(i, l.site));
+  const pick = (from: number, to: number) => {
     let best: number | null = null;
-    for (let i = 0; i < LANDMARK_SITES.length; i++) {
-      if (used.has(i)) continue;
-      if (best === null || plantsUnder(v, i) < plantsUnder(v, best)) best = i;
+    let bestUnder = Infinity;
+    for (let i = from; i < to; i++) {
+      if (!free(i)) continue;
+      const under = plantsOn(v, slotsUnderGarden(GARDEN_SITES[i]!));
+      if (under < bestUnder) [best, bestUnder] = [i, under];
     }
-    if (best === null) break;
-    landmarks.push({ bossId: b.id, site: best });
+    return best;
+  };
+  return pick(0, FRONT_GARDEN_SITES) ?? pick(FRONT_GARDEN_SITES, GARDEN_SITES.length);
+}
+
+/**
+ * Растения, которые оказались на пятне нового места, пересаживаются на свободные места — как новое растение
+ * той же породы (chooseSlot). Пересаживать некуда (долина открыта) — растение остаётся, рисуется позади места.
+ */
+function moveFromGarden(v: ValleyState, site: GardenSite): ValleyState {
+  const under = new Set(slotsUnderGarden(site));
+  let out = v;
+  for (const p of v.plants) {
+    if (!under.has(p.slot)) continue;
+    const slot = chooseSlot(out, p.kind);
+    if (slot === null) break;
+    out = { ...out, plants: out.plants.map((q) => (q.id === p.id ? { ...q, slot } : q)) };
   }
-  return { ...v, landmarks };
+  return out;
+}
+
+/**
+ * Сооружения и места боссов в долине — по боссам. Новому конечному боссу — место для сооружения, отпущенному —
+ * убрать. Новому бесконечному — место в долине; оно остаётся навсегда, и в архиве тоже. Ставятся по порядку
+ * создания боссов. Мест нет — сооружение или место ждёт, пока освободится (босс работает и без него).
+ * Ничего не изменилось — та же долина.
+ */
+export function syncBossPlaces(v: ValleyState, bosses: readonly Boss[]): ValleyState {
+  const wanted = new Map(bosses.filter((b) => hasLandmark(b) || hasGarden(b)).map((b) => [b.id, b]));
+  const is = (id: string, test: (b: Boss) => boolean) => {
+    const b = wanted.get(id);
+    return b !== undefined && test(b);
+  };
+  const landmarks = v.landmarks.filter((l) => is(l.bossId, hasLandmark) && LANDMARK_SITES[l.site]);
+  const gardens = v.gardens.filter((g) => is(g.bossId, hasGarden) && GARDEN_SITES[g.site]);
+  const placed = new Set([...landmarks, ...gardens].map((x) => x.bossId));
+  const missing = [...wanted.values()].filter((b) => !placed.has(b.id)).sort((a, b) => a.createdAt - b.createdAt);
+  if (missing.length === 0 && landmarks.length === v.landmarks.length && gardens.length === v.gardens.length) return v;
+  let out: ValleyState = { ...v, landmarks, gardens };
+  for (const b of missing) {
+    if (b.kind === 'finite') {
+      const site = chooseLandmarkSite(out);
+      if (site !== null) out = { ...out, landmarks: [...out.landmarks, { bossId: b.id, site }] };
+    } else {
+      const site = chooseGardenSite(out);
+      if (site !== null) out = moveFromGarden({ ...out, gardens: [...out.gardens, { bossId: b.id, site }] }, GARDEN_SITES[site]!);
+    }
+  }
+  return out;
 }
 
 /** Где в долине сооружение босса. undefined — не стоит (отпущен, бесконечный или все места заняты). */
@@ -312,9 +386,17 @@ export function landmarkSite(v: ValleyState, bossId: string): LandmarkSite | und
   return l && LANDMARK_SITES[l.site];
 }
 
+/** Где в долине место бесконечного босса. undefined — не растёт (конечный или все места заняты). */
+export function gardenSite(v: ValleyState, bossId: string): GardenSite | undefined {
+  const g = v.gardens.find((x) => x.bossId === bossId);
+  return g && GARDEN_SITES[g.site];
+}
+
 export interface ScenePlant extends ValleyPlant {
   x: number;
   y: number;
+  /** Порядок рисования по глубине: обычно y (дальние раньше ближних). */
+  depth: number;
   scale: number;
 }
 
@@ -345,13 +427,50 @@ export interface SceneLandmark extends LandmarkSite {
   sessions: number;
 }
 
+/** Место бесконечного босса для рисунка: где, какое и сколько в нём элементов (как в gardenView). */
+export interface SceneGarden extends GardenSite {
+  bossId: string;
+  kind: GardenKind;
+  seed: number;
+  view: GardenView;
+  /** Как было до последнего подхода — от этого вида проявляется новый элемент. null — подходов не было. */
+  before: GardenView | null;
+  /** Сколько подходов было. 0 — босс только что заведён. */
+  sessions: number;
+  /** Верх пятна земли: растения, которые остались на пятне, рисуются раньше места. */
+  back: number;
+}
+
 export interface ValleyScene {
   plants: ScenePlant[];
   decor: SceneDecor[];
   camp: SceneCamp[];
   landmarks: SceneLandmark[];
+  gardens: SceneGarden[];
   mistX: number;
   open: boolean;
+}
+
+function sceneGardens(v: ValleyState, bosses: readonly Boss[]): SceneGarden[] {
+  const out: SceneGarden[] = [];
+  for (const g of v.gardens) {
+    const site = GARDEN_SITES[g.site];
+    const b = bosses.find((x) => x.id === g.bossId);
+    if (!site || !b || !hasGarden(b)) continue;
+    const n = b.sessions.length;
+    const p = gardenPatch(site);
+    out.push({
+      ...site,
+      bossId: b.id,
+      kind: b.place.garden!,
+      seed: b.place.seed,
+      view: gardenView(b),
+      before: n > 0 ? gardenView({ ...b, sessions: b.sessions.slice(0, n - 1) }) : null,
+      sessions: n,
+      back: p.cy - p.ry,
+    });
+  }
+  return out;
 }
 
 function sceneLandmarks(v: ValleyState, bosses: readonly Boss[]): SceneLandmark[] {
@@ -371,7 +490,7 @@ function sceneLandmarks(v: ValleyState, bosses: readonly Boss[]): SceneLandmark[
 }
 
 /**
- * Всё, что нужно рисунку: объекты с мировыми координатами (дальние раньше ближних), сооружения боссов
+ * Всё, что нужно рисунку: объекты с мировыми координатами (дальние раньше ближних), сооружения и места боссов
  * и граница тумана.
  */
 export function sceneOf(v: ValleyState, bosses: readonly Boss[] = []): ValleyScene {
@@ -379,7 +498,7 @@ export function sceneOf(v: ValleyState, bosses: readonly Boss[] = []): ValleySce
     .filter((p) => SLOTS[p.slot])
     .map((p) => {
       const s = SLOTS[p.slot]!;
-      return { ...p, x: s.x, y: s.y, scale: depthScale(s.y) };
+      return { ...p, x: s.x, y: s.y, depth: s.y, scale: depthScale(s.y) };
     })
     .sort((a, b) => a.y - b.y);
   const perAnchor = new Map<string, number>();
@@ -392,7 +511,14 @@ export function sceneOf(v: ValleyState, bosses: readonly Boss[] = []): ValleySce
     return { ...d, x: a.x, y: a.y, layer };
   });
   const camp = v.camp.map((kind) => ({ kind, ...CAMP_SPOTS[kind] }));
-  return { plants, decor, camp, landmarks: sceneLandmarks(v, bosses), mistX: mistFrontier(v), open: isDistrictOpen(v) };
+  const gardens = sceneGardens(v, bosses);
+  // Растение, которому не нашлось места при появлении места босса (долина открыта), стоит на пятне земли —
+  // рисуется раньше места, как будто позади него.
+  for (const g of gardens) {
+    const under = new Set(slotsUnderGarden(g));
+    for (const p of plants) if (under.has(p.slot)) p.depth = Math.min(p.depth, g.back - 0.1);
+  }
+  return { plants, decor, camp, landmarks: sceneLandmarks(v, bosses), gardens, mistX: mistFrontier(v), open: isDistrictOpen(v) };
 }
 
 /** Последнее посаженное растение — к нему прокручивается панорама. */

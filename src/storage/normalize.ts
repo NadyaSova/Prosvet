@@ -8,7 +8,7 @@ import { ENTRY_PARTS, normalizeSkills } from '../logic/journal';
 import { lookKey } from '../logic/pigeons';
 import { cleanFinding } from '../logic/stop-questions';
 import { CAPACITY } from '../logic/valley';
-import { LANDMARK_SITES } from '../logic/valley-district';
+import { GARDEN_SITES, LANDMARK_SITES } from '../logic/valley-district';
 import { createPlayer } from '../model/player';
 import {
   BRANCHES,
@@ -40,7 +40,6 @@ import {
   type PlayerState,
   type Settings,
   type ValleyDecor,
-  type ValleyLandmark,
   type ValleyPlant,
   type ValleyState,
 } from '../model/types';
@@ -263,19 +262,26 @@ export function normalizeValley(raw: unknown): ValleyState | null {
   const decor = (Array.isArray(raw.decor) ? raw.decor : []).map(normalizeDecor).filter((d) => d !== null);
   // Вещи лагеря появились на шаге 8. Каждая — не больше одной.
   const camp = CAMP_KINDS.filter((k) => Array.isArray(raw.camp) && raw.camp.includes(k));
-  // Сооружения боссов появились на шаге 7 фазы 2. На одном месте — одно сооружение, у босса — одно место.
-  const sites = new Set<number>();
+  // Сооружения боссов появились на шаге 7 фазы 2, места бесконечных боссов — на шаге 8.
   const owners = new Set<string>();
-  const landmarks: ValleyLandmark[] = [];
-  for (const item of Array.isArray(raw.landmarks) ? raw.landmarks : []) {
+  const landmarks = bossPlaces(raw.landmarks, LANDMARK_SITES.length, owners);
+  const gardens = bossPlaces(raw.gardens, GARDEN_SITES.length, owners);
+  return { plants, decor, camp, landmarks, gardens };
+}
+
+/** Сооружения или места боссов: на одном месте — одно, у босса — одно на всю долину. */
+function bossPlaces(raw: unknown, count: number, owners: Set<string>): { bossId: string; site: number }[] {
+  const sites = new Set<number>();
+  const out: { bossId: string; site: number }[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
     if (!isObject(item) || typeof item.bossId !== 'string' || !Number.isInteger(item.site)) continue;
     const site = item.site as number;
-    if (site < 0 || site >= LANDMARK_SITES.length || sites.has(site) || owners.has(item.bossId)) continue;
+    if (site < 0 || site >= count || sites.has(site) || owners.has(item.bossId)) continue;
     sites.add(site);
     owners.add(item.bossId);
-    landmarks.push({ bossId: item.bossId, site });
+    out.push({ bossId: item.bossId, site });
   }
-  return { plants, decor, camp, landmarks };
+  return out;
 }
 
 function optionalText(raw: unknown): string | undefined {

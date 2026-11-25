@@ -17,7 +17,7 @@ import {
   plantChoices,
   plantForCompletion,
   sceneOf,
-  syncLandmarks,
+  syncBossPlaces,
 } from './valley';
 import { LANDMARK_SITES, landmarkHalfWidth, riverWidth, riverX, slotsUnder, SLOTS, WORLD } from './valley-district';
 
@@ -77,28 +77,28 @@ describe('места сооружений', () => {
 describe('сооружение встаёт в долину', () => {
   it('новый конечный босс — на свободное место ближе к лагерю', () => {
     const b = finite();
-    const v = syncLandmarks(emptyValley(), [b]);
+    const v = syncBossPlaces(emptyValley(), [b]);
     expect(v.landmarks).toEqual([{ bossId: b.id, site: 0 }]);
     expect(landmarkSite(v, b.id)).toBe(LANDMARK_SITES[0]);
   });
 
   it('ничего не изменилось — та же долина', () => {
     const b = finite();
-    const v = syncLandmarks(emptyValley(), [b]);
-    expect(syncLandmarks(v, [withSessions(b, 2)])).toBe(v);
+    const v = syncBossPlaces(emptyValley(), [b]);
+    expect(syncBossPlaces(v, [withSessions(b, 2)])).toBe(v);
     const empty = emptyValley();
-    expect(syncLandmarks(empty, [])).toBe(empty);
+    expect(syncBossPlaces(empty, [])).toBe(empty);
   });
 
   it('бесконечный босс сооружения не ставит', () => {
     const e = createBoss([], { title: 'Тема', kind: 'endless', branch: 'scouting' }, NOW, createRng(1), 'e');
-    expect(syncLandmarks(emptyValley(), [e]).landmarks).toEqual([]);
+    expect(syncBossPlaces(emptyValley(), [e]).landmarks).toEqual([]);
   });
 
   it('место — там, где сооружение закрыло бы меньше растений', () => {
     const v0 = grow(emptyValley(), 30);
     const b = finite();
-    const v = syncLandmarks(v0, [b]);
+    const v = syncBossPlaces(v0, [b]);
     const site = LANDMARK_SITES[v.landmarks[0]!.site]!;
     const taken = new Set(v0.plants.map((p) => p.slot));
     expect(slotsUnder(site).filter((i) => taken.has(i))).toEqual([]);
@@ -107,37 +107,37 @@ describe('сооружение встаёт в долину', () => {
   it('у двух боссов — разные места; по порядку создания', () => {
     const a = finite([], NOW);
     const b = finite([a], NOW + 1);
-    const v = syncLandmarks(emptyValley(), [b, a]);
+    const v = syncBossPlaces(emptyValley(), [b, a]);
     expect(v.landmarks.map((l) => l.bossId)).toEqual([a.id, b.id]);
     expect(new Set(v.landmarks.map((l) => l.site)).size).toBe(2);
   });
 
   it('победа — сооружение остаётся; «отпустить» — уходит, место свободно', () => {
     const a = finite();
-    const v = syncLandmarks(emptyValley(), [a]);
-    expect(syncLandmarks(v, [winBoss(a, NOW)])).toBe(v);
-    const released = syncLandmarks(v, [releaseBoss(a, NOW)]);
+    const v = syncBossPlaces(emptyValley(), [a]);
+    expect(syncBossPlaces(v, [winBoss(a, NOW)])).toBe(v);
+    const released = syncBossPlaces(v, [releaseBoss(a, NOW)]);
     expect(released.landmarks).toEqual([]);
     const next = finite();
-    expect(syncLandmarks(released, [releaseBoss(a, NOW), next]).landmarks).toEqual([{ bossId: next.id, site: 0 }]);
+    expect(syncBossPlaces(released, [releaseBoss(a, NOW), next]).landmarks).toEqual([{ bossId: next.id, site: 0 }]);
   });
 
   it('все места заняты — сооружение ждёт, пока место освободится', () => {
     const bosses: Boss[] = [];
     for (let i = 0; i <= LANDMARK_SITES.length; i++) bosses.push(finite(bosses, NOW + i));
-    let v = syncLandmarks(emptyValley(), bosses);
+    let v = syncBossPlaces(emptyValley(), bosses);
     const last = bosses.at(-1)!;
     expect(v.landmarks).toHaveLength(LANDMARK_SITES.length);
     expect(landmarkSite(v, last.id)).toBeUndefined();
     bosses[0] = releaseBoss(bosses[0]!, NOW);
-    v = syncLandmarks(v, bosses);
+    v = syncBossPlaces(v, bosses);
     expect(landmarkSite(v, last.id)).toBe(LANDMARK_SITES[0]);
   });
 });
 
 describe('долина вокруг сооружения', () => {
   it('под сооружением не сажают', () => {
-    const v = syncLandmarks(emptyValley(), [finite()]);
+    const v = syncBossPlaces(emptyValley(), [finite()]);
     const blocked = blockedSlots(v);
     expect(blocked.size).toBeGreaterThan(0);
     for (const i of plantChoices(v)) expect(blocked.has(i)).toBe(false);
@@ -156,14 +156,14 @@ describe('долина вокруг сооружения', () => {
 
   it('сооружение стоит на открытой земле: общий туман за ним', () => {
     const v0 = grow(emptyValley(), 40);
-    const v = syncLandmarks(v0, [finite()]);
+    const v = syncBossPlaces(v0, [finite()]);
     const site = landmarkSite(v, v.landmarks[0]!.bossId)!;
     expect(mistFrontier(v)).toBeGreaterThanOrEqual(site.x + landmarkHalfWidth(site));
   });
 
   it('туман над сооружением редеет с подходами, после победы его нет', () => {
     const b = finite();
-    const v = syncLandmarks(emptyValley(), [b]);
+    const v = syncBossPlaces(emptyValley(), [b]);
     const fresh = sceneOf(v, [b]).landmarks[0]!;
     expect(fresh).toMatchObject({ bossId: b.id, kind: b.place.landmark, seed: b.place.seed, fog: 1, fogBefore: 1, won: false, sessions: 0 });
     const three = sceneOf(v, [withSessions(b, 3)]).landmarks[0]!;
@@ -175,7 +175,7 @@ describe('долина вокруг сооружения', () => {
   });
 
   it('без боссов сооружений в картине нет', () => {
-    const v = syncLandmarks(emptyValley(), [finite()]);
+    const v = syncBossPlaces(emptyValley(), [finite()]);
     expect(sceneOf(v).landmarks).toEqual([]);
   });
 

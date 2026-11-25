@@ -5,7 +5,7 @@ import { useState } from 'preact/hooks';
 import { addSession, createBoss, startStopwatch, winBoss } from '../logic/bosses';
 import type { Completion } from '../logic/rewards';
 import { createRng } from '../logic/rng';
-import { emptyValley, landmarkSite, plantForCompletion, syncLandmarks } from '../logic/valley';
+import { emptyValley, landmarkSite, plantForCompletion, syncBossPlaces } from '../logic/valley';
 import { LANDMARK_SITES, WORLD } from '../logic/valley-district';
 import { BRANCHES, LANDMARK_KINDS, type Boss, type LandmarkKind, type ValleyState } from '../model/types';
 import { LANDMARK_NAMES } from '../ui/valley/landmark-art';
@@ -33,7 +33,7 @@ function boss(i: number, landmark: LandmarkKind, sessions: number, won = false):
 /** Все 11 сооружений: подходов от 0 до 8, три — победы. */
 const STAGES: [sessions: number, won?: boolean][] = [[0], [1], [2], [3], [4], [6], [8], [5, true], [3, true], [1], [2, true]];
 const ALL = LANDMARK_KINDS.map((k, i) => boss(i, k, ...STAGES[i]!));
-const BIG_VALLEY = syncLandmarks(grown(40), ALL);
+const BIG_VALLEY = syncBossPlaces(grown(40), ALL);
 
 function stageText(b: Boss): string {
   if (b.status === 'won') return 'победа';
@@ -60,14 +60,14 @@ function Replay({ title, valley, bosses, fresh }: { title: string; valley: Valle
 // Молодая долина: первый босс.
 const YOUNG = grown(12);
 const FIRST = boss(20, 'windmill', 0);
-const YOUNG_WITH = syncLandmarks(YOUNG, [FIRST]);
+const YOUNG_WITH = syncBossPlaces(YOUNG, [FIRST]);
 // Подход: четвёртый, сквозь туман проступает силуэт.
 const MILL3 = boss(21, 'observatory', 3);
 const MILL4 = boss(21, 'observatory', 4);
-const SESSION_VALLEY = syncLandmarks(grown(25), [MILL3]);
+const SESSION_VALLEY = syncBossPlaces(grown(25), [MILL3]);
 // Победа.
 const PAGODA = boss(22, 'pagoda', 5);
-const VICTORY_VALLEY = syncLandmarks(grown(25), [PAGODA]);
+const VICTORY_VALLEY = syncBossPlaces(grown(25), [PAGODA]);
 
 export function ValleyLandmarksSection() {
   return (
