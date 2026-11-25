@@ -13,6 +13,7 @@
 // трава и цветы; полная — через BLOOM_FULL подходов сверх ёмкости.
 
 import type { JSX } from 'preact';
+import { useId } from 'preact/hooks';
 import { BALANCE } from '../../config/balance';
 import { createRng, pickFrom, pickWeighted, shuffled, type Rng } from '../../logic/rng';
 import type { GardenKind } from '../../model/types';
@@ -170,55 +171,240 @@ function Tuft({ x, y, h, rng }: { x: number; y: number; h: number; rng: Rng }) {
 }
 
 // ---------- 1. Пруд с рыбками ----------
+// Переделка 25.11.2026: прежние рыбки (вид сбоку, оранжевые, красные и кои вперемешку) были мелкие и пёстрые,
+// пруд — ровный эллипс в толстом зелёном кольце. Теперь — кои, видные сверху: тело-капля, слегка изогнутое
+// буквой S, два грудных плавника в стороны, хвост-веер, узор — пятна на спине, без обводки. Пруд неровный
+// (по сиду), с тонкой тёмной кромкой, камнями по краю и камышом группами; вода темнее к середине, чтобы
+// белые рыбы читались. Рыбы крупные — около 1/6 ширины пруда — и плавают кто куда, часть — под кувшинками.
 
-const POND = { cy: -15.5, rx: 50, ry: 13.5 };
-const WATER_DEEP = '#88bbd0';
+/** Пруд: середина и полуоси до неровностей. */
+const POND = { cy: -15, rx: 48, ry: 13 };
+const WATER_EDGE = '#5b8a92';
+/** На тон глубже PALETTE.river — середина пруда. */
+const WATER_DEEP = '#80b4ca';
 const CATTAIL = '#7a4f33';
 
-/** Обычные рыбки: основной цвет, плавники, цвет «ярче» для пышности, пятна у кои. */
-const FISH = [
-  { body: '#e8833a', fin: '#f2a86a', bright: '#f5701e' }, // оранжевая
-  { body: '#f3ebdf', fin: '#f8efe4', bright: '#fffaf2', spots: '#d8503a' }, // белая с красным, как кои
-  { body: '#d9603d', fin: '#ec9a78', bright: '#ec4a22' }, // красная
-  { body: '#efa64c', fin: '#f6c98a', bright: '#fb9d24' }, // рыжая
-];
+const KOI_WHITE = '#f7efe0';
+const KOI_RED = '#d9573a';
+const KOI_BLACK = PALETTE.ink;
+/** Длина рыбы с хвостом — около 1/6 ширины пруда. */
+const KOI_LENGTH = (2 * POND.rx) / 6;
+/** До стольких рыб размер полный; дальше рыбы мельчают, и вместе они занимают столько же воды, сколько 12 полных. */
+const KOI_CROWD = 12;
+const koiSize = (n: number) => (n <= KOI_CROWD ? 1 : Math.sqrt(KOI_CROWD / n));
+/** Пруд виден наискосок: рыба сплющена по вертикали. */
+const KOI_SQUASH = 0.6;
 
-function Fish({ item, s, gold, run }: { item: Item; s: number; gold: boolean; run: boolean }) {
-  const { rng } = item;
-  const c = pickFrom(FISH, rng);
-  const dir = rng() < 0.5 ? 1 : -1;
-  const drift = 1.2 + rng() * 1.6;
-  const dur = 5 + rng() * 4;
-  const begin = -rng() * dur;
-  const wag = 0.7 + rng() * 0.4;
-  const body = gold ? PALETTE.goldBright : item.bright ? c.bright : c.body;
-  const fin = gold ? PALETTE.sun : c.fin;
-  const tail = gold
-    ? 'M-3.2 0 C-5.5 -2.8 -8.6 -3.4 -9.2 -1.6 C-7.8 -0.6 -7.8 0.6 -9.2 1.6 C-8.6 3.4 -5.5 2.8 -3.2 0 Z'
-    : 'M-3.2 0 L-6.4 -2.1 Q-5.6 0 -6.4 2.1 Z';
-  const k = gold ? s * 1.3 : s;
+/** Пятно на спине: цвет, где вдоль тела (0 — нос, 1 — хвост), сдвиг поперёк, полуоси. */
+type Mark = [color: string, u: number, dy: number, rx: number, ry: number];
+
+interface Koi {
+  name: string;
+  body: string;
+  /** Плавники и хвост. */
+  fin: string;
+  marks: Mark[];
+  /** Как часто встречается. */
+  weight: number;
+}
+
+export const KOI: Record<string, Koi> = {
+  kohaku: {
+    name: 'Кохаку — белый с красным',
+    body: KOI_WHITE,
+    fin: KOI_WHITE,
+    weight: 3,
+    marks: [
+      [KOI_RED, 0.12, 0, 1.25, 1],
+      [KOI_RED, 0.43, -0.25, 1.8, 1.25],
+      [KOI_RED, 0.73, 0.3, 1, 0.7],
+    ],
+  },
+  tancho: {
+    name: 'Тантё — красное пятно на голове',
+    body: KOI_WHITE,
+    fin: KOI_WHITE,
+    weight: 1,
+    marks: [[KOI_RED, 0.11, 0, 0.75, 0.62]],
+  },
+  sanke: {
+    name: 'Санке — белый с красным и чёрным',
+    body: KOI_WHITE,
+    fin: KOI_WHITE,
+    weight: 2,
+    marks: [
+      [KOI_RED, 0.14, 0.1, 1.1, 0.9],
+      [KOI_RED, 0.5, -0.2, 1.5, 1.1],
+      [KOI_BLACK, 0.33, 0.75, 0.45, 0.35],
+      [KOI_BLACK, 0.63, -0.6, 0.5, 0.4],
+      [KOI_BLACK, 0.8, 0.25, 0.35, 0.3],
+    ],
+  },
+  bekko: {
+    name: 'Сиро бекко — белый с чёрным',
+    body: KOI_WHITE,
+    fin: KOI_WHITE,
+    weight: 2,
+    marks: [
+      [KOI_BLACK, 0.3, -0.5, 0.55, 0.45],
+      [KOI_BLACK, 0.52, 0.5, 0.65, 0.5],
+      [KOI_BLACK, 0.76, -0.2, 0.45, 0.35],
+    ],
+  },
+  showa: {
+    name: 'Сёва — чёрный с красным и белым',
+    body: KOI_BLACK,
+    fin: KOI_BLACK,
+    weight: 1,
+    marks: [
+      [KOI_RED, 0.15, 0, 1.1, 0.9],
+      [KOI_RED, 0.48, 0.3, 1.4, 1],
+      [KOI_WHITE, 0.35, -0.8, 0.7, 0.5],
+      [KOI_WHITE, 0.7, -0.3, 0.6, 0.45],
+    ],
+  },
+};
+export type KoiKind = keyof typeof KOI;
+
+/** Особая — золотая кои (огон), без искр. */
+const GOLD_KOI: Koi = { name: 'Огон', body: PALETTE.goldBright, fin: PALETTE.sun, marks: [], weight: 0 };
+
+/** Замкнутая плавная линия через точки (сплайн Катмулла — Рома). */
+function smoothClosed(pts: [number, number][]): string {
+  const n = pts.length;
+  const at = (i: number) => pts[(i + n) % n]!;
+  const f = (v: number) => v.toFixed(2);
+  let d = `M${f(at(0)[0])} ${f(at(0)[1])}`;
+  for (let i = 0; i < n; i++) {
+    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    d += ` C${f(p1[0] + (p2[0] - p0[0]) / 6)} ${f(p1[1] + (p2[1] - p0[1]) / 6)} ${f(p2[0] - (p3[0] - p1[0]) / 6)} ${f(p2[1] - (p3[1] - p1[1]) / 6)} ${f(p2[0])} ${f(p2[1])}`;
+  }
+  return `${d} Z`;
+}
+
+// Рыба нарисована носом вправо: нос — x = 5, начало хвоста — x = −3,5, конец веера — около −6,1.
+const KOI_NOSE = 5;
+const KOI_BODY = 8.5;
+const KOI_HALF = 1.55;
+/** Полуширина тела вдоль него (доли KOI_HALF): капля, шире всего ближе к голове. */
+const KOI_PROFILE: [u: number, w: number][] = [
+  [0, 0],
+  [0.08, 0.62],
+  [0.2, 0.9],
+  [0.35, 1],
+  [0.5, 0.92],
+  [0.65, 0.72],
+  [0.8, 0.48],
+  [0.92, 0.28],
+  [1, 0.16],
+];
+/** Длина с хвостом: тело и веер. */
+const KOI_FULL = KOI_BODY + 2.6;
+const KOI_TAIL = 'M0.3 0 C-0.8 -0.5 -1.9 -1.9 -2.6 -2 C-2.1 -0.7 -2.1 0.7 -2.6 2 C-1.9 1.9 -0.8 0.5 0.3 0 Z';
+
+/** Одна кои: тело изогнуто буквой S на bend (0 — прямая). */
+function KoiShape({ koi, bend, clip }: { koi: Koi; bend: number; clip: string }) {
+  const xAt = (u: number) => KOI_NOSE - u * KOI_BODY;
+  const yAt = (u: number) => bend * Math.sin(2 * Math.PI * u);
+  const top = KOI_PROFILE.map(([u, w]) => [xAt(u), yAt(u) - KOI_HALF * w] as [number, number]);
+  const bottom = KOI_PROFILE.map(([u, w]) => [xAt(u), yAt(u) + KOI_HALF * w] as [number, number]);
+  const body = smoothClosed([...top, ...bottom.slice(1).reverse()]);
+  // Хвост — по направлению конца изгиба.
+  const tailAngle = (Math.atan2(-2 * Math.PI * bend, KOI_BODY) * 180) / Math.PI;
+  const fu = 0.22;
+  const fw = KOI_HALF * 0.92;
+  const fx = xAt(fu) - 0.6;
+  const fy = yAt(fu);
   return (
-    <g transform={`translate(${item.x} ${item.y}) scale(${dir * k} ${k})`}>
-      <g>
-        {run && (
-          <animateTransform attributeName="transform" type="translate" values={`0 0;${drift} 0.3;0 0`} dur={`${dur}s`} begin={`${begin}s`} repeatCount="indefinite" />
-        )}
-        <path d={tail} fill={fin}>
-          {run && <animateTransform attributeName="transform" type="rotate" values="-14 -3.2 0;14 -3.2 0;-14 -3.2 0" dur={`${wag}s`} repeatCount="indefinite" />}
-        </path>
-        <path d="M-1.6 -1.4 Q0.1 -3 1.5 -1.5 Z" fill={fin} />
-        <ellipse rx="4" ry="1.75" fill={body} />
-        {c.spots && !gold && (
-          <>
-            <ellipse cx="-0.9" cy="-0.5" rx="1.3" ry="0.85" fill={c.spots} />
-            <ellipse cx="1.5" cy="0.35" rx="0.75" ry="0.6" fill={c.spots} />
-          </>
-        )}
-        {(item.bright || gold) && <path d="M-2.2 -0.95 Q0.4 -1.7 2.6 -0.75" stroke="#fff" stroke-width="0.4" fill="none" opacity="0.6" stroke-linecap="round" />}
-        <circle cx="2.7" cy="-0.35" r="0.38" fill={PALETTE.ink} />
+    <g>
+      <defs>
+        <clipPath id={clip}>
+          <path d={body} />
+        </clipPath>
+      </defs>
+      <g fill={koi.fin} opacity="0.92">
+        <ellipse cx={fx} cy={fy - fw - 0.45} rx="1.25" ry="0.55" transform={`rotate(35 ${fx} ${fy - fw - 0.45})`} />
+        <ellipse cx={fx} cy={fy + fw + 0.45} rx="1.25" ry="0.55" transform={`rotate(-35 ${fx} ${fy + fw + 0.45})`} />
+        <path d={KOI_TAIL} transform={`translate(${xAt(1)} ${yAt(1).toFixed(2)}) rotate(${tailAngle.toFixed(1)})`} />
+      </g>
+      <path d={body} fill={koi.body} />
+      <g clip-path={`url(#${clip})`}>
+        {koi.marks.map(([color, u, dy, rx, ry], j) => (
+          <ellipse key={j} cx={xAt(u).toFixed(2)} cy={(yAt(u) + dy).toFixed(2)} rx={rx} ry={ry} fill={color} />
+        ))}
       </g>
     </g>
   );
+}
+
+/**
+ * Дрейф по дуге: полкруга в свою очередь, остановка, вторые полкруга — и рыба там, где была.
+ * Плывут только DRIFT_SWIMMERS рыб пруда (выбраны по сиду), по одной: следующая начинает через DRIFT_SLOT секунд.
+ * У остальных анимации нет вовсе — в долине может быть несколько боссов, а движение нагружает процессор.
+ */
+const DRIFT_SECONDS = 7;
+const DRIFT_SLOT = 10;
+const DRIFT_SWIMMERS = 3;
+
+function Fish({
+  item,
+  gold,
+  size,
+  half,
+  begin,
+  clip,
+  run,
+}: {
+  item: Item;
+  gold: boolean;
+  /** Множитель размера от числа рыб — koiSize. */
+  size: number;
+  half: number;
+  begin: number;
+  clip: string;
+  run: boolean;
+}) {
+  const { rng } = item;
+  const koi = gold ? GOLD_KOI : pickWeighted(Object.values(KOI), (k) => k.weight, rng);
+  const heading = rng() * 360;
+  const bend = (rng() < 0.5 ? -1 : 1) * (0.3 + rng() * 0.4);
+  const k = (KOI_LENGTH / KOI_FULL) * size * depth(item.y, POND.cy - POND.ry, POND.cy + POND.ry) * (gold ? 1.15 : 1);
+  // Круг, по которому плывёт, начинается в месте рыбы и уходит носом вперёд; по часовой или против — по сиду.
+  const r = (3.5 + rng() * 3).toFixed(2);
+  const cw = rng() < 0.5;
+  const loop = cw ? `M0 0 A${r} ${r} 0 0 1 0 ${2 * +r} A${r} ${r} 0 0 1 0 0` : `M0 0 A${r} ${r} 0 0 0 0 ${-2 * +r} A${r} ${r} 0 0 0 0 0`;
+  const cycle = 2 * half;
+  const m = DRIFT_SECONDS / cycle;
+  const ease = '0.45 0 0.55 1';
+  return (
+    <g transform={`translate(${item.x.toFixed(2)} ${item.y.toFixed(2)}) scale(1 ${KOI_SQUASH}) rotate(${heading.toFixed(1)})`}>
+      <g>
+        {run && (
+          <animateMotion
+            // path нет в типах Preact для animateMotion, хотя это обычный атрибут SVG
+            {...({ path: loop } as Record<string, string>)}
+            rotate="auto"
+            keyPoints="0;0.5;0.5;1;1"
+            keyTimes={`0;${m.toFixed(4)};0.5;${(0.5 + m).toFixed(4)};1`}
+            calcMode="spline"
+            keySplines={`${ease};0 0 1 1;${ease};0 0 1 1`}
+            dur={`${cycle.toFixed(2)}s`}
+            begin={`${begin.toFixed(2)}s`}
+            repeatCount="indefinite"
+          />
+        )}
+        <g transform={`scale(${k.toFixed(3)})`}>
+          <KoiShape koi={koi} bend={bend} clip={clip} />
+        </g>
+      </g>
+    </g>
+  );
+}
+
+/** Одна кои крупно, для галереи: длина около 11, носом вправо; gold — особая золотая. */
+export function KoiSample({ kind, gold = false, bend = 0.45 }: { kind?: KoiKind; gold?: boolean; bend?: number }) {
+  const clip = `koi-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  return <KoiShape koi={gold ? GOLD_KOI : KOI[kind!]!} bend={bend} clip={clip} />;
 }
 
 /** Лист кувшинки — овал с вырезом; с цветком или без. */
@@ -251,58 +437,110 @@ function LilyPad({ x, y, s, rng, flower }: { x: number; y: number; s: number; rn
 
 function Pond(p: PlaceProps) {
   const rng = createRng(p.seed);
-  const side = pickFrom([1, -1], rng);
-  const extra = elemRng(p.seed, 999, 0x51ed270b);
-  const inWater = (x: number, y: number) => (x / 43) ** 2 + ((y - POND.cy) / 10.3) ** 2 < 1;
-  const slots = scatter(createRng(p.seed ^ 0x5bd1e995), BALANCE.bosses.gardenCapacity, inWater, [-43, POND.cy - 10.3, 43, POND.cy + 10.3], 9.5);
+  const id = `pond-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  // Неровный край: радиус по углу — сумма трёх волн со случайными сдвигами.
+  const waves = [1, 2, 3].map((h) => ({ h, a: (0.04 + rng() * 0.04) / h ** 0.3, ph: rng() * Math.PI * 2 }));
+  const rad = (th: number) => 1 + waves.reduce((s, w) => s + w.a * Math.cos(w.h * th + w.ph), 0);
+  const rim = (th: number, out = 0): [number, number] => [(POND.rx * rad(th) + out) * Math.cos(th), POND.cy + (POND.ry * rad(th) + out * 0.3) * Math.sin(th)];
+  const outline = smoothClosed(Array.from({ length: 24 }, (_, j) => rim((j / 24) * Math.PI * 2)));
+
+  const inner = (x: number, y: number) => (x / (POND.rx * 0.9 - 7)) ** 2 + ((y - POND.cy) / (POND.ry * 0.9 - 3)) ** 2 < 1;
+  const box: [number, number, number, number] = [-POND.rx, POND.cy - POND.ry, POND.rx, POND.cy + POND.ry];
+  const slots = scatter(createRng(p.seed ^ 0x5bd1e995), BALANCE.bosses.gardenCapacity, inner, box, 14);
   const items = makeItems(p, slots).sort(byDepth);
-  const s = 1 + 0.12 * p.t;
-  // Камыш на дальнем берегу; при пышности гуще.
-  const reeds = Array.from({ length: 11 }, () => ({
-    dx: (rng() - 0.5) * 13,
-    h: 11 + rng() * 10,
-    bend: (rng() - 0.5) * 3,
-    head: rng() < 0.55,
-  })).slice(0, 6 + Math.round(p.t * 5));
-  const stones = [-34, -4, 28].map((x0) => {
-    const x = x0 + (rng() - 0.5) * 12;
-    return { x, y: POND.cy + 14.8 * Math.sqrt(1 - (x / 54) ** 2), rx: 2.2 + rng() * 1.8, c: pickFrom(PEBBLES, rng) };
+  const fish = items.filter((it) => it.rank === undefined || it.rank % 2 === 1);
+  // Плывут несколько рыб по очереди, по одной за раз.
+  const swimmers = shuffled(
+    fish.map((it) => it.i),
+    createRng(p.seed ^ 0x27d4eb2f),
+  ).slice(0, DRIFT_SWIMMERS);
+  const half = Math.max(1, swimmers.length) * DRIFT_SLOT;
+
+  // Кувшинки: две всегда, при пышности до семи; особые — с цветком, на месте своего элемента.
+  const s = 1.3 * (1 + 0.12 * p.t);
+  const extra = elemRng(p.seed, 999, 0x51ed270b);
+  const inPads = (x: number, y: number) => (x / (POND.rx * 0.85)) ** 2 + ((y - POND.cy) / (POND.ry * 0.75)) ** 2 < 1;
+  const pads = scatter(extra, 7, inPads, box, 16).slice(0, 2 + Math.round(p.t * 5));
+
+  // Камыш группами на дальнем берегу и по бокам; при пышности гуще.
+  const groups = Array.from({ length: 2 + (rng() < 0.5 ? 1 : 0) }, (_, g) => {
+    const th = Math.PI * (1.08 + (0.84 * (g + 0.2 + rng() * 0.6)) / 3);
+    const [bx, by] = rim(th);
+    return Array.from({ length: 9 }, () => ({
+      x: bx + (rng() - 0.5) * 7,
+      y: by + rng() * 1.2,
+      h: 9 + rng() * 9,
+      bend: (rng() - 0.5) * 3,
+      head: rng() < 0.55,
+    })).slice(0, 4 + Math.round(p.t * 4) + (g === 0 ? 1 : 0));
   });
-  const pads = scatter(extra, 6, inWater, [-43, POND.cy - 10.3, 43, POND.cy + 10.3], 12).slice(0, Math.round(p.t * 6));
-  const tufts = Array.from({ length: 5 }, () => ({ x: -side * (36 + rng() * 16), y: -3 - rng() * 6, h: 3.5 + rng() * 2.5, r: elemRng(p.seed, 500, rng() * 1e9) }));
-  const reedX = side * 41;
+  // Камни по краю: 3–5, в разных местах.
+  const stoneCount = 3 + Math.floor(rng() * 3);
+  const stones = Array.from({ length: stoneCount }, (_, j) => {
+    const th = ((j + 0.2 + rng() * 0.6) / stoneCount) * Math.PI * 2;
+    const [x, y] = rim(th, 0.5);
+    return { x, y, rx: 2.2 + rng() * 1.6, c: pickFrom(PEBBLES, rng) };
+  }).sort(byDepth);
+  const tufts = [0.12, 0.42, 0.62, 0.88].map((f, j) => {
+    const [x, y] = rim(Math.PI * f, 1.5);
+    return { x, y: y + 1, h: 3.5 + rng() * 2.5, r: elemRng(p.seed, 500 + j) };
+  });
+
   return (
     <g>
-      {/* камыш с рогозом на дальнем берегу */}
+      <defs>
+        <clipPath id={`${id}-water`}>
+          <path d={outline} />
+        </clipPath>
+        <radialGradient id={`${id}-deep`} cx="0.5" cy="0.55" r="0.5">
+          <stop offset="0" stop-color={WATER_DEEP} />
+          <stop offset="0.65" stop-color={WATER_DEEP} stop-opacity="0.55" />
+          <stop offset="1" stop-color={WATER_DEEP} stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      {/* камыш с рогозом */}
       <g stroke-linecap="round" fill="none">
-        {reeds.map((r, i) => (
+        {groups.flat().map((r, i) => (
           <g key={i}>
-            <path d={`M${reedX + r.dx} -26 q${r.bend * 0.4} ${-r.h * 0.6} ${r.bend} ${-r.h}`} stroke={LEAVES[i % 3]} stroke-width="0.8" />
-            {r.head && <rect x={reedX + r.dx + r.bend * 0.85 - 0.75} y={-26 - r.h * 0.88} width="1.5" height="3.6" rx="0.7" fill={CATTAIL} />}
+            <path d={`M${r.x.toFixed(2)} ${r.y.toFixed(2)} q${r.bend * 0.4} ${-r.h * 0.6} ${r.bend} ${-r.h}`} stroke={LEAVES[i % 3]} stroke-width="0.8" />
+            {r.head && <rect x={r.x + r.bend * 0.85 - 0.75} y={r.y - r.h * 0.88} width="1.5" height="3.6" rx="0.7" fill={CATTAIL} />}
           </g>
         ))}
       </g>
-      {/* берег, вода, глубина, блики */}
-      <ellipse cx="0" cy={POND.cy} rx="55" ry="16" fill={PALETTE.hillNear} />
-      <ellipse cx="0" cy={POND.cy} rx={POND.rx} ry={POND.ry} fill={PALETTE.river} />
-      <ellipse cx="2" cy={POND.cy + 0.8} rx="37" ry="8.6" fill={WATER_DEEP} opacity="0.7" />
-      <path d="M-30 -24 h8 M14 -25 h10 M-12 -7.5 h7 M24 -9 h6" stroke={RIPPLE} stroke-width="0.7" stroke-linecap="round" />
-      {/* рыбки под водой, сверху — тонкий слой воды */}
-      {items.filter((it) => it.rank === undefined || it.rank % 2 === 1).map((it) => (
-        <Fish key={it.i} item={it} s={s} gold={it.rank !== undefined} run={p.run} />
-      ))}
-      <ellipse cx="0" cy={POND.cy} rx={POND.rx} ry={POND.ry} fill={PALETTE.river} opacity="0.18" />
+      {/* вода: светлая у края, глубже к середине */}
+      <path d={outline} fill={PALETTE.river} />
+      <path d={outline} fill={`url(#${id}-deep)`} />
+      <path d="M-28 -23 h7 M13 -24.5 h9 M-14 -8 h6 M22 -9.5 h5" stroke={RIPPLE} stroke-width="0.6" stroke-linecap="round" opacity="0.8" />
+      {/* рыбы под водой, обрезаны по краю пруда; сверху — тонкий слой воды */}
+      <g clip-path={`url(#${id}-water)`}>
+        {fish.map((it) => (
+          <Fish
+            key={it.i}
+            item={it}
+            gold={it.rank !== undefined}
+            size={koiSize(p.n)}
+            half={half}
+            begin={swimmers.indexOf(it.i) * DRIFT_SLOT}
+            clip={`${id}-koi${it.i}`}
+            run={p.run && swimmers.includes(it.i)}
+          />
+        ))}
+        <path d={outline} fill={PALETTE.river} opacity="0.12" />
+      </g>
       {/* кувшинки на воде */}
       {pads.map(([x, y], i) => (
-        <LilyPad key={`pad${i}`} x={x} y={y} s={0.8 * s} rng={elemRng(p.seed, 700 + i)} flower={false} />
+        <LilyPad key={`pad${i}`} x={x} y={y} s={s} rng={elemRng(p.seed, 700 + i)} flower={false} />
       ))}
-      {items.filter((it) => it.rank !== undefined && it.rank % 2 === 0).map((it) => (
-        <LilyPad key={it.i} x={it.x} y={it.y} s={1.15 * s} rng={it.rng} flower />
-      ))}
-      {items.filter((it) => it.rank !== undefined).map((it) => (
-        <Sparkle key={`sp${it.i}`} x={it.x + 3.5} y={it.y - 3.5} rng={elemRng(p.seed, it.i, 0x7f4a7c15)} run={p.run} />
-      ))}
-      {/* камни и трава на ближнем берегу */}
+      {items
+        .filter((it) => it.rank !== undefined && it.rank % 2 === 0)
+        .map((it) => (
+          <g key={it.i}>
+            <LilyPad x={it.x} y={it.y} s={s * 1.1} rng={it.rng} flower />
+            <Sparkle x={it.x + 4.5} y={it.y - 4} rng={elemRng(p.seed, it.i, 0x7f4a7c15)} run={p.run} />
+          </g>
+        ))}
+      {/* тонкая тёмная кромка, камни и трава по краю */}
+      <path d={outline} fill="none" stroke={WATER_EDGE} stroke-width="0.7" />
       {stones.map((st, i) => (
         <g key={i}>
           <ellipse cx={st.x} cy={st.y} rx={st.rx} ry={st.rx * 0.6} fill={st.c.body} />

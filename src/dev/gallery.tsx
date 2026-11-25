@@ -4,11 +4,7 @@
 
 import { render } from 'preact';
 import '../styles.css';
-import { BossesSection } from './gallery-bosses';
-import { GardensSection } from './gallery-gardens';
-import { StopQuestionsSection, XpIconSection } from './gallery-reward';
-import { ValleyGardensSection } from './gallery-valley-gardens';
-import { WeekSection } from './gallery-week';
+import { PondSection } from './gallery-pond';
 
 function Gallery() {
   return (
@@ -16,17 +12,7 @@ function Gallery() {
       <h1>Галерея рисунков</h1>
       <p class="muted">Страница только для разработки. Правки рисунков видны здесь сразу, без перезагрузки.</p>
 
-      <WeekSection />
-
-      <ValleyGardensSection />
-
-      <BossesSection />
-
-      <GardensSection />
-
-      <XpIconSection />
-
-      <StopQuestionsSection />
+      <PondSection />
     </main>
   );
 }
