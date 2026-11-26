@@ -4,12 +4,15 @@
 
 import { render } from 'preact';
 import '../styles.css';
+import { ApiarySection } from './gallery-apiary';
 
 function Gallery() {
   return (
     <main class="gallery">
       <h1>Галерея рисунков</h1>
       <p class="muted">Страница только для разработки. Правки рисунков видны здесь сразу, без перезагрузки.</p>
+
+      <ApiarySection />
     </main>
   );
 }

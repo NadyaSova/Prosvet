@@ -125,12 +125,6 @@ function specialRanks(n: number, special: number, cap: number, rng: Rng): Map<nu
   return ranks;
 }
 
-/** Особый ли элемент по своему месту в ряду (каждый specialEvery-й), а не превращённый после ёмкости. */
-function nativeSpecial(i: number): boolean {
-  const every = BALANCE.bosses.specialEvery;
-  return i % every === every - 1;
-}
-
 function makeItems(p: PlaceProps, slots: [number, number][]): Item[] {
   return slots.slice(0, p.n).map(([x, y], i) => {
     const rng = elemRng(p.seed, i);
@@ -1168,7 +1162,8 @@ function Flowerbed(p: PlaceProps) {
 
 const CLEARING = { cy: -13, rx: 56, ry: 12.5 };
 const CLEARING_GRASS = '#a6c695';
-const WATTLE = '#a07850';
+/** Забор — низкий, из светлых жердей (просьба пользователя 26.11.2026): на тёмном плетне пчёлы терялись. */
+const FENCE = { height: 6, rails: [2, 4.6], post: '#c4b291', rail: '#e6dbc4', shade: '#b09d7b' };
 
 /** Улей: цвет стенок и «ярче» для пышности. */
 const HIVES = [
@@ -1182,16 +1177,48 @@ const HIVE_ROOFS = ['#7d5638', '#66707a', '#a0573e'];
 const STRAW = '#d9b26a';
 const STRAW_BAND = '#b8893f';
 
-/** Ряды для ульев: дальний и ближний. Ульи ставятся от середины к краям. */
-const HIVE_ROWS = [
-  { y: -18, xs: [-42, -28, -14, 0, 14, 28, 42] },
-  { y: -6.5, xs: [-35, -21, -7, 7, 21, 35] },
+/** Места ульев: на поляне не больше шести (решение пользователя 26.11.2026) — четыре в дальнем ряду, два в ближнем. */
+const HIVE_SLOTS = [
+  // Ряды неровные: ульи стоят вразнобой, а не по линейке (просьба пользователя 26.11.2026).
+  { x: -27, y: -19 },
+  { x: -9, y: -15.5 },
+  { x: 9, y: -19.5 },
+  { x: 27, y: -15.5 },
+  { x: -18, y: -6.5 },
+  { x: 18, y: -9 },
 ];
+/**
+ * Улей — на 1-м подходе и на каждом 6-м: 1, 6, 12, 18, 24, 30 — шесть ульев к ёмкости.
+ * Пчёл — столько, сколько подходов: подход с ульем даёт ещё и пчелу над ним. Решения пользователя 26.11.2026.
+ */
+const HIVE_EVERY = 6;
+const isHiveElement = (i: number) => i === 0 || (i + 1) % HIVE_EVERY === 0;
 
-function Hive({ x, y, s, rng, bright }: { x: number; y: number; s: number; rng: Rng; bright: boolean }) {
-  const c = pickFrom(HIVES, rng);
-  const roof = pickFrom(HIVE_ROOFS, rng);
-  const boxes = rng() < 0.5 ? 2 : 3;
+/**
+ * Пчёлы не ближе друг к другу, чем BEE_GAP: могут чуть заходить одна на другую, но остаются отдельными
+ * (просьба пользователя 26.11.2026).
+ */
+const BEE_GAP = 4.5;
+/** Пчела улья — над ним. */
+const HIVE_BEE_RISE = 20;
+
+/** Пчёлы летают по очереди, как бабочки машут крыльями: каждая следующая начинает через BEE_START_EVERY секунд. */
+const BEE_FLY_SECONDS = 2.4;
+const BEE_START_EVERY = 1.5;
+/** Цикл не короче: при нескольких пчёлах они летают с передышкой, а не без конца. */
+const BEE_CYCLE_MIN = 6;
+
+/** Вид улья для галереи: номер цвета в HIVES, крыши в HIVE_ROOFS и число корпусов; без него — по сиду. */
+interface HiveLook {
+  color: number;
+  roof: number;
+  boxes: number;
+}
+
+function Hive({ x, y, s, rng, bright, look }: { x: number; y: number; s: number; rng: Rng; bright: boolean; look?: HiveLook }) {
+  const c = look ? HIVES[look.color]! : pickFrom(HIVES, rng);
+  const roof = look ? HIVE_ROOFS[look.roof]! : pickFrom(HIVE_ROOFS, rng);
+  const boxes = look ? look.boxes : rng() < 0.5 ? 2 : 3;
   const body = bright ? c.bright : c.body;
   const top = -2.6 - boxes * 4.4;
   return (
@@ -1236,13 +1263,17 @@ function Skep({ x, y, s, rng, run }: { x: number; y: number; s: number; rng: Rng
   );
 }
 
-function Bee({ x, y, s, rng, run, gold }: { x: number; y: number; s: number; rng: Rng; run: boolean; gold: boolean }) {
+/**
+ * Пчела. В свою очередь (первые BEE_FLY_SECONDS цикла от begin) облетает петлю и возвращается на место,
+ * остальное время висит в воздухе.
+ */
+function Bee({ x, y, s, rng, run, gold, begin, cycle }: { x: number; y: number; s: number; rng: Rng; run: boolean; gold: boolean; begin: number; cycle: number }) {
   const ax = 1.5 + rng() * 2;
   const ay = 1 + rng() * 1.2;
-  const dur = 1.8 + rng() * 1.8;
-  const begin = -rng() * dur;
   const dir = rng() < 0.5 ? 1 : -1;
   const k = gold ? s * 1.6 : s * 1.2;
+  const w = BEE_FLY_SECONDS / cycle;
+  const ease = '0.45 0 0.55 1';
   return (
     <g transform={`translate(${x} ${y}) scale(${dir * k} ${k})`}>
       <g>
@@ -1250,15 +1281,19 @@ function Bee({ x, y, s, rng, run, gold }: { x: number; y: number; s: number; rng
           <animateTransform
             attributeName="transform"
             type="translate"
-            values={`0 0;${ax} ${-ay};${2 * ax} 0;${ax} ${ay};0 0`}
-            dur={`${dur}s`}
-            begin={`${begin}s`}
+            values={`0 0;${ax} ${-ay};${2 * ax} 0;${ax} ${ay};0 0;0 0`}
+            keyTimes={[0, w / 4, w / 2, (3 * w) / 4, w, 1].map((t) => t.toFixed(4)).join(';')}
+            calcMode="spline"
+            keySplines={`${ease};${ease};${ease};${ease};0 0 1 1`}
+            dur={`${cycle.toFixed(2)}s`}
+            begin={`${begin.toFixed(2)}s`}
             repeatCount="indefinite"
           />
         )}
         <ellipse cx="-0.4" cy="-1" rx="0.9" ry="0.55" transform="rotate(-25 -0.4 -1)" fill="#fff" opacity="0.85" />
         <ellipse cx="0.3" cy="-1.1" rx="0.8" ry="0.5" transform="rotate(20 0.3 -1.1)" fill="#fff" opacity="0.85" />
-        <ellipse rx="1.25" ry="0.85" fill={gold ? PALETTE.goldBright : '#e2b04a'} />
+        {/* тонкий тёмный контур — чтобы пчела была видна и на светлом небе, и на траве */}
+        <ellipse rx="1.25" ry="0.85" fill={gold ? PALETTE.goldBright : '#e2b04a'} stroke={PALETTE.ink} stroke-width="0.22" />
         <path d="M-0.35 -0.75 V0.75 M0.35 -0.8 V0.8" stroke={PALETTE.ink} stroke-width="0.35" />
         <circle cx="1.2" cy="-0.1" r="0.45" fill={PALETTE.ink} />
       </g>
@@ -1267,54 +1302,85 @@ function Bee({ x, y, s, rng, run, gold }: { x: number; y: number; s: number; rng
   );
 }
 
+/** Для галереи: сколько цветов ульев и крыш. */
+export const HIVE_KINDS = { colors: HIVES.length, roofs: HIVE_ROOFS.length };
+
+/** Для галереи: один улей крупно, начало — на земле под серединой. */
+export function HiveSample({ color, roof, boxes, bright = false }: HiveLook & { bright?: boolean }) {
+  return <Hive x={0} y={0} s={1} rng={createRng(1)} bright={bright} look={{ color, roof, boxes }} />;
+}
+
+/** Для галереи: улей-колпак (особый элемент пасеки). */
+export function SkepSample({ still = true }: { still?: boolean }) {
+  return <Skep x={0} y={0} s={1} rng={createRng(1)} run={!still && moves()} />;
+}
+
+/** Для галереи: пчела; gold — особая. */
+export function BeeSample({ gold = false, still = true }: { gold?: boolean; still?: boolean }) {
+  return <Bee x={0} y={0} s={1} rng={createRng(3)} run={!still && moves()} gold={gold} begin={0} cycle={BEE_CYCLE_MIN} />;
+}
+
 function Apiary(p: PlaceProps) {
   const rng = createRng(p.seed);
   const side = pickFrom([1, -1], rng);
-  const every = BALANCE.bosses.specialEvery;
   const inClearing = (x: number, y: number) => (x / (CLEARING.rx - 4)) ** 2 + ((y - CLEARING.cy) / (CLEARING.ry - 1.5)) ** 2 < 1;
-  // Места ульев — от середины к краям, с разбросом по сиду.
+  // Места ульев — примерно от середины к краям, ряды вперемешку; с разбросом по сиду.
   const slotRng = createRng(p.seed ^ 0x5bd1e995);
-  const hiveSlots = HIVE_ROWS.flatMap((row) => row.xs.map((x) => ({ x: x + (slotRng() - 0.5) * 3, y: row.y + (slotRng() - 0.5) * 1.5, key: Math.abs(x) + slotRng() * 18 })))
-    .sort((a, b) => a.key - b.key);
-  const beeSlots = scatter(slotRng, BALANCE.bosses.gardenCapacity, (x, y) => Math.abs(x) < 50 && y < -9, [-50, -40, 50, -9], 8);
-  // Элементы по порядку: каждый specialEvery-й — улей-колпак, из остальных каждый четвёртый — улей, прочие — пчёлы.
+  const hiveSlots = HIVE_SLOTS.map((h) => ({
+    x: h.x + (slotRng() - 0.5) * 3,
+    y: h.y + (slotRng() - 0.5) * 2.5,
+    key: Math.abs(h.x) + (h.y > -10 ? 4 : 0) + slotRng() * 18,
+  })).sort((a, b) => a.key - b.key);
+  // Пчёлы ульев — над своими ульями; места остальных пчёл (и пчёл пышности, до десяти) — не ближе к ним.
+  const hiveBees = hiveSlots.map((h) => ({ x: h.x + 3, y: h.y - HIVE_BEE_RISE }));
+  const beeSlots = scatter(
+    slotRng,
+    BALANCE.bosses.gardenCapacity + 10,
+    (x, y) => Math.abs(x) < 50 && y < -9 && hiveBees.every((b) => Math.hypot(b.x - x, (b.y - y) * 2) >= BEE_GAP),
+    [-50, -40, 50, -9],
+    BEE_GAP,
+  );
+  // Элементы по порядку: 1-й и каждый 6-й — улей (особый — колпак) с пчелой над ним, прочие — пчёлы (особые — золотые).
   const items = makeItems(p, Array.from({ length: p.n }, () => [0, 0] as [number, number]));
   let hives = 0;
   let bees = 0;
   const placed = items.map((it) => {
-    const regular = it.i - Math.floor((it.i + 1) / every);
-    const hiveLike = nativeSpecial(it.i) || regular % 4 === 0;
-    const slot = hiveLike ? hiveSlots[hives++ % hiveSlots.length]! : { x: beeSlots[bees]![0], y: beeSlots[bees++]![1] };
+    const hiveLike = isHiveElement(it.i) && hives < hiveSlots.length;
+    const slot = hiveLike ? hiveSlots[hives++]! : { x: beeSlots[bees]![0], y: beeSlots[bees++]![1] };
     return { ...it, x: slot.x, y: slot.y, hiveLike };
   });
   const s = 1 + 0.1 * p.t;
   const extra = elemRng(p.seed, 999, 0x51ed270b);
   const flowers = scatter(extra, 24, inClearing, [-52, CLEARING.cy - 11, 52, CLEARING.cy + 11], 7).slice(0, 9 + Math.round(p.t * 15));
   const flowerLook = flowers.map(() => ({ c: pickFrom(['#fbf7ef', '#e8a0b8', '#a88fd0', '#fbf7ef'], extra), lavender: extra() < 0.3 }));
-  const extraBees = beeSlots.slice(0, Math.round(p.t * 10)).map(([x, y], i) => ({ x: x + 3, y: y + 2, rng: elemRng(p.seed, 800 + i) }));
+  // Все пчёлы: по одной на подход (у улья — над ним), при пышности — ещё до десяти на свободных местах.
+  const allBees = [
+    ...placed.map((it) =>
+      it.hiveLike
+        ? { key: `h${it.i}`, x: it.x + 3, y: it.y - HIVE_BEE_RISE * s, rng: elemRng(p.seed, 900 + it.i), gold: false }
+        : { key: `${it.i}`, x: it.x, y: it.y, rng: it.rng, gold: it.rank !== undefined },
+    ),
+    ...beeSlots.slice(bees, bees + Math.round(p.t * 10)).map(([x, y], i) => ({ key: `b${i}`, x, y, rng: elemRng(p.seed, 800 + i), gold: false })),
+  ];
+  // Летают по очереди: каждая следующая начинает через BEE_START_EVERY секунд после предыдущей.
+  const beeCycle = Math.max(BEE_CYCLE_MIN, allBees.length * BEE_START_EVERY);
+  const beeTurn = shuffled(
+    allBees.map((_, j) => j),
+    createRng(p.seed ^ 0x27d4eb2f),
+  );
   const posts = Array.from({ length: 9 }, (_, k) => {
     const x = -50 + k * 12.5;
     return { x, y: CLEARING.cy - CLEARING.ry * Math.sqrt(1 - (x / CLEARING.rx) ** 2) + 2 };
   });
-  const weave = [3, 5.5, 8].map((h, band) =>
-    posts
-      .map((pt, k) => {
-        if (k === 0) return `M${pt.x} ${pt.y - h}`;
-        const prev = posts[k - 1]!;
-        const bulge = (k + band) % 2 === 0 ? 0.9 : -0.9;
-        return `Q${(prev.x + pt.x) / 2} ${(prev.y + pt.y) / 2 - h + bulge} ${pt.x} ${pt.y - h}`;
-      })
-      .join(' '),
-  );
+  const rails = FENCE.rails.map((h) => posts.map((pt, k) => `${k === 0 ? 'M' : 'L'}${pt.x} ${pt.y - h}`).join(' ')).join(' ');
   const ground = placed.filter((it) => it.hiveLike).sort(byDepth);
-  const air = placed.filter((it) => !it.hiveLike);
   return (
     <g>
-      {/* поляна и плетень */}
+      {/* поляна и низкий забор из светлых жердей */}
       <ellipse cx="0" cy={CLEARING.cy} rx={CLEARING.rx} ry={CLEARING.ry} fill={CLEARING_GRASS} />
-      <path d={posts.map((pt) => `M${pt.x} ${pt.y} V${pt.y - 10}`).join(' ')} stroke={PALETTE.barkDark} stroke-width="1.1" stroke-linecap="round" />
-      <path d={weave.join(' ')} stroke={WATTLE} stroke-width="1.6" fill="none" stroke-linecap="round" />
-      <path d={weave.join(' ')} stroke={PALETTE.bark} stroke-width="0.4" fill="none" opacity="0.6" />
+      <path d={posts.map((pt) => `M${pt.x} ${pt.y} V${pt.y - FENCE.height}`).join(' ')} stroke={FENCE.post} stroke-width="1.1" stroke-linecap="round" />
+      <path d={rails} transform="translate(0 0.45)" stroke={FENCE.shade} stroke-width="0.8" fill="none" stroke-linecap="round" />
+      <path d={rails} stroke={FENCE.rail} stroke-width="0.8" fill="none" stroke-linecap="round" />
       {/* клевер и лаванда */}
       {flowers.map(([x, y], i) =>
         flowerLook[i]!.lavender ? (
@@ -1344,11 +1410,8 @@ function Apiary(p: PlaceProps) {
           <Hive key={it.i} x={it.x} y={it.y} s={s * depth(it.y, -18, -6.5)} rng={it.rng} bright={it.bright} />
         ),
       )}
-      {air.map((it) => (
-        <Bee key={it.i} x={it.x} y={it.y} s={s} rng={it.rng} run={p.run} gold={it.rank !== undefined} />
-      ))}
-      {extraBees.map((b, i) => (
-        <Bee key={`b${i}`} x={b.x} y={b.y} s={s} rng={b.rng} run={p.run} gold={false} />
+      {allBees.map((b, j) => (
+        <Bee key={b.key} x={b.x} y={b.y} s={s} rng={b.rng} run={p.run} gold={b.gold} begin={beeTurn.indexOf(j) * BEE_START_EVERY} cycle={beeCycle} />
       ))}
     </g>
   );
