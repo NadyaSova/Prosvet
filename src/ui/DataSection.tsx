@@ -59,7 +59,7 @@ export function DataSection({ db, settings, persistence, onChange }: Props) {
   return (
     <section class="card data">
       <h2>Данные</h2>
-      <p>Всё хранится только на этом телефоне. {persistence && PERSISTENCE_TEXT[persistence]}</p>
+      <p>Данные хранятся на этом телефоне. {persistence && PERSISTENCE_TEXT[persistence]}</p>
       <p>
         Первый запуск: {dateFormat.format(settings.createdAt)}
         <br />

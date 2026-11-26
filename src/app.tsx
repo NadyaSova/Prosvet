@@ -74,6 +74,7 @@ import { CouponScreen } from './ui/CouponScreen';
 import { PrizeScreen } from './ui/PrizeScreen';
 import { bossRoute, go, goHome, journalRoute, replaceRoute, shopRoute, useRoute, valleyRoute } from './ui/router';
 import { SettingsScreen } from './ui/SettingsScreen';
+import { startDrive } from './drive/controller';
 import { ShopScreen } from './ui/ShopScreen';
 import { StopwatchScreen } from './ui/StopwatchScreen';
 import { TimerScreen } from './ui/TimerScreen';
@@ -413,6 +414,9 @@ function Game({ db, initial, initialCustom, persistence }: GameProps) {
   function saveWish(text: string) {
     saveWeek(setWish(weekRef.current, weekStart(dayOf(Date.now())), text));
   }
+
+  // Сохранение в Google Drive, пока действует вход (docs/phase2-plan.md §7.1). Отметка «последняя копия» — в настройки.
+  useEffect(() => startDrive(db, (s) => setSettings((prev) => ({ ...prev, lastBackupAt: s.lastBackupAt }))), []);
 
   useEffect(() => {
     refresh();

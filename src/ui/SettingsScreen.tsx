@@ -6,6 +6,7 @@ import type { ProsvetDb } from '../storage/db';
 import type { AppData } from '../storage/repo';
 import { BackBar } from './common';
 import { DataSection } from './DataSection';
+import { DriveSection } from './DriveSection';
 import { minutesText } from './format';
 import { BRANCH_NAMES } from './labels';
 import { ask } from './confirm';
@@ -70,6 +71,7 @@ export function SettingsScreen(p: Props) {
       </section>
 
       <DataSection db={p.db} settings={p.settings} persistence={p.persistence} onChange={p.onDataChange} />
+      <DriveSection db={p.db} onChange={p.onDataChange} />
     </main>
   );
 }

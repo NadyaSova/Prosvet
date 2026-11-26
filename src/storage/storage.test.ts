@@ -11,9 +11,11 @@ import {
   backupFileName,
   exportSnapshot,
   importSnapshot,
+  markBackup,
   needsBackupReminder,
   parseSnapshot,
   serializeSnapshot,
+  withBackupMark,
 } from './backup';
 import { openProsvetDb, SCHEMA_VERSION } from './db';
 import {
@@ -224,6 +226,19 @@ describe('резервная копия', () => {
     expect((snap.data.kv.settings as { lastBackupAt: number }).lastBackupAt).toBe(later);
     expect((await loadAppData(db, later)).settings.lastBackupAt).toBe(later);
     expect(snap.schemaVersion).toBe(SCHEMA_VERSION);
+  });
+
+  it('для Drive: выгрузка без отметки, отметка — отдельно, после записи копии', async () => {
+    const db = await filledDb();
+    const later = NOW + 5 * DAY_MS;
+    const snap = await exportSnapshot(db, later, false);
+    expect((snap.data.kv.settings as { lastBackupAt: number | null }).lastBackupAt).toBeNull();
+    expect((await loadAppData(db, later)).settings.lastBackupAt).toBeNull();
+    const marked = withBackupMark(snap, later);
+    expect((marked.data.kv.settings as { lastBackupAt: number }).lastBackupAt).toBe(later);
+    expect(parseSnapshot(serializeSnapshot(marked)).data.achievements).toEqual(snap.data.achievements);
+    expect((await markBackup(db, later)).lastBackupAt).toBe(later);
+    expect((await loadAppData(db, later)).settings.lastBackupAt).toBe(later);
   });
 
   it('чужой файл не загружается', () => {

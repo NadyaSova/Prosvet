@@ -38,14 +38,17 @@ const SNAPSHOT_MIGRATIONS: Record<number, (s: Snapshot) => Snapshot> = {
 };
 
 /**
- * Собирает копию всех данных. Заодно отмечает в настройках, что копия сделана,
- * и эта отметка попадает в саму копию.
+ * Собирает копию всех данных. Заодно (mark) отмечает в настройках, что копия сделана,
+ * и эта отметка попадает в саму копию. Без mark данные не меняются: так Drive сначала смотрит,
+ * изменилось ли что-нибудь, а отметку ставит после того, как копия записана (markBackup).
  */
-export async function exportSnapshot(db: ProsvetDb, now: number): Promise<Snapshot> {
+export async function exportSnapshot(db: ProsvetDb, now: number, mark = true): Promise<Snapshot> {
   const tx = db.transaction(STORE_NAMES, 'readwrite');
   const kvStore = tx.objectStore('kv');
-  const settings: Settings = { ...normalizeSettings(await kvStore.get('settings'), now), lastBackupAt: now };
-  await kvStore.put(settings, 'settings');
+  if (mark) {
+    const settings: Settings = { ...normalizeSettings(await kvStore.get('settings'), now), lastBackupAt: now };
+    await kvStore.put(settings, 'settings');
+  }
 
   const kv: Snapshot['data']['kv'] = {};
   for (const key of KV_KEYS) {
@@ -65,6 +68,22 @@ export async function exportSnapshot(db: ProsvetDb, now: number): Promise<Snapsh
     exportedAt: new Date(now).toISOString(),
     data: { kv, tasks, achievements, pigeons, bosses, findings },
   };
+}
+
+/** Копия с отметкой о себе: settings.lastBackupAt = now — как у копии, сделанной с mark. */
+export function withBackupMark(s: Snapshot, now: number): Snapshot {
+  const settings = { ...normalizeSettings(s.data.kv.settings, now), lastBackupAt: now };
+  return { ...s, exportedAt: new Date(now).toISOString(), data: { ...s.data, kv: { ...s.data.kv, settings } } };
+}
+
+/** Отмечает в настройках, что копия сделана; возвращает новые настройки. */
+export async function markBackup(db: ProsvetDb, now: number): Promise<Settings> {
+  const tx = db.transaction('kv', 'readwrite');
+  const kv = tx.objectStore('kv');
+  const settings: Settings = { ...normalizeSettings(await kv.get('settings'), now), lastBackupAt: now };
+  await kv.put(settings, 'settings');
+  await tx.done;
+  return settings;
 }
 
 export function serializeSnapshot(s: Snapshot): string {
