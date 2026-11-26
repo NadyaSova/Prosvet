@@ -555,11 +555,17 @@ function Pond(p: PlaceProps) {
 }
 
 // ---------- 2. Цветник ----------
+// Переделка 25.11.2026 (docs/tasks/flowerbed-redesign.md): прежние цветы были девяти несвязанных оттенков,
+// нарисованы с разных точек зрения и стояли редко на тонких стеблях над тёмной землёй — выглядело уныло.
+// Теперь одна сине-красно-фиолетовая палитра; все цветы видны сбоку и чуть сверху и построены одинаково:
+// заливка, тень того же цвета, маленькая светлая середина, без обводок. Элемент — куст: горка листвы и 2–3
+// цветка одного вида и цвета. Вид и цвет куста — от его места: клумбы по диагонали засажены одной цветовой
+// схемой, у изгороди — белый бордюр, ближе к середине — крупные цветы. Земля, песок, бортик и лейка — светлее.
 
 /**
  * Овальный цветник, видный сверху наискосок: бортик, по кругу и крест-накрест — посыпанные дорожки,
  * посередине круглая площадка с фонтанчиком или солнечными часами. Четыре клумбы обведены низкой
- * стриженой изгородью; цветы растут на клумбах.
+ * стриженой изгородью; кусты растут на клумбах.
  */
 const BED = {
   cy: -15,
@@ -577,18 +583,455 @@ const BED = {
   px: 11,
   py: 4.4,
 };
-const SOIL = '#7d5a42';
-const GRAVEL = '#e3d5b4';
-const GRAVEL_DOT = '#c9b994';
+/** Вскопанная земля — тёплая и светлая, чтобы пустой цветник не был тёмным пятном. */
+const SOIL = '#ab7d5a';
+const SOIL_FURROW = '#946649';
+const GRAVEL = '#f0e4c8';
+const GRAVEL_DOT = '#d9c8a0';
 const HEDGE = '#4f8344';
 const HEDGE_LIGHT = '#6ea25b';
 
 const BED_EDGES = [
-  { top: '#a37a52', face: PALETTE.bark, dash: '9 0.7' }, // доски
-  { top: '#cbc1b3', face: '#a39888', dash: '4 0.8' }, // камень
-  { top: '#c98a6e', face: '#a85e44', dash: '2.6 0.5' }, // кирпич
+  { top: '#c9a275', face: '#9c7652', dash: '9 0.7' }, // доски
+  { top: '#e4dccf', face: '#bfb4a3', dash: '4 0.8' }, // камень
+  { top: '#dfa384', face: '#b9765b', dash: '2.6 0.5' }, // кирпич
 ] as const;
-const FOUNTAIN_STONE = { body: '#c3b8a8', light: '#d8cfc2', dark: '#9a8f82' };
+/** Камень фонтанчика, солнечных часов и вазонов — светлый и тёплый. */
+const FOUNTAIN_STONE = { body: '#d9cfbe', light: '#ece4d7', dark: '#b4a791' };
+/** Лейка — крашеная: приглушённый зелёный или терракота. */
+const CANS = [
+  { body: '#88ae90', dark: '#65896e' },
+  { body: '#cd8b69', dark: '#a8684c' },
+];
+
+const n2 = (v: number) => v.toFixed(2);
+
+// --- Палитра цветника ---
+
+/** Тот же цвет, смешанный с белым на долю amount: светлый блик того же оттенка. */
+function tint(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => Math.round(v + (255 - v) * amount).toString(16).padStart(2, '0');
+  return `#${ch(n >> 16)}${ch((n >> 8) & 255)}${ch(n & 255)}`;
+}
+
+/** Цвет цветка: заливка, тень того же оттенка (второй слой лепестков), блик сверху, «ярче» — для пышности. */
+interface Bloom {
+  name: string;
+  base: string;
+  shade: string;
+  light: string;
+  bright: string;
+}
+const bloom = (name: string, base: string, bright: string, shade = 0.2): Bloom => ({ name, base, shade: darker(base, shade), light: tint(base, 0.4), bright });
+
+/**
+ * Сине-красно-фиолетовая гамма (выбор пользователя): один красный — малиновый, белый — для бордюра.
+ * Малиновый, фиолетовый и васильковый подняты на тон-два (просьба пользователя 26.11.2026).
+ */
+export const BLOOMS = {
+  crimson: bloom('малиновый', '#e25d79', '#ef5378'),
+  orchid: bloom('розово-сиреневый', '#e08cbf', '#ec7fc6'),
+  lilac: bloom('сиреневый', PALETTE.petalLilac, '#d29cf0'),
+  violet: bloom('фиолетовый', '#a580dc', '#a874ec'),
+  cornflower: bloom('васильковый', '#8aa6ee', '#7c9cfa'),
+  sky: bloom('светло-голубой', '#b3c6f4', '#a9c0ff'),
+  white: bloom('белый', '#fbf7ef', '#ffffff', 0.09),
+};
+export type BloomColor = keyof typeof BLOOMS;
+/** Жёлтый — только серединки: оживляет холодную гамму. */
+const EYE = '#f1d36a';
+
+export type BedFlowerKind = 'tulip' | 'aster' | 'daisy' | 'bell' | 'spike';
+export type Planting = readonly [BedFlowerKind, BloomColor];
+type Band = 'inner' | 'mid' | 'border';
+
+interface Scheme {
+  name: string;
+  /** Ближе к середине — крупные и высокие. */
+  inner: readonly Planting[];
+  mid: readonly Planting[];
+  /** У изгороди — низкий белый бордюр. */
+  border: readonly Planting[];
+}
+
+/** Цветовые схемы клумб: клумбы по диагонали — одной схемы. В полосе виды чередуются пятнами по углу. */
+export const FLOWERBED_SCHEMES = {
+  blue: {
+    name: 'Сине-сиреневая',
+    inner: [
+      ['spike', 'cornflower'],
+      ['tulip', 'lilac'],
+    ],
+    mid: [
+      ['aster', 'sky'],
+      ['bell', 'cornflower'],
+      ['aster', 'lilac'],
+    ],
+    border: [['daisy', 'white']],
+  },
+  red: {
+    name: 'Красно-фиолетовая',
+    inner: [
+      ['tulip', 'crimson'],
+      ['spike', 'violet'],
+    ],
+    mid: [
+      ['aster', 'orchid'],
+      ['tulip', 'violet'],
+      ['aster', 'crimson'],
+    ],
+    border: [['daisy', 'white']],
+  },
+} satisfies Record<string, Scheme>;
+export type SchemeKey = keyof typeof FLOWERBED_SCHEMES;
+
+/** Редкие (каждый 5-й подход): роза, ирис, лилия — насыщеннее и с золотом. */
+const RARE = [
+  { name: 'роза', shade: '#8f1d40', base: '#c83256', light: tint('#c83256', 0.4), bright: '#d82c5c', eye: PALETTE.goldBright },
+  { name: 'ирис', shade: '#6a49b0', base: '#7886e0', light: tint('#7886e0', 0.4), bright: '#6e80f4', eye: PALETTE.goldBright },
+  { name: 'лилия', shade: '#e4d9c9', base: '#fbf7ef', light: '#ffffff', bright: '#ffffff', eye: '#c0508a', gold: PALETTE.goldBright },
+];
+
+// --- Головки цветов: пути, чтобы головки одного куста складывались в одну фигуру ---
+
+type Pen = (px: number, py: number) => string;
+/** Точка головки (px, py) в координатах куста: головка стоит в (x, y), масштаб k. */
+const pen =
+  (x: number, y: number, k: number): Pen =>
+  (px, py) =>
+    `${n2(x + px * k)} ${n2(y + py * k)}`;
+
+function ellD(P: Pen, k: number, cx: number, cy: number, rx: number, ry: number): string {
+  const a = `${n2(rx * k)} ${n2(ry * k)} 0 1 0`;
+  return `M${P(cx - rx, cy)} A${a} ${P(cx + rx, cy)} A${a} ${P(cx - rx, cy)} Z`;
+}
+
+/** Розетка лепестков, сплющенная как овал клумбы: n лепестков, inner — глубина выреза между ними. */
+function rosetteD(P: Pen, cy: number, rx: number, ry: number, n: number, inner: number, phase: number, pointy = false): string {
+  const at = (a: number, r: number) => P(r * rx * Math.cos(a), cy + r * ry * Math.sin(a));
+  const step = (2 * Math.PI) / n;
+  const tip = pointy ? 1 : 2 - inner * Math.cos(step / 2);
+  let d = `M${at(phase, inner)}`;
+  for (let j = 0; j < n; j++) {
+    const a = phase + j * step;
+    d += pointy ? ` L${at(a + step / 2, tip)} L${at(a + step, inner)}` : ` Q${at(a + step / 2, tip)} ${at(a + step, inner)}`;
+  }
+  return `${d} Z`;
+}
+
+/** Колосок (лаванда, шалфей): начало — внизу, высота 5. */
+function spikeD(P: Pen): string {
+  return (
+    `M${P(0, -5)} C${P(0.5, -4.8)} ${P(0.6, -4.2)} ${P(0.4, -3.9)} C${P(0.8, -3.6)} ${P(0.8, -2.9)} ${P(0.5, -2.6)} ` +
+    `C${P(0.9, -2.3)} ${P(0.9, -1.5)} ${P(0.5, -1.2)} C${P(0.9, -0.9)} ${P(0.8, -0.1)} ${P(0, 0)} ` +
+    `C${P(-0.8, -0.1)} ${P(-0.9, -0.9)} ${P(-0.5, -1.2)} C${P(-0.9, -1.5)} ${P(-0.9, -2.3)} ${P(-0.5, -2.6)} ` +
+    `C${P(-0.8, -2.9)} ${P(-0.8, -3.6)} ${P(-0.4, -3.9)} C${P(-0.6, -4.2)} ${P(-0.5, -4.8)} ${P(0, -5)} Z`
+  );
+}
+
+/** Слои головки: тень (снизу), заливка, середина; у лилии — ещё золотые тычинки. */
+interface HeadPaths {
+  shade: string;
+  base: string;
+  /** Светлый блик сверху: отделяет головку от зелени. */
+  light: string;
+  eye: string;
+  gold?: string;
+}
+
+function headD(kind: BedFlowerKind, x: number, y: number, k: number): HeadPaths {
+  const P = pen(x, y, k);
+  switch (kind) {
+    case 'tulip':
+      // Чашка; сверху видно её отверстие и серединку между лепестками.
+      return {
+        shade: ellD(P, k, 0, -1.3, 1.25, 0.55),
+        base: `M${P(-1.35, -1.55)} Q${P(-0.6, -1.45)} ${P(0, -1)} Q${P(0.6, -1.45)} ${P(1.35, -1.55)} C${P(1.45, 0.2)} ${P(0.8, 1.3)} ${P(0, 1.3)} C${P(-0.8, 1.3)} ${P(-1.45, 0.2)} ${P(-1.35, -1.55)} Z`,
+        light: ellD(P, k, -0.6, -0.75, 0.32, 0.6),
+        eye: ellD(P, k, 0, -1.25, 0.35, 0.2),
+      };
+    case 'aster':
+      return {
+        shade: rosetteD(P, 0.35, 2, 1.05, 12, 0.55, 0),
+        base: rosetteD(P, 0, 1.85, 0.95, 12, 0.55, Math.PI / 12),
+        light: ellD(P, k, 0, -0.5, 1.15, 0.3),
+        eye: ellD(P, k, 0, -0.05, 0.6, 0.35),
+      };
+    case 'daisy':
+      return {
+        shade: rosetteD(P, 0.3, 1.7, 0.9, 10, 0.5, 0),
+        base: rosetteD(P, 0, 1.6, 0.82, 10, 0.5, Math.PI / 10),
+        light: ellD(P, k, 0, -0.45, 1, 0.26),
+        eye: ellD(P, k, 0, -0.05, 0.62, 0.38),
+      };
+    case 'bell':
+      // Колокольчик висит: снизу видно его тёмное устье и пестик.
+      return {
+        shade: ellD(P, k, 0, 0.95, 1.05, 0.4),
+        base: `M${P(-1.05, 0.95)} C${P(-1.15, -0.4)} ${P(-0.6, -1.2)} ${P(0, -1.2)} C${P(0.6, -1.2)} ${P(1.15, -0.4)} ${P(1.05, 0.95)} Q${P(0, 0.3)} ${P(-1.05, 0.95)} Z`,
+        light: ellD(P, k, -0.35, -0.55, 0.35, 0.4),
+        eye: ellD(P, k, 0, 1.05, 0.22, 0.16),
+      };
+    case 'spike':
+      return { shade: spikeD(pen(x + 0.35 * k, y + 0.15 * k, k)), base: spikeD(P), light: ellD(P, k, -0.15, -3.6, 0.22, 1), eye: '' };
+  }
+}
+
+/** Редкая головка: 0 — роза, 1 — ирис, 2 — лилия. */
+function rareD(rank: number, x: number, y: number, k: number): HeadPaths {
+  const P = pen(x, y, k);
+  switch (rank % 3) {
+    case 0:
+      // Роза — чашка: дальние лепестки, два передних с вырезом, золотая середина.
+      return {
+        shade: ellD(P, k, 0, -1.5, 2.1, 1.1),
+        base: `M${P(-2.1, -1.5)} C${P(-2, 0)} ${P(-1, 0.9)} ${P(0, 0.9)} C${P(1, 0.9)} ${P(2, 0)} ${P(2.1, -1.5)} C${P(1.4, -0.9)} ${P(0.7, -1.3)} ${P(0, -0.8)} C${P(-0.7, -1.3)} ${P(-1.4, -0.9)} ${P(-2.1, -1.5)} Z`,
+        light: ellD(P, k, -0.9, -0.35, 0.65, 0.25) + ellD(P, k, 0.9, -0.35, 0.65, 0.25),
+        eye: ellD(P, k, 0, -1.55, 0.55, 0.3),
+      };
+    case 1:
+      // Ирис — тёмно-фиолетовые нижние лепестки, синие верхние, золотая бородка.
+      return {
+        shade: `M${P(0, 0)} C${P(-1.6, -0.2)} ${P(-2.7, 0.9)} ${P(-2.5, 2.2)} C${P(-1.4, 2.3)} ${P(-0.5, 1.4)} ${P(0, 0.4)} C${P(0.5, 1.4)} ${P(1.4, 2.3)} ${P(2.5, 2.2)} C${P(2.7, 0.9)} ${P(1.6, -0.2)} ${P(0, 0)} Z`,
+        base: `M${P(0, 0.6)} C${P(-1.3, -0.2)} ${P(-1.2, -2.5)} ${P(0, -3.1)} C${P(1.2, -2.5)} ${P(1.3, -0.2)} ${P(0, 0.6)} Z`,
+        light: ellD(P, k, -0.35, -1.9, 0.3, 0.75),
+        eye: ellD(P, k, -0.95, 1, 0.45, 0.2) + ellD(P, k, 0.95, 1, 0.45, 0.2),
+      };
+    default: {
+      // Лилия — белая звезда из шести лепестков, малиново-фиолетовая середина, золотые тычинки.
+      const phase = -Math.PI / 2 - Math.PI / 6;
+      return {
+        shade: rosetteD(P, 0.3, 2.5, 1.3, 6, 0.25, phase + 0.3, true),
+        base: rosetteD(P, 0, 2.3, 1.15, 6, 0.25, phase, true),
+        light: ellD(P, k, 0, -0.55, 0.7, 0.2),
+        eye: ellD(P, k, 0, 0, 0.7, 0.42),
+        gold: ellD(P, k, -0.55, -0.55, 0.22, 0.15) + ellD(P, k, 0.55, -0.6, 0.22, 0.15) + ellD(P, k, 0, -0.9, 0.22, 0.15),
+      };
+    }
+  }
+}
+
+function HeadLayers({ d, shade, base, light, eye, gold }: { d: HeadPaths; shade: string; base: string; light: string; eye: string; gold?: string }) {
+  return (
+    <g>
+      <path d={d.shade} fill={shade} />
+      <path d={d.base} fill={base} />
+      {d.light && <path d={d.light} fill={light} />}
+      {d.eye && <path d={d.eye} fill={eye} />}
+      {d.gold && <path d={d.gold} fill={gold} />}
+    </g>
+  );
+}
+
+// --- Куст-букет ---
+// Правка 26.11.2026 по просьбе пользователя: куст читается как букет — цвета примерно вдвое больше, чем
+// зелени. Головки вдвое крупнее прежних и стоят над листвой; листва — только низкая оборка у земли.
+
+/** Где головки на кусте (над оборкой листвы) и насколько тот или иной вид поднят выше. */
+const BUSH_HEADS: [number, number][] = [
+  [-2.4, -2.4],
+  [2.4, -2.7],
+  [0, -3.9],
+];
+const HEAD_LIFT: Record<BedFlowerKind, number> = { tulip: 1.4, bell: 1.2, aster: 0, daisy: 0, spike: 0 };
+const HEAD_SCALE: Record<BedFlowerKind, number> = { tulip: 1.7, bell: 1.6, aster: 1.6, daisy: 1.5, spike: 1 };
+/** Колоски: x, y начала (за оборкой) и масштаб. */
+const BUSH_SPIKES: [number, number, number][] = [
+  [-2, -0.8, 1.35],
+  [0.2, -1, 1.6],
+  [2.1, -0.7, 1.3],
+];
+/** Масштаб куста по полосе клумбы: бордюр низкий, середина выше. */
+const BAND_SCALE: Record<Band, number> = { border: 0.72, mid: 0.95, inner: 1.05 };
+/** Общий масштаб кустов в рамке места. */
+const BUSH_SCALE = 1.3;
+/** До стольких кустов размер полный; дальше кусты постепенно мельчают (как рыбы в пруду). */
+const BUSH_CROWD = 6;
+const bushSize = (n: number) => (n <= BUSH_CROWD ? 1 : (BUSH_CROWD / n) ** 0.35);
+
+/**
+ * Куст-букет в своих координатах: начало — на земле под серединой, ширина около 11. Низкая оборка листвы
+ * из двух овалов и над ней 2–3 крупных цветка одного вида и цвета (или 2 редких). Фигур — 6–7:
+ * головки куста сложены в общие пути.
+ */
+function Bush({ plant, rank, bright, rng }: { plant: Planting; rank?: number; bright: boolean; rng: Rng }) {
+  const [kind, color] = plant;
+  const jit = () => (rng() - 0.5) * 0.8;
+  const leaf = pickFrom([PALETTE.leaf, PALETTE.leafDark], rng);
+  const lightX = jit() * 1.5;
+  const frill = (
+    <g>
+      <ellipse cy="-0.6" rx="4.2" ry="1.1" fill={leaf} />
+      <ellipse cx={n2(lightX)} cy="-1" rx="2.6" ry="0.55" fill={PALETTE.leafLight} />
+    </g>
+  );
+  const joined = (heads: HeadPaths[]): HeadPaths => ({
+    shade: heads.map((h) => h.shade).join(' '),
+    base: heads.map((h) => h.base).join(' '),
+    light: heads.map((h) => h.light).join(' '),
+    eye: heads.map((h) => h.eye).join(' '),
+    gold: heads.map((h) => h.gold ?? '').join(' ').trim(),
+  });
+  if (rank !== undefined) {
+    const r = RARE[rank % 3]!;
+    const heads = [rareD(rank, -1.7 + jit(), -3.4, 1.3), rareD(rank, 2.1 + jit(), -2.6, 1.1)];
+    return (
+      <g>
+        {frill}
+        <HeadLayers d={joined(heads)} shade={r.shade} base={bright ? r.bright : r.base} light={r.light} eye={r.eye} gold={r.gold} />
+      </g>
+    );
+  }
+  const c = BLOOMS[color];
+  const fill = bright ? c.bright : c.base;
+  if (kind === 'spike') {
+    const spikes = BUSH_SPIKES.map(([x, y, k]) => headD('spike', x + jit() * 0.5, y, k * (0.92 + rng() * 0.16)));
+    return (
+      <g>
+        <HeadLayers d={joined(spikes)} shade={c.shade} base={fill} light={c.light} eye={EYE} />
+        {frill}
+      </g>
+    );
+  }
+  const count = rng() < 0.3 ? 2 : 3;
+  const lift = HEAD_LIFT[kind];
+  const k = HEAD_SCALE[kind];
+  const spots = BUSH_HEADS.slice(0, count).map(([x, y]) => [x + jit(), y - lift + jit() * 0.5] as const);
+  const heads = spots.map(([x, y]) => headD(kind, x, y, k));
+  // Короткие стебли — у тюльпанов и колокольчиков, остальные лежат на оборке.
+  const stems =
+    kind === 'tulip'
+      ? spots.map(([x, y]) => `M${n2(x * 0.7)} -1 L${n2(x)} ${n2(y + 1.2 * k)}`).join(' ')
+      : kind === 'bell'
+        ? spots.map(([x, y]) => `M${n2(x - 0.9)} -1.2 Q${n2(x - 0.6)} ${n2(y - 1.6 * k)} ${n2(x)} ${n2(y - 1.1 * k)}`).join(' ')
+        : '';
+  return (
+    <g>
+      {stems && <path d={stems} stroke={PALETTE.hillNear} stroke-width="0.55" fill="none" stroke-linecap="round" />}
+      {frill}
+      <HeadLayers d={joined(heads)} shade={c.shade} base={fill} light={c.light} eye={EYE} />
+    </g>
+  );
+}
+
+/** Цветовые схемы клумб по диагоналям: [дальняя левая и ближняя правая, дальняя правая и ближняя левая]. */
+function schemesOf(blueFirst: boolean): [Scheme, Scheme] {
+  const { blue, red } = FLOWERBED_SCHEMES;
+  return blueFirst ? [blue, red] : [red, blue];
+}
+
+/**
+ * Что растёт на месте (x, y): схема — по клумбе, полоса — по расстоянию от середины до изгороди,
+ * вид — по углу внутри клумбы (пятнами). Только от места: новый куст не меняет прежние.
+ */
+function plantingAt(x: number, y: number, schemes: [Scheme, Scheme]): { plant: Planting; band: Band } {
+  const dy = y - BED.cy;
+  const scheme = schemes[Math.sign(x) === Math.sign(dy) ? 0 : 1];
+  const d = Math.hypot(x / (BED.qx - 3), dy / (BED.qy - 1.6));
+  const band: Band = d > 0.86 ? 'border' : d > 0.55 ? 'mid' : 'inner';
+  const angle = Math.atan2(Math.abs(dy) / BED.qy, Math.abs(x) / BED.qx);
+  const sector = Math.min(2, Math.floor(angle / (Math.PI / 6)));
+  const list = scheme[band];
+  return { plant: list[sector % list.length]!, band };
+}
+
+function BedBush({ item, s, schemes, seed, run }: { item: Item; s: number; schemes: [Scheme, Scheme]; seed: number; run: boolean }) {
+  const { plant, band } = plantingAt(item.x, item.y, schemes);
+  const rare = item.rank !== undefined;
+  const k = s * depth(item.y, BED.cy - BED.qy, BED.cy + BED.qy) * (rare ? Math.max(BAND_SCALE[band], 0.95) * 1.1 : BAND_SCALE[band]);
+  return (
+    <g transform={`translate(${n2(item.x)} ${n2(item.y)}) scale(${k.toFixed(3)})`}>
+      <Bush plant={plant} rank={item.rank} bright={item.bright} rng={item.rng} />
+      {rare && <Sparkle x={3.6} y={-7.6} r={1.5} rng={elemRng(seed, item.i, 0x7f4a7c15)} run={run} />}
+    </g>
+  );
+}
+
+// --- Середина и окружение ---
+
+/** Фонтанчик: чаша, столбик, верхняя чашка, вода бьёт вверх и стекает; на воде — два блика. */
+function Fountain({ run }: { run: boolean }) {
+  const st = FOUNTAIN_STONE;
+  const jets = ['M0 -8.4 Q-1.6 -11.6 -2.5 -7', 'M0 -8.4 Q1.6 -11.6 2.5 -7', 'M-2.7 -6.6 Q-3.6 -4.4 -4.4 -1.4', 'M2.7 -6.6 Q3.6 -4.4 4.4 -1.4'];
+  return (
+    <g>
+      <ellipse cy="0.9" rx="6.8" ry="2.4" fill={st.dark} />
+      <ellipse cy="-0.4" rx="6.8" ry="2.4" fill={st.body} />
+      <ellipse cy="-0.6" rx="5.6" ry="1.7" fill={PALETTE.river} />
+      <ellipse cx="-2.6" cy="-1" rx="1.4" ry="0.35" fill={RIPPLE} />
+      <rect x="-0.9" y="-6.6" width="1.8" height="6" fill={st.light} />
+      <ellipse cy="-6.2" rx="3" ry="0.9" fill={st.dark} />
+      <ellipse cy="-6.7" rx="3" ry="0.9" fill={st.body} />
+      <ellipse cy="-6.8" rx="2.3" ry="0.55" fill={PALETTE.river} />
+      <ellipse cx="1.1" cy="-6.9" rx="0.7" ry="0.18" fill={RIPPLE} />
+      <path d="M0 -6.8 V-8.6" stroke={PALETTE.river} stroke-width="0.7" stroke-linecap="round" />
+      <g stroke={PALETTE.river} stroke-width="0.55" fill="none" stroke-linecap="round" stroke-dasharray={run ? '1.4 0.9' : undefined}>
+        {jets.map((d) => (
+          <path key={d} d={d}>
+            {run && <animate attributeName="stroke-dashoffset" from="2.3" to="0" dur="0.6s" repeatCount="indefinite" />}
+          </path>
+        ))}
+      </g>
+    </g>
+  );
+}
+
+/** Солнечные часы на каменной тумбе. */
+function Sundial() {
+  const st = FOUNTAIN_STONE;
+  return (
+    <g>
+      <ellipse cy="0.3" rx="3.4" ry="1.2" fill={st.dark} />
+      <path d="M-1.6 0 V-5.4 H1.6 V0 Z" fill={st.body} />
+      <path d="M0.6 0 V-5.4 H1.6 V0 Z" fill={st.dark} opacity="0.5" />
+      <ellipse cy="-5.6" rx="3.4" ry="1.15" fill={st.light} />
+      <path d="M-2.4 -5.6 h0.01 M2.4 -5.6 h0.01 M0 -6.5 h0.01 M0 -4.7 h0.01" stroke={st.dark} stroke-width="0.4" stroke-linecap="round" />
+      <path d="M-1.4 -5.6 L1.2 -5.6 L-1.2 -8 Z" fill={PALETTE.goldDeep} />
+    </g>
+  );
+}
+
+/** Каменный вазон с цветами — на бортике у конца поперечной дорожки, при пышности. */
+function Vase({ x, y, c }: { x: number; y: number; c: Bloom }) {
+  const st = FOUNTAIN_STONE;
+  const heads = (
+    [
+      [-1.3, -4.3],
+      [1.2, -4.5],
+      [0, -5.2],
+    ] as const
+  ).map(([hx, hy]) => headD('aster', hx, hy, 0.5));
+  return (
+    <g transform={`translate(${n2(x)} ${n2(y)}) scale(1.6)`}>
+      <path d="M-1.3 0 H1.3 L0.8 -1.2 H-0.8 Z" fill={st.dark} />
+      <path d="M-2.3 -3.4 C-2.1 -1.8 -1.1 -1.1 0 -1.1 C1.1 -1.1 2.1 -1.8 2.3 -3.4 Z" fill={st.body} />
+      <ellipse cy="-3.4" rx="2.3" ry="0.55" fill={st.light} />
+      <ellipse cy="-4.4" rx="2.4" ry="1" fill={PALETTE.leaf} />
+      <HeadLayers
+        d={{ shade: heads.map((h) => h.shade).join(' '), base: heads.map((h) => h.base).join(' '), light: heads.map((h) => h.light).join(' '), eye: heads.map((h) => h.eye).join(' ') }}
+        shade={c.shade}
+        base={c.base}
+        light={c.light}
+        eye={EYE}
+      />
+    </g>
+  );
+}
+
+/** Крашеная лейка у цветника. */
+function WateringCan({ x, flip, c }: { x: number; flip: number; c: { body: string; dark: string } }) {
+  return (
+    <g transform={`translate(${x} 0) scale(${flip} 1)`}>
+      <ellipse cy="0.3" rx="4.5" ry="0.6" fill={PALETTE.shadowGreen} opacity="0.22" />
+      <path d="M-2 -5.6 Q0 -9.2 2 -5.6" stroke={c.dark} stroke-width="0.8" fill="none" />
+      <path d="M2.6 -2.2 L6.4 -6.6" stroke={c.body} stroke-width="1" stroke-linecap="round" />
+      <ellipse cx="6.7" cy="-6.9" rx="0.9" ry="0.6" transform="rotate(-40 6.7 -6.9)" fill={c.dark} />
+      <path d="M-3 0 V-5 Q0 -6 3 -5 V0 Z" fill={c.body} />
+      <path d="M1.2 -5.3 V0" stroke="#000" stroke-opacity="0.1" stroke-width="1.8" />
+    </g>
+  );
+}
 
 /** Клумба-четверть: внешний край — дуга овала, внутренние — края дорожек и площадки. sx, sy — ±1. */
 function quarterPath(sx: number, sy: number): string {
@@ -618,190 +1061,66 @@ function onBed(x: number, y: number): boolean {
   );
 }
 
-/** Фонтанчик: чаша, столбик, верхняя чашка, вода бьёт вверх и стекает. */
-function Fountain({ run }: { run: boolean }) {
-  const st = FOUNTAIN_STONE;
-  const jets = ['M0 -8.4 Q-1.6 -11.6 -2.5 -7', 'M0 -8.4 Q1.6 -11.6 2.5 -7', 'M-2.7 -6.6 Q-3.6 -4.4 -4.4 -1.4', 'M2.7 -6.6 Q3.6 -4.4 4.4 -1.4'];
-  return (
-    <g>
-      <ellipse cy="0.9" rx="6.8" ry="2.4" fill={st.dark} />
-      <ellipse cy="-0.4" rx="6.8" ry="2.4" fill={st.body} />
-      <ellipse cy="-0.6" rx="5.6" ry="1.7" fill={PALETTE.river} />
-      <rect x="-0.9" y="-6.6" width="1.8" height="6" fill={st.light} />
-      <ellipse cy="-6.2" rx="3" ry="0.9" fill={st.dark} />
-      <ellipse cy="-6.7" rx="3" ry="0.9" fill={st.body} />
-      <ellipse cy="-6.8" rx="2.3" ry="0.55" fill={PALETTE.river} />
-      <path d="M0 -6.8 V-8.6" stroke={PALETTE.river} stroke-width="0.7" stroke-linecap="round" />
-      <g stroke={PALETTE.river} stroke-width="0.55" fill="none" stroke-linecap="round" stroke-dasharray={run ? '1.4 0.9' : undefined}>
-        {jets.map((d) => (
-          <path key={d} d={d}>
-            {run && <animate attributeName="stroke-dashoffset" from="2.3" to="0" dur="0.6s" repeatCount="indefinite" />}
-          </path>
-        ))}
-      </g>
-      <path d="M-3.2 -0.8 h1.6 M1.6 -0.3 h1.8" stroke={RIPPLE} stroke-width="0.4" stroke-linecap="round" />
-    </g>
-  );
+/** Первые выборы по сиду цветника: бортик (номер в BED_EDGES), сторона лейки, середина, схемы, цвет лейки. */
+function bedLook(rng: Rng) {
+  const edge = Math.floor(rng() * BED_EDGES.length);
+  const side = pickFrom([1, -1], rng);
+  const fountain = rng() < 0.65;
+  const blueFirst = rng() < 0.5;
+  const can = Math.floor(rng() * CANS.length);
+  return { edge, side, fountain, blueFirst, can };
 }
 
-/** Солнечные часы на каменной тумбе. */
-function Sundial() {
-  const st = FOUNTAIN_STONE;
-  return (
-    <g>
-      <ellipse cy="0.3" rx="3.4" ry="1.2" fill={st.dark} />
-      <path d="M-1.6 0 V-5.4 H1.6 V0 Z" fill={st.body} />
-      <path d="M0.6 0 V-5.4 H1.6 V0 Z" fill={st.dark} opacity="0.5" />
-      <ellipse cy="-5.6" rx="3.4" ry="1.15" fill={st.light} />
-      <path d="M-2.4 -5.6 h0.01 M2.4 -5.6 h0.01 M0 -6.5 h0.01 M0 -4.7 h0.01" stroke={st.dark} stroke-width="0.4" stroke-linecap="round" />
-      <path d="M-1.4 -5.6 L1.2 -5.6 L-1.2 -8 Z" fill={PALETTE.goldDeep} />
-    </g>
-  );
+/**
+ * Для галереи: бортик (0 — доски, 1 — камень, 2 — кирпич), что посередине и какая схема у дальней левой
+ * и ближней правой клумб (у двух других — другая).
+ */
+export function flowerbedLook(seed: number): { edge: number; fountain: boolean; diagonal: SchemeKey } {
+  const { edge, fountain, blueFirst } = bedLook(createRng(seed));
+  return { edge, fountain, diagonal: blueFirst ? 'blue' : 'red' };
 }
 
-/** Обычные цветы: вид и цвета; второй цвет в паре — «ярче» для пышности. */
-const TULIPS = [
-  ['#d8503a', '#ec3a24'],
-  [PALETTE.petalPink, '#f78ea6'],
-  ['#f2c94c', '#ffd23a'],
-  ['#9b6bb0', '#a95cc8'],
-];
-const BELLS = [
-  ['#8fa3e0', '#7790f2'],
-  ['#b08fd8', '#b47cf0'],
-];
-const ASTERS = [
-  [PALETTE.petalLilac, '#c98ae8'],
-  [PALETTE.petalPink, '#f78ea6'],
-  [PALETTE.fire, '#f5701e'],
-];
-
-function FlowerHead({ kind, c }: { kind: 'tulip' | 'daisy' | 'bell' | 'aster'; c: string }) {
-  switch (kind) {
-    case 'tulip':
-      return (
-        <g>
-          <path d="M-1.4 0.2 C-1.7 -1.6 -1.2 -2.9 -0.6 -3 L0 -2.1 L0.6 -3 C1.2 -2.9 1.7 -1.6 1.4 0.2 C0.6 0.9 -0.6 0.9 -1.4 0.2 Z" fill={c} />
-          <path d="M0 -2.1 C0.8 -1.6 1 -0.4 0.6 0.6" fill="none" stroke="#000" stroke-opacity="0.14" stroke-width="0.5" />
-        </g>
-      );
-    case 'daisy':
-      return (
-        <g>
-          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
-            <ellipse key={deg} rx="0.45" ry="1.15" transform={`rotate(${deg}) translate(0 -1.1)`} fill="#fbf7ef" />
-          ))}
-          <circle r="0.7" fill={c} />
-        </g>
-      );
-    case 'bell': {
-      const bell = 'M-0.9 0 C-1 -1.4 -0.5 -1.9 0 -1.9 C0.5 -1.9 1 -1.4 0.9 0 L0.45 -0.35 L0 0.1 L-0.45 -0.35 Z';
-      return (
-        <g>
-          <path d="M0 0 Q1.6 -0.6 2.4 0.6" stroke={PALETTE.hillNear} stroke-width="0.4" fill="none" />
-          <path d={bell} fill={c} transform="translate(-0.2 1.9)" />
-          <path d={bell} fill={c} transform="translate(2.4 2.6) scale(0.85)" />
-        </g>
-      );
-    }
-    case 'aster':
-      return (
-        <g>
-          {Array.from({ length: 12 }, (_, k) => (
-            <ellipse key={k} rx="0.32" ry="1" transform={`rotate(${k * 30}) translate(0 -1)`} fill={c} />
-          ))}
-          <circle r="0.62" fill="#f1d36a" />
-        </g>
-      );
+/** Для галереи: одна головка крупно, середина — около (0, 0). Обычная — kind и color, редкая — rare (0 — роза, 1 — ирис, 2 — лилия). */
+export function FlowerSample({ kind, color, rare }: { kind?: BedFlowerKind; color?: BloomColor; rare?: number }) {
+  if (rare !== undefined) {
+    const r = RARE[rare % 3]!;
+    const dy = [0.8, 0.4, 0][rare % 3]!;
+    return <HeadLayers d={rareD(rare, 0, dy, 1)} shade={r.shade} base={r.base} light={r.light} eye={r.eye} gold={r.gold} />;
   }
+  const c = BLOOMS[color!];
+  return <HeadLayers d={headD(kind!, 0, kind === 'spike' ? 2.5 : 0, 1)} shade={c.shade} base={c.base} light={c.light} eye={EYE} />;
 }
 
-/** Редкие цветы: роза, ирис, лилия — по очереди. */
-function RareHead({ rank }: { rank: number }) {
-  switch (rank % 3) {
-    case 0:
-      return (
-        <g>
-          <path d="M-2 0.8 L-3.2 1.6 M2 0.8 L3.2 1.6" stroke={PALETTE.leafDark} stroke-width="0.8" stroke-linecap="round" />
-          <circle r="2.4" fill="#c8324a" />
-          <path d="M-1.3 -0.2 A1.3 1.3 0 1 1 1 0.7 M-0.5 0 A0.6 0.6 0 1 1 0.5 0.2" stroke="#e8798a" stroke-width="0.45" fill="none" stroke-linecap="round" />
-        </g>
-      );
-    case 1:
-      return (
-        <g>
-          <path d="M0 0 C-1.2 -0.8 -1.1 -2.8 0 -3.4 C1.1 -2.8 1.2 -0.8 0 0 Z" fill="#9a80d0" />
-          <path d="M0 0 C-1.7 0.2 -2.8 1.5 -2.4 2.6 C-1.3 2.4 -0.4 1.3 0 0 Z M0 0 C1.7 0.2 2.8 1.5 2.4 2.6 C1.3 2.4 0.4 1.3 0 0 Z" fill="#6f52a8" />
-          <path d="M0 0 C-0.8 0.8 -0.7 2.4 0 2.9 C0.7 2.4 0.8 0.8 0 0 Z" fill="#7b5db8" />
-          <path d="M0 0.3 V1.6" stroke="#f2c94c" stroke-width="0.5" stroke-linecap="round" />
-        </g>
-      );
-    default:
-      return (
-        <g>
-          {[-75, -45, -15, 15, 45, 75].map((deg) => (
-            <path key={deg} d="M0 0 C0.7 -1 0.6 -2.9 0 -3.5 C-0.6 -2.9 -0.7 -1 0 0 Z" transform={`rotate(${deg})`} fill="#f08a3c" />
-          ))}
-          <path d="M-1 -1.6 h0.01 M0.9 -1.8 h0.01 M-1.9 -0.6 h0.01 M1.8 -0.7 h0.01" stroke="#9c3f1c" stroke-width="0.4" stroke-linecap="round" />
-          <path d="M0 0 L-0.6 -2.2 M0 0 L0 -2.5 M0 0 L0.6 -2.2" stroke="#f6e3a0" stroke-width="0.25" />
-        </g>
-      );
-  }
-}
-
-function BedFlower({ item, s, run }: { item: Item; s: number; run: boolean }) {
-  const { rng } = item;
-  const kind = pickFrom(['tulip', 'tulip', 'daisy', 'bell', 'aster'] as const, rng);
-  const pair = kind === 'tulip' ? pickFrom(TULIPS, rng) : kind === 'bell' ? pickFrom(BELLS, rng) : kind === 'aster' ? pickFrom(ASTERS, rng) : ['#f2c94c', '#ffcf2e'];
-  const rare = item.rank !== undefined;
-  const k = s * depth(item.y, BED.cy - BED.qy, BED.cy + BED.qy) * (rare ? 1.2 : 1);
-  const h = rare ? 10 + rng() * 2 : 6 + rng() * 3;
-  const lean = (rng() - 0.5) * 1.6;
-  const leafSide = rng() < 0.5 ? 1 : -1;
-  const c = item.bright ? pair[1]! : pair[0]!;
-  return (
-    <g transform={`translate(${item.x} ${item.y}) scale(${k})`}>
-      <path d={`M0 0 q${lean * 0.3} ${-h * 0.6} ${lean} ${-h}`} stroke={PALETTE.hillNear} stroke-width="0.6" fill="none" />
-      <ellipse cx={leafSide * 1.1} cy={-h * 0.35} rx="1.5" ry="0.55" transform={`rotate(${leafSide * -30} ${leafSide * 1.1} ${-h * 0.35})`} fill={PALETTE.leaf} />
-      {rare && <ellipse cx={-leafSide * 1.2} cy={-h * 0.55} rx="1.6" ry="0.6" transform={`rotate(${leafSide * 30} ${-leafSide * 1.2} ${-h * 0.55})`} fill={PALETTE.leafDark} />}
-      <g transform={`translate(${lean} ${-h})`}>{rare ? <RareHead rank={item.rank!} /> : <FlowerHead kind={kind} c={c} />}</g>
-      {rare && <Sparkle x={lean + 3} y={-h - 3} r={1.5} rng={elemRng(item.i, 1, 0x7f4a7c15)} run={run} />}
-    </g>
-  );
-}
-
-/** Лейка у грядки. */
-function WateringCan({ x, flip }: { x: number; flip: number }) {
-  return (
-    <g transform={`translate(${x} 0) scale(${flip} 1)`}>
-      <ellipse cy="0.3" rx="4.5" ry="0.6" fill={PALETTE.shadowGreen} opacity="0.22" />
-      <path d="M-2 -5.6 Q0 -9.2 2 -5.6" stroke="#6f868d" stroke-width="0.8" fill="none" />
-      <path d="M2.6 -2.2 L6.4 -6.6" stroke="#7f979e" stroke-width="1" stroke-linecap="round" />
-      <ellipse cx="6.7" cy="-6.9" rx="0.9" ry="0.6" transform="rotate(-40 6.7 -6.9)" fill="#6f868d" />
-      <path d="M-3 0 V-5 Q0 -6 3 -5 V0 Z" fill="#8fa6ad" />
-      <path d="M1.2 -5.3 V0" stroke="#000" stroke-opacity="0.1" stroke-width="1.8" />
-    </g>
-  );
+/** Для галереи: один куст крупно; rare — редкий куст (0 — роза, 1 — ирис, 2 — лилия). */
+export function BushSample({ plant, rare, seed = 1 }: { plant: Planting; rare?: number; seed?: number }) {
+  return <Bush plant={plant} rank={rare} bright={false} rng={elemRng(seed, rare ?? 0)} />;
 }
 
 function Flowerbed(p: PlaceProps) {
   const rng = createRng(p.seed);
-  const edge = pickFrom(BED_EDGES, rng);
-  const side = pickFrom([1, -1], rng);
-  const fountain = rng() < 0.65;
+  const look = bedLook(rng);
+  const edge = BED_EDGES[look.edge]!;
+  const schemes = schemesOf(look.blueFirst);
   const box: [number, number, number, number] = [-BED.qx, BED.cy - BED.qy, BED.qx, BED.cy + BED.qy];
-  const slots = scatter(createRng(p.seed ^ 0x5bd1e995), BALANCE.bosses.gardenCapacity, onBed, box, 8.5);
+  // Места — по сиду заранее, кусты появляются вразброс по всем клумбам. Посадку по одной клумбе
+  // пользователь попробовала и отменила (26.11.2026).
+  const slots = scatter(createRng(p.seed ^ 0x5bd1e995), BALANCE.bosses.gardenCapacity, onBed, box, 9);
   const items = makeItems(p, slots).sort(byDepth);
-  const s = 1 + 0.15 * p.t;
+  // Пока кустов мало, они крупнее.
+  const s = BUSH_SCALE * bushSize(p.n) * (1 + 0.15 * p.t);
   const extra = elemRng(p.seed, 999, 0x51ed270b);
-  // Пышность: низкая зелень с цветочками между цветами.
+  // Пышность: низкая зелень с цветочками между кустами.
+  const dots = [BLOOMS.white.base, BLOOMS.sky.base, BLOOMS.lilac.base, BLOOMS.orchid.base];
   const filler = scatter(extra, 24, onBed, box, 5)
     .slice(0, Math.round(p.t * 24))
-    .map(([x, y]) => ({ x, y, c: pickFrom(LEAVES, extra), dot: pickFrom([PALETTE.petalPink, '#fbf7ef', PALETTE.glow, PALETTE.petalLilac], extra) }));
-  // Камешки на дорожках.
+    .map(([x, y]) => ({ x, y, c: pickFrom(LEAVES, extra), dot: pickFrom(dots, extra) }));
+  // Камешки на дорожках и бороздки на вскопанной земле.
   const gravel = Array.from({ length: 40 }, () => [(rng() - 0.5) * 2 * BED.rx, BED.cy + (rng() - 0.5) * 2 * BED.ry] as const).filter(
     ([x, y]) => (x / (BED.rx - 3)) ** 2 + ((y - BED.cy) / (BED.ry - 2)) ** 2 < 1,
   );
+  const furrows = Array.from({ length: 70 }, () => [(rng() - 0.5) * 2 * BED.qx, BED.cy + (rng() - 0.5) * 2 * BED.qy] as const)
+    .filter(([x, y]) => onBed(x, y))
+    .slice(0, 28);
   const { cy } = BED;
   const back = items.filter((it) => it.y < cy);
   const front = items.filter((it) => it.y >= cy);
@@ -811,7 +1130,7 @@ function Flowerbed(p: PlaceProps) {
     [-1, 1],
     [1, 1],
   ].map(([sx, sy]) => quarterPath(sx!, sy!));
-  const flowers = (list: Item[]) => list.map((it) => <BedFlower key={it.i} item={it} s={s} run={p.run} />);
+  const bushes = (list: Item[]) => list.map((it) => <BedBush key={it.i} item={it} s={s} schemes={schemes} seed={p.seed} run={p.run} />);
   return (
     <g>
       <ellipse cy="1.4" rx={BED.rx} ry="2.6" fill={PALETTE.shadowGreen} opacity="0.2" />
@@ -828,16 +1147,19 @@ function Flowerbed(p: PlaceProps) {
           <path d={d} fill="none" stroke={HEDGE_LIGHT} stroke-width="0.6" stroke-linejoin="round" stroke-dasharray="1.2 1.6" transform="translate(0 -0.5)" />
         </g>
       ))}
+      <path d={furrows.map(([x, y]) => `M${x.toFixed(1)} ${y.toFixed(1)} h1.8`).join(' ')} stroke={SOIL_FURROW} stroke-width="0.45" stroke-linecap="round" />
       {filler.map((f, i) => (
         <g key={`f${i}`}>
           <ellipse cx={f.x} cy={f.y - 0.6} rx="1.6" ry="0.9" fill={f.c} />
           <circle cx={f.x + 0.5} cy={f.y - 1} r="0.45" fill={f.dot} />
         </g>
       ))}
-      {flowers(back)}
-      <g transform={`translate(0 ${cy})`}>{fountain ? <Fountain run={p.run} /> : <Sundial />}</g>
-      {flowers(front)}
-      <WateringCan x={side * 60} flip={-side} />
+      {bushes(back)}
+      <g transform={`translate(0 ${cy})`}>{look.fountain ? <Fountain run={p.run} /> : <Sundial />}</g>
+      {p.t > 0 &&
+        ([-1, 1] as const).map((sx) => <Vase key={sx} x={sx * (BED.rx - 1.6)} y={cy + 0.4} c={BLOOMS[schemes[sx < 0 ? 0 : 1].mid[0]![1]]} />)}
+      {bushes(front)}
+      <WateringCan x={look.side * 60} flip={-look.side} c={CANS[look.can]!} />
     </g>
   );
 }
